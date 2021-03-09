@@ -140,10 +140,15 @@ class TestE2EMaintenance(unittest.TestCase):
         mw_id = json_data["id"]
         # 3. Provide mw_id to API call to delete said mw_id
         mw_api_url = KYTOS_API + '/maintenance/' + mw_id
-        response = requests.delete(mw_api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        delete_response = requests.delete(mw_api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         # 4. Verify that code 204(success) is given back
-        assert response.status_code == 204
-        # verify that mw_id is not on maintenance list
+        assert delete_response.status_code == 204
+        # 5. Request list of maintenance windows again, and verify that the deleted mw_id is not on maintenance list
+        req = requests.get(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        json_data = req.json()
+        for attribute in json_data:
+            if attribute['id'] != mw_id:
+                print("Maintenance window deleted correctly")
 
     def test_12_patch_mw_on_switch(self):
         pass
