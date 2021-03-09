@@ -120,3 +120,33 @@ class TestE2EMaintenance(unittest.TestCase):
         h11.cmd('ip link del vlan100')
         h3.cmd('ip link del vlan100')
 
+    def test_011_delete_mw_on_switch(self):
+        # 0. Start maintenance window
+        start = datetime.now() + timedelta(seconds=60)
+        end = start + timedelta(seconds=60)
+        payload = {
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "items": [
+                "00:00:00:00:00:00:02"
+            ]
+        }
+
+        api_url = KYTOS_API + '/maintenance/'
+        # 1 Send get request to API to get maintenance schema
+        response = requests.get(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})["id"]
+        # 2. from the output of the GET request, extract the mw_id
+        json_data = response.json()
+        mw_id = json_data["id"]
+        # 3. Provide mw_id to API call to delete said mw_id
+        mw_api_url = KYTOS_API + '/maintenance/' + mw_id
+        response = requests.delete(mw_api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        # 4. Verify that code 204(success) is given back
+        assert response.status_code == 204
+        # verify that mw_id is not on maintenance list
+
+    def test_12_patch_mw_on_switch(self):
+        pass
+
+    def test_13_patch_end_mw_on_switch(self):
+        pass
