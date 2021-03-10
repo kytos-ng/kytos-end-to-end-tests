@@ -144,11 +144,8 @@ class TestE2EMaintenance(unittest.TestCase):
         # 4. Verify that code 204(success) is given back
         assert delete_response.status_code == 204
         # 5. Request list of maintenance windows again, and verify that the deleted mw_id is not on maintenance list
-        req = requests.get(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
-        json_data = req.json()
-        for attribute in json_data:
-            if attribute['id'] != mw_id:
-                print("Maintenance window deleted correctly")
+        req = requests.get(my_api_url)
+        assert req.status_code == 404
 
     def test_12_patch_mw_on_switch(self):
         pass
