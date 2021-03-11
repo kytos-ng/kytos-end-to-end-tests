@@ -7,6 +7,7 @@ import time
 import os
 import signal
 
+
 class RingTopo( Topo ):
     "Ring topology with three switches and one host connected to each switch"
 
@@ -33,20 +34,21 @@ class RingTopo( Topo ):
         self.addLink( s2, s3 )
         self.addLink( s3, s1 )
 
+
 class DanielaTopo( Topo ):
     """Create a network from semi-scratch with multiple controllers."""
     def build(self):
-        #("*** Creating switches\n")
+        # ("*** Creating switches\n")
         s1 = self.addSwitch('s1', listenPort=6601, dpid="1")
         s2 = self.addSwitch('s2', listenPort=6602, dpid="2")
         s3 = self.addSwitch('s3', listenPort=6603, dpid="3")
         s4 = self.addSwitch('s4', listenPort=6604, dpid="4")
-        #("*** Creating hosts\n")
+        # ("*** Creating hosts\n")
         hosts1 = [self.addHost('h%d' % n) for n in (1, 2)]
         hosts2 = [self.addHost('h%d' % n) for n in (3, 4)]
         hosts3 = [self.addHost('h%d' % n) for n in (5, 6)]
         hosts4 = [self.addHost('h%d' % n) for n in (7, 8)]
-        #("*** Creating links\n")
+        # ("*** Creating links\n")
         for h in hosts1:
             self.addLink(s1, h)
         for h in hosts2:
@@ -60,12 +62,14 @@ class DanielaTopo( Topo ):
         self.addLink(s3, s4)
         self.addLink(s4, s1)
 
+
 class TopologyFactory():
     def create(self, type):
         if type == "RingTopo":
             return RingTopo()
         elif type == "DanielaTopo":
             return DanielaTopo()
+
 
 class NetworkTest():
     def __init__(self, controller_ip, topo_name='RingTopo'):
@@ -92,7 +96,7 @@ class NetworkTest():
         # restart kytos and check if the napp is still disabled
         try:
             os.system('pkill kytosd')
-            #with open('/var/run/kytos/kytosd.pid', "r") as f:
+            # with open('/var/run/kytos/kytosd.pid', "r") as f:
             #    pid = int(f.read())
             #    os.kill(pid, signal.SIGTERM)
             time.sleep(5)

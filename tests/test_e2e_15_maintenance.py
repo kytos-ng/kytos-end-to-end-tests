@@ -11,6 +11,7 @@ KYTOS_API = 'http://%s:8181/api/kytos' % (CONTROLLER)
 
 TIME_FMT = "%Y-%m-%dT%H:%M:%S+0000"
 
+
 class TestE2EMaintenance(unittest.TestCase):
     net = None
     @classmethod
@@ -125,6 +126,7 @@ class TestE2EMaintenance(unittest.TestCase):
         start = datetime.now() + timedelta(seconds=60)
         end = start + timedelta(seconds=60)
         payload = {
+            "description": "mw for test 11",
             "start": start.strftime(TIME_FMT),
             "end": end.strftime(TIME_FMT),
             "items": [
@@ -133,25 +135,96 @@ class TestE2EMaintenance(unittest.TestCase):
         }
 
         api_url = KYTOS_API + '/maintenance/'
-        # 1 Send get request to API to get maintenance schema
-        response = requests.get(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})["id"]
+        # 1 Send request to API to create maintenance schema
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         # 2. from the output of the GET request, extract the mw_id
         json_data = response.json()
         mw_id = json_data["id"]
         # 3. Provide mw_id to API call to delete said mw_id
         mw_api_url = KYTOS_API + '/maintenance/' + mw_id
-        delete_response = requests.delete(mw_api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        delete_response = requests.delete(mw_api_url, data=json.dumps(payload),
+                                          headers={'Content-type': 'application/json'})
         # 4. Verify that code 204(success) is given back
-        assert delete_response.status_code == 204
-        # 5. Request list of maintenance windows again, and verify that the deleted mw_id is not on maintenance list
-        req = requests.get(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert delete_response.status_code == 200
+        # 5. Request the deleted maintenance window, and verify that the mw_id is not found therefore causing a 404.
+        req = requests.get(mw_api_url)
+        assert req.status_code == 404
+
+    def test_012_patch_mw_on_switch(self):
+        """Update data of the maintenance window with the ID provided by the user"""
+        # 0. Start maintenance window
+        start = datetime.now() + timedelta(seconds=60)
+        end = start + timedelta(seconds=60)
+        payload = {
+            "description": "mw for test 12",
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "items": [
+                "00:00:00:00:00:00:02"
+            ]
+        }
+
+        api_url = KYTOS_API + '/maintenance/'
+        # 1 Send request to API to create maintenance schema
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        # 2. from the output of the GET request, extract the mw_id
+        json_data = response.json()
+        mw_id = json_data["id"]
+        #  3. Provide mw_id to API call to update said mw_id
+        mw_api_url = KYTOS_API + '/maintenance/' + mw_id
+        # 4. Send new payload containing new end_time via a patch req
+        new_time = datetime.now()
+        payload1 = {
+            "start": start.strftime(TIME_FMT),
+            "end": new_time.strftime(TIME_FMT),
+            "items": [
+                "00:00:00:00:00:00:02"
+            ]
+        }
+        request = requests.patch(mw_api_url, data=json.dumps(payload1), headers={'Content-type': 'application/json'})
+        assert request.status_code == 201
+        # 5. Re-start Kytos to allow for changes to take place
+        self.net.start_controller()
+        self.net.wait_switches_connect()
+        # 6. Request maintenance window and validate changed attribute
+        req = requests.get(mw_api_url)
         json_data = req.json()
         for attribute in json_data:
-            if attribute['id'] != mw_id:
-                print("Maintenance window deleted correctly")
+            if attribute['end'] == new_time:
+                print("Maintenance window CHANGED correctly")
 
-    def test_12_patch_mw_on_switch(self):
-        pass
+    def test_013_patch_end_mw_on_switch(self):
+        """Send request to finish a maintenance window right now"""
+        # 0. Start maintenance window
+        start = datetime.now() + timedelta(seconds=60)
+        end = start + timedelta(seconds=60)
+        payload = {
+            "description": "mw for test 13",
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "items": [
+                "00:00:00:00:00:00:02"
+            ]
+        }
 
-    def test_13_patch_end_mw_on_switch(self):
+        api_url = KYTOS_API + '/maintenance/'
+        # 1 Send request to API to create maintenance schema
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        # 2. from the output of the GET request, extract the mw_id
+        json_data = response.json()
+        mw_id = json_data["id"]
+        #  3. Provide mw_id to API call to update said mw_id
+        mw_api_url = KYTOS_API + '/maintenance/' + mw_id + '/end'
+        request = requests.patch(mw_api_url, headers={'Content-type': 'application/json'})
+        assert request.status_code == 201
+        # 4. Re-start Kytos to allow for changes to take place
+        self.net.start_controller()
+        self.net.wait_switches_connect()
+        # 5. Request the ended maintenance window, and verify that .
+        ended_api_url = KYTOS_API + '/maintenance/' + mw_id
+        # TODO: brainstorm how to validate that a mw was properly ended. An attribute should be included
+        #  in the maintenance to specify if it was ended or stopped, and for allow an user to validate against it.
+        #  E.g.: request the ended mw (ended_api_url), parse through the output, search for the "ended" attribute
+        #  and validate if it's True
+
         pass
