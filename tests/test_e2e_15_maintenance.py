@@ -134,7 +134,7 @@ class TestE2EMaintenance(unittest.TestCase):
 
         api_url = KYTOS_API + '/maintenance/'
         # 1 Send get request to API to get maintenance schema
-        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})["id"]
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         # 2. from the output of the GET request, extract the mw_id
         json_data = response.json()
         mw_id = json_data["id"]
