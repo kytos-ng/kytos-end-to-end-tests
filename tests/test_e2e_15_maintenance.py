@@ -126,6 +126,7 @@ class TestE2EMaintenance(unittest.TestCase):
         start = datetime.now() + timedelta(seconds=60)
         end = start + timedelta(seconds=60)
         payload = {
+            "description":  "mw for test 1",
             "description": "mw for test 11",
             "start": start.strftime(TIME_FMT),
             "end": end.strftime(TIME_FMT),
