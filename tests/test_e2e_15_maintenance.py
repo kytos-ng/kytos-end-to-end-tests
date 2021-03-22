@@ -139,12 +139,12 @@ class TestE2EMaintenance(unittest.TestCase):
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         # 2. from the output of the GET request, extract the mw_id
         json_data = response.json()
-        mw_id = json_data["id"]
+        mw_id = json_data["mw_id"]
         # 3. Provide mw_id to API call to delete said mw_id
         mw_api_url = KYTOS_API + '/maintenance/' + mw_id
         delete_response = requests.delete(mw_api_url, data=json.dumps(payload),
                                           headers={'Content-type': 'application/json'})
-        # 4. Verify that code 204(success) is given back
+        # 4. Verify that code 200(success) is given back
         assert delete_response.status_code == 200
         # 5. Request the deleted maintenance window, and verify that the mw_id is not found therefore causing a 404.
         req = requests.get(mw_api_url)
@@ -169,7 +169,7 @@ class TestE2EMaintenance(unittest.TestCase):
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         # 2. from the output of the GET request, extract the mw_id
         json_data = response.json()
-        mw_id = json_data["id"]
+        mw_id = json_data["mw_id"]
         #  3. Provide mw_id to API call to update said mw_id
         mw_api_url = KYTOS_API + '/maintenance/' + mw_id
         # 4. Send new payload containing new end_time via a patch req
@@ -212,7 +212,7 @@ class TestE2EMaintenance(unittest.TestCase):
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         # 2. from the output of the GET request, extract the mw_id
         json_data = response.json()
-        mw_id = json_data["id"]
+        mw_id = json_data["mw_id"]
         #  3. Provide mw_id to API call to update said mw_id
         mw_api_url = KYTOS_API + '/maintenance/' + mw_id + '/end'
         request = requests.patch(mw_api_url, headers={'Content-type': 'application/json'})
