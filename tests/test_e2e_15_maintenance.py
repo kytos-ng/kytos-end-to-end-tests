@@ -140,7 +140,7 @@ class TestE2EMaintenance(unittest.TestCase):
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         # 2. from the output of the GET request, extract the mw_id
         json_data = response.json()
-        mw_id = json_data["id"]
+        mw_id = json_data["mw_id"]
         # 3. Provide mw_id to API call to delete said mw_id
         mw_api_url = KYTOS_API + '/maintenance/' + mw_id
         delete_response = requests.delete(mw_api_url, data=json.dumps(payload),
