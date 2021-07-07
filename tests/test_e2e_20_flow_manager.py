@@ -115,8 +115,7 @@ class TestE2EFlowManager:
 
         time.sleep(10)
 
-        response = requests.get(api_url, data=json.dumps(payload),
-                                headers={'Content-type': 'application/json'})
+        response = requests.get(api_url)
         assert response.status_code == 200
         data = response.json()
         assert len(data[switch_id]["flows"]) == 2
