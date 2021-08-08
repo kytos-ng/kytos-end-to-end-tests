@@ -316,46 +316,52 @@ class TestE2EMefEline:
     """Error, start_date remains with the same value,
     despite the Patch action"""
     @pytest.mark.xfail
-    def test_patch_start_date_in_scheduled_circuit(self, disabled_circuit_id):
-
-        # Schedule by date to next minute
-        ts = datetime.now() + timedelta(seconds=60)
-        schedule_time = ts.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    def test_patch_start_date(self):
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        start_delay = 60
+        ts1 = datetime.now() + timedelta(seconds=start_delay)
 
         payload = {
-            "circuit_id": disabled_circuit_id,
-            "schedule": {
-                "date": schedule_time
-            }
+            "name": "my evc1",
+            "enabled": False,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:01:2",
+            },
+            "request_time": ts1.strftime(TIME_FMT)
+        }
+
+        response = requests.post(api_url, json=payload)
+        data = response.json()
+        circuit_id = data['circuit_id']
+
+        time.sleep(50)
+
+        # It verifies EVC's data
+        response = requests.get(api_url + circuit_id)
+        data = response.json()
+        assert data['active'] is False
+
+        # change the start_time
+        ts2 = ts1 + timedelta(seconds=start_delay)
+
+        payload2 = {
+            "start_date": ts2.strftime(TIME_FMT)
         }
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
-        requests.post(api_url, json=payload)
-
-        # It verifies circuit schedule data
-        response = requests.get(api_url)
-        data = response.json()
-        schedule_id = data[0]['schedule_id']
-
-        start_delay = 180
-        start = datetime.now() + timedelta(minutes=start_delay)
-
-        payload2 = {
-            "start_date": start.strftime(TIME_FMT)
-        }
-
-        # It sets a new circuit's start_date
-        response = requests.patch(api_url + schedule_id, json=payload2)
+        response = requests.patch(api_url + circuit_id, json=payload2)
         assert response.status_code == 200
 
-        time.sleep(10)
+        time.sleep(90)
 
         # It verifies EVC's data
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
-        response = requests.get(api_url + disabled_circuit_id)
+        response = requests.get(api_url + circuit_id)
         data = response.json()
-        assert data['start_date'] == start.strftime(TIME_FMT)
+        assert data['start_date'] == ts2.strftime(TIME_FMT)
+        assert data['active'] is True
 
     def test_delete_circuit_id(self, circuit_id):
         """ Test circuit removal action. """
