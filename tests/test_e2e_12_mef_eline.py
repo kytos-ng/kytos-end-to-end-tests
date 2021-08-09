@@ -318,18 +318,19 @@ class TestE2EMefEline:
     @pytest.mark.xfail
     def test_patch_start_date(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
-        start_delay = 60
+        start_delay = 20
         ts1 = datetime.now() + timedelta(seconds=start_delay)
 
         payload = {
             "name": "my evc1",
-            "enabled": False,
+            "enabled": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             },
+            # ToDo this attribute should be start_date
             "request_time": ts1.strftime(TIME_FMT)
         }
 
@@ -337,7 +338,7 @@ class TestE2EMefEline:
         data = response.json()
         circuit_id = data['circuit_id']
 
-        time.sleep(50)
+        time.sleep(10)
 
         # It verifies EVC's data
         response = requests.get(api_url + circuit_id)
@@ -348,19 +349,28 @@ class TestE2EMefEline:
         ts2 = ts1 + timedelta(seconds=start_delay)
 
         payload2 = {
-            "start_date": ts2.strftime(TIME_FMT)
+            # ToDo this attribute should be start_date
+            "request_time": ts2.strftime(TIME_FMT)
         }
 
         # create circuit schedule
         response = requests.patch(api_url + circuit_id, json=payload2)
         assert response.status_code == 200
 
-        time.sleep(90)
+        time.sleep(20)
 
         # It verifies EVC's data
         response = requests.get(api_url + circuit_id)
         data = response.json()
-        assert data['start_date'] == ts2.strftime(TIME_FMT)
+        assert data['active'] is False
+
+        time.sleep(20)
+
+        # It verifies EVC's data
+        response = requests.get(api_url + circuit_id)
+        data = response.json()
+        # ToDo this attribute should be start_date
+        assert data['request_time'] == ts2.strftime(TIME_FMT)
         assert data['active'] is True
 
     def test_delete_circuit_id(self, circuit_id):
