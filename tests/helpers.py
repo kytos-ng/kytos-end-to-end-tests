@@ -10,6 +10,14 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+from noviswitch import NoviSwitch
+
+def get_switch_class():
+    switch_class_map = {
+        'OVSSwitch': OVSSwitch,
+        'NoviSwitch': NoviSwitch,
+    }
+    return switch_class_map[os.environ.get('SWITCH_CLASS', 'OVSSwitch')]
 
 class AmlightTopo(Topo):
     """Amlight Topology."""
@@ -84,9 +92,9 @@ class RingTopo(Topo):
         h3 = self.addHost('h3', ip='0.0.0.0')
 
         # Create the switches
-        s1 = self.addSwitch('s1')
-        s2 = self.addSwitch('s2')
-        s3 = self.addSwitch('s3')
+        s1 = self.addSwitch('s1', cls=get_switch_class())
+        s2 = self.addSwitch('s2', cls=get_switch_class())
+        s3 = self.addSwitch('s3', cls=get_switch_class())
 
         # Add links between the switch and each host
         self.addLink(s1, h11)
