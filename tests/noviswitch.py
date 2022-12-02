@@ -6,14 +6,11 @@ import yaml
 import paramiko
 import time
 from mininet.node import Switch
-from mininet.util import ( quietRun, errRun, errFail, moveIntf, isShellBuiltin,
-                           numCores, retry, mountCgroups, BaseString, decode,
-                           encode, getincrementaldecoder, Python3, which )
-from mininet.moduledeps import pathCheck
 import mininet.log as log
-from mininet.clean import addCleanupCallback
+import logging
+import logging.handlers
 
-from novisettings import *
+from .novisettings import *
 
 novi_cleanup_commands = [
     'del config controller controllergroup all controllerid all',
@@ -22,9 +19,15 @@ novi_cleanup_commands = [
     'del config flow tableid all',
 ]
 
+formatter = logging.Formatter(fmt='%(asctime)s %(name)s - %(levelname)s - %(message)s')
+handler = logging.handlers.SysLogHandler('/dev/log')
+handler.setFormatter(formatter)
+logger = logging.getLogger("noviswitch")
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
+
 def run_cmd(cmd):
-    #print('--> LINUX: %s' % (cmd))
-    #mylog(linux_ip, cmd)
+    logger.info("running cmd in %s: %s" % (linux_ip, cmd))
     stream = os.popen(cmd)
     return stream.read()
 
@@ -32,35 +35,39 @@ def run_cmd(cmd):
 class NoviSwitch( Switch ):
     "Noviflow Virtual Switch"
     metadata = {}
+    name_map = {}
 
     def __init__( self, name, verbose=False, **kwargs ):
         Switch.__init__( self, name, **kwargs )
         self.verbose = verbose
         if name in known_switches:
             self.novi_name = name
+        elif name in self.name_map:
+            self.novi_name = self.name_map[name]
         else:
             self.novi_name = None
             for s in sorted(known_switches.keys()):
                 if s not in self.metadata:
-                    self.metadata[s] = {}
+                    self.metadata[s] = {'used_by': name}
+                    self.name_map[name] = s
                     self.novi_name = s
                     break
 
             if not self.novi_name:
-                error('No more Noviflow switches available\n')
+                log.error('No more Noviflow switches available: known_switches=%s current_used=%s\n' % (known_switches, self.metadata))
                 exit(1)
 
     @classmethod
     def setup( cls ):
         "Make sure all NoviSwitches are is accessible"
-        addCleanupCallback( cls.cleanup )
         errors = []
         for s, switch in known_switches.items():
-            log.info("checking switch %s\n" % s)
+            logger.info("checking switch %s\n" % s)
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(switch['ip'], username=user, password=passwd)
-            cmd = 'show status switch'
+            client.connect(switch['ip'], username=user, password=passwd, port=switch.get('ssh_port', 22))
+            # generic command just for testing if we have System error: write failure.
+            cmd = 'del config port portno all description'
             stdin, stdout, stderr = client.exec_command(cmd)
             result = stdout.read().decode("utf-8")
             if 'error' in result.lower():
@@ -68,17 +75,17 @@ class NoviSwitch( Switch ):
                 log.error(errors[-1])
 
         if errors:
-            error('Found errors when checking for Noviflow switches:' + '\n'.join(errors))
+            log.error('Found errors when checking for Noviflow switches:' + '\n'.join(errors))
             exit(1)
 
     @classmethod
     def cleanup( cls ):
         """"Clean up"""
-        log.info( '*** Cleaning up L2TP tunnels\n' )
+        logger.info( '*** Cleaning up L2TP tunnels\n' )
         tunnels = run_cmd('ip l2tp show tunnel | egrep -o "Tunnel [0-9]+"').split('\n')[:-1]
         for tunnel in tunnels:
             s,tid = tunnel.split(' ')
-            run_cmd('ip l2tp del tunnel tunnel_id %s' % (tid))
+            run_cmd('ip l2tp del tunnel tunnel_id %s 2>/dev/null' % (tid))
 
     def novi_start(self):
         result = run_cmd('lsmod')
@@ -87,7 +94,7 @@ class NoviSwitch( Switch ):
         switch = known_switches[self.novi_name]
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(switch['ip'], username=user, password=passwd)
+        client.connect(switch['ip'], username=user, password=passwd, port=switch.get('ssh_port', 22))
 
         cmd = 'show status port portno all'
         stdin, stdout, stderr = client.exec_command(cmd)
@@ -130,40 +137,47 @@ class NoviSwitch( Switch ):
     @classmethod
     def batchShutdown( cls, switches ):
         "Shutdown switchs, to be waited on later in stop()"
-        for switch in switches:
-            log.info( 'batch kill %s (not-implemented)\n' % switch)
+        for sw in switches:
+            logger.info( 'batch shutdown switches - %s (%s)\n' % (sw.name, sw.novi_name))
+            switch = known_switches[sw.novi_name]
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client.connect(switch['ip'], username=user, password=passwd, port=switch.get('ssh_port', 22))
+
+            for cmd in novi_cleanup_commands:
+                stdin, stdout, stderr = client.exec_command(cmd)
+                result = stdout.readlines()
         return switches
 
     def intf_name_to_number(self, intf_name):
-        nums = re.findall('\d+$', intf_name)
+        nums = re.findall(r'\d+$', intf_name)
         return int(nums[0])
 
     def novi_setup_intf(self, intf_name):
-        log.info("novi_setup_intf %s\n" % intf_name)
+        logger.info("novi_setup_intf %s\n" % intf_name)
         switch = known_switches[self.novi_name]
         self.setup_link_noviflow(switch, linux_ip, intf_name)
         self.setup_link_linux(switch, linux_ip, intf_name)
 
-    def setup_link_noviflow(self, node, remote_ip, intf_name):
+    def setup_link_noviflow(self, switch, remote_ip, intf_name):
         port_num = self.intf_name_to_number(intf_name)
-        l2tp_port = port_num + node['tun_port']
-        log.info("setup_link_noviflow port_num=%d l2tp_port=%d\n" % (port_num, l2tp_port))
+        l2tp_port = port_num + switch['tun_port']
+        logger.info("setup_link_noviflow port_num=%d l2tp_port=%d\n" % (port_num, l2tp_port))
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(node['ip'], username=user, password=passwd)
+        client.connect(switch['ip'], username=user, password=passwd, port=switch.get('ssh_port', 22))
         cmd = 'del config port portno %d l2tpaddr' % (port_num)
-        #mylog(node['ip'], cmd)
+        client.exec_command(cmd)
+        cmd = 'set config port portno %d portdown off' % (port_num)
         client.exec_command(cmd)
         cmd = 'set config port portno %d l2tpaddr %s localtunnelid %s remotetunnelid %s localsessionid %s remotesessionid %s udpsrc %s udpdst %s' % (port_num, remote_ip, l2tp_port, l2tp_port, l2tp_port, l2tp_port, l2tp_port, l2tp_port)
-        #mylog(node['ip'], cmd)
-        #print('--> %s --> %s' % (node['ip'], cmd))
         l2tp_config_ok = False
         l2tp_config_warn_sent = False
         for i in range(3):
             stdin, stdout, stderr = client.exec_command(cmd)
             result = stdout.readlines()
             if len(result) > 0:
-                print('--> WARN: cmd=|%s| -- result=|%s|' % (cmd, result))
+                logger.warning('--> WARN: cmd=|%s| -- result=|%s|' % (cmd, result))
                 continue
             check_cmd = 'show config port portno %d' % port_num
             stdin, stdout, stderr = client.exec_command(check_cmd)
@@ -171,13 +185,13 @@ class NoviSwitch( Switch ):
             if self.is_l2tp_config_ok(result, remote_ip, l2tp_port):
                 l2tp_config_ok = True
                 if l2tp_config_warn_sent:
-                    print('-->> Now ok!')
+                    logger.warning('-->> Now ok!')
                 break
             l2tp_config_warn_sent = True
-            print('-->> WARN: L2tp tunnel configuration not applied. Trying again...')
+            logger.warning('-->> WARN: L2tp tunnel configuration not applied. Trying again...')
         if not l2tp_config_ok:
-            print('-->> ERROR: L2tp tunnel config Failed. You will have to apply mannually:')
-            print('     %s' % cmd)
+            logger.error('-->> ERROR: L2tp tunnel config Failed. You will have to apply mannually:')
+            logger.error('     %s' % cmd)
 
     def is_l2tp_config_ok(self, result, remote_ip, l2tp_port):
         if isinstance(result, list):
@@ -189,36 +203,36 @@ class NoviSwitch( Switch ):
         if not l2tp_config:
             return False
         required_matches = [
-            "Remote ip:\s+%s" % remote_ip,
-            "Local tunnel id:\s+%s" % l2tp_port,
-            "Remote tunnel id:\s+%s" % l2tp_port,
-            "Local session id:\s+%s" % l2tp_port,
-            "Udp source port:\s+%s" % l2tp_port,
-            "Udp destination port:\s+%s" % l2tp_port,
+            r"Remote ip:\s+%s" % remote_ip,
+            r"Local tunnel id:\s+%s" % l2tp_port,
+            r"Remote tunnel id:\s+%s" % l2tp_port,
+            r"Local session id:\s+%s" % l2tp_port,
+            r"Udp source port:\s+%s" % l2tp_port,
+            r"Udp destination port:\s+%s" % l2tp_port,
         ]
         for required_match in required_matches:
             if not re.findall(required_match, l2tp_config):
                 return False
         return True
 
-    def setup_link_linux(self, node, linux_ip, intf_name):
+    def setup_link_linux(self, switch, linux_ip, intf_name):
         port_num = self.intf_name_to_number(intf_name)
-        l2tp_port = port_num + node['tun_port']
-        remote_ip = node['ip']
+        l2tp_port = port_num + switch['tun_port']
+        remote_ip = switch['ip']
 
         tun_name = 'tun%d' % (l2tp_port)
-        cmd = 'ip l2tp add tunnel tunnel_id %s peer_tunnel_id %s remote %s local %s encap udp udp_dport %s udp_sport %s 2>&1' % (l2tp_port, l2tp_port, remote_ip, linux_ip, l2tp_port, l2tp_port)
+        cmd = 'ip l2tp add tunnel tunnel_id %s peer_tunnel_id %s remote %s local 0.0.0.0 encap udp udp_dport %s udp_sport %s 2>&1' % (l2tp_port, l2tp_port, remote_ip, l2tp_port, l2tp_port)
         result = run_cmd(cmd)
         if len(result) > 0:
-            print('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
+            logger.error('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
         cmd = 'ip l2tp add session name %s tunnel_id %s session_id %s peer_session_id %s 2>&1' % (tun_name, l2tp_port, l2tp_port, l2tp_port)
         result = run_cmd(cmd)
         if len(result) > 0:
-            print('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
+            logger.error('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
         cmd = 'ip link set up %s 2>&1' % (tun_name)
         result = run_cmd(cmd)
         if len(result) > 0:
-            print('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
+            logger.error('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
 
         ovs_cmds = [
             'ovs-vsctl add-port noviswitch %s' % tun_name,
@@ -233,11 +247,11 @@ class NoviSwitch( Switch ):
         for cmd in ovs_cmds:
             result = run_cmd(cmd)
             if len(result) > 0:
-                print('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
+                logger.error('--> ERROR: cmd=|%s| -- result=|%s|' % (cmd, result))
 
     def start( self, controllers ):
         "Setup a new NoviSwitch"
-        log.info("start switch %s (%s)\n" % (self.name, self.novi_name))
+        logger.info("start switch %s (%s)\n" % (self.name, self.novi_name))
 
         self.novi_start()
 
@@ -248,7 +262,7 @@ class NoviSwitch( Switch ):
         switch = known_switches[self.novi_name]
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(switch['ip'], username=user, password=passwd)
+        client.connect(switch['ip'], username=user, password=passwd, port=switch.get('ssh_port', 22))
 
         cmd = 'set config switch dpid %s' % hex(int(self.dpid))
         stdin, stdout, stderr = client.exec_command(cmd)
@@ -259,7 +273,9 @@ class NoviSwitch( Switch ):
         i = 0
         for c in controllers:
             i += 1
-            cmd = 'set config controller controllergroup c%d controllerid 1 priority 1 ipaddr %s port %d security none' % (i, c.IP(), c.port)
+            c_ip = c.IP() if c.IP() not in ['127.0.0.1'] else linux_ip
+            c_port = c.port
+            cmd = 'set config controller controllergroup c%d controllerid 1 priority 1 ipaddr %s port %d security none' % (i, c_ip, c_port)
             stdin, stdout, stderr = client.exec_command(cmd)
             result = stdout.read().decode("utf-8")
             if 'error' in result.lower():
@@ -280,19 +296,18 @@ class NoviSwitch( Switch ):
     def stop( self, deleteIntfs=True ):
         """Terminate IVS switch.
            deleteIntfs: delete interfaces? (True)"""
-        log.info("stop %s\n" % self.novi_name)
+        logger.info("stop %s\n" % self.novi_name)
         self.novi_stop()
 
     def attach( self, intf ):
         "Connect a data port"
-        log.info("attach %s (not-implemented)\n" % self.novi_name)
+        logger.info("attach %s (not-implemented)\n" % self.novi_name)
 
     def detach( self, intf ):
         "Disconnect a data port"
-        log.info("dettach %s (not-implemented)\n" % self.novi_name)
+        logger.info("dettach %s (not-implemented)\n" % self.novi_name)
 
     def dpctl( self, *args ):
         "Run dpctl command"
         switch = 'tcp:%s:6634' % known_switches[self.novi_name]['ip']
-        allowed_of_proto = 'OpenFlow13'
-        return self.cmd('ovs-ofctl', args[0], '-O', allowed_of_proto, switch, args[1:])
+        return run_cmd('ovs-ofctl %s -O OpenFlow13 %s %s | grep -v OFPST_FLOW' % (args[0], switch, ' '.join(args[1:])))

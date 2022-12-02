@@ -10,7 +10,7 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
-from noviswitch import NoviSwitch
+from .noviswitch import NoviSwitch
 
 def get_switch_class():
     switch_class_map = {
