@@ -113,10 +113,10 @@ class Ring4Topo(Topo):
 
     def build(self):
         # ("*** Creating switches\n")
-        s1 = self.addSwitch('s1', listenPort=6601, dpid="1")
-        s2 = self.addSwitch('s2', listenPort=6602, dpid="2")
-        s3 = self.addSwitch('s3', listenPort=6603, dpid="3")
-        s4 = self.addSwitch('s4', listenPort=6604, dpid="4")
+        s1 = self.addSwitch('s1', listenPort=6601, dpid="1", cls=get_switch_class())
+        s2 = self.addSwitch('s2', listenPort=6602, dpid="2", cls=get_switch_class())
+        s3 = self.addSwitch('s3', listenPort=6603, dpid="3", cls=get_switch_class())
+        s4 = self.addSwitch('s4', listenPort=6604, dpid="4", cls=get_switch_class())
 
         # ("*** Creating hosts\n")
         hosts1 = [self.addHost('h%d' % n) for n in (1, 2)]
@@ -148,8 +148,8 @@ class Looped(Topo):
     def build(self):
         "Create custom topo."
 
-        s1 = self.addSwitch("s1")
-        s2 = self.addSwitch("s2")
+        s1 = self.addSwitch("s1", cls=get_switch_class())
+        s2 = self.addSwitch("s2", cls=get_switch_class())
 
         self.addLink(s1, s1, port1=1, port2=2)
         self.addLink(s1, s1, port1=4, port2=5)
