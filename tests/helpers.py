@@ -10,7 +10,7 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
-from .noviswitch import NoviSwitch
+from tests.noviswitch import NoviSwitch
 
 def get_switch_class():
     switch_class_map = {
@@ -343,9 +343,19 @@ class NetworkTest:
             sw.controllerUUIDs(update=True)
         self.wait_switches_connect()
 
+    def configLinkStatus(self, a, b, status):
+        node_a = self.net.get(a)
+        node_b = self.net.get(b)
+        connections = node_a.connectionsTo(node_b)
+        if isinstance(node_a, NoviSwitch):
+            node_a.configLinkStatus([c[0] for c in connections], status)
+        if isinstance(node_b, NoviSwitch):
+            node_b.configLinkStatus([c[1] for c in connections], status)
+        self.net.configLinkStatus(a, b, status)
+
     def config_all_links_up(self):
         for link in self.net.links:
-            self.net.configLinkStatus(
+            self.configLinkStatus(
                 link.intf1.node.name,
                 link.intf2.node.name,
                 "up"

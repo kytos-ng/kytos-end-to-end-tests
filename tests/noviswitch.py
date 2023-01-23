@@ -23,11 +23,11 @@ formatter = logging.Formatter(fmt='%(asctime)s %(name)s - %(levelname)s - %(mess
 handler = logging.handlers.SysLogHandler('/dev/log')
 handler.setFormatter(formatter)
 logger = logging.getLogger("noviswitch")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger.addHandler(handler)
 
 def run_cmd(cmd):
-    logger.info("running cmd in %s: %s" % (linux_ip, cmd))
+    logger.debug("running cmd in %s: %s" % (linux_ip, cmd))
     stream = os.popen(cmd)
     return stream.read()
 
@@ -56,6 +56,7 @@ class NoviSwitch( Switch ):
             if not self.novi_name:
                 log.error('No more Noviflow switches available: known_switches=%s current_used=%s\n' % (known_switches, self.metadata))
                 exit(1)
+        self.controllers = []
 
     @classmethod
     def setup( cls ):
@@ -133,6 +134,8 @@ class NoviSwitch( Switch ):
         for cmd in novi_cleanup_commands:
             stdin, stdout, stderr = client.exec_command(cmd)
             result = stdout.readlines()
+
+        self.controllers = []
 
     @classmethod
     def batchShutdown( cls, switches ):
@@ -275,6 +278,7 @@ class NoviSwitch( Switch ):
             i += 1
             c_ip = c.IP() if c.IP() not in ['127.0.0.1'] else linux_ip
             c_port = c.port
+            self.controllers.append((c_ip, c_port))
             cmd = 'set config controller controllergroup c%d controllerid 1 priority 1 ipaddr %s port %d security none' % (i, c_ip, c_port)
             stdin, stdout, stderr = client.exec_command(cmd)
             result = stdout.read().decode("utf-8")
@@ -293,11 +297,29 @@ class NoviSwitch( Switch ):
         if 'error' in result.lower():
             log.error('error configuring ofclient %s in switch %s: %s\n' % (self.novi_name, result))
 
+    def novi_cmd(self, cmd):
+        switch = known_switches[self.novi_name]
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(switch['ip'], username=user, password=passwd, port=switch.get('ssh_port', 22))
+
+        stdin, stdout, stderr = client.exec_command(cmd)
+        result = stdout.read().decode("utf-8")
+        return result
+
     def stop( self, deleteIntfs=True ):
         """Terminate IVS switch.
            deleteIntfs: delete interfaces? (True)"""
         logger.info("stop %s\n" % self.novi_name)
         self.novi_stop()
+
+    def connected(self):
+        """Check if switch is connected to any controller"""
+        result = self.novi_cmd("show status controller controllergroup all")
+        for ip, port in self.controllers:
+            if re.findall(r"\*%s\s+%s\s+" % (ip, port), result ):
+                return True
+        return False
 
     def attach( self, intf ):
         "Connect a data port"
@@ -310,4 +332,47 @@ class NoviSwitch( Switch ):
     def dpctl( self, *args ):
         "Run dpctl command"
         switch = 'tcp:%s:6634' % known_switches[self.novi_name]['ip']
-        return run_cmd('ovs-ofctl %s -O OpenFlow13 %s %s | grep -v OFPST_FLOW' % (args[0], switch, ' '.join(args[1:])))
+        cmd = 'ovs-ofctl %s -O OpenFlow13 %s %s' % (args[0], switch, ' '.join(args[1:]))
+        #if args[0] == 'dump-flows':
+        #    cmd = cmd + ' | grep -v OFPST_FLOW'
+        return run_cmd(cmd)
+
+    def vsctl( self, *args ):
+        """Run vsctl command (try to map from ovs-vsctl)"""
+        if len(args) == 1:
+            args = args[0].split(" ")
+        if args[0] == "del-controller":
+            cmd = 'del config controller controllergroup all controllerid all'
+            result = self.novi_cmd(cmd)
+            if 'error' in result.lower():
+                log.error('error running del-controller in switch %s: %s\n' % (self.novi_name, result))
+            self.controllers = []
+        elif args[0] == "set-controller":
+            cmd = 'del config controller controllergroup all controllerid all'
+            result = self.novi_cmd(cmd)
+            if 'error' in result.lower():
+                log.error('error running del-controller in switch %s: %s\n' % (self.novi_name, result))
+            self.controllers = []
+            i = 0
+            for c in args[2:]:
+                i += 1
+                proto, ip, port = c.split(":")
+                ip = ip if ip not in ['127.0.0.1'] else linux_ip
+                self.controllers.append((ip, port))
+                cmd = 'set config controller controllergroup c%d controllerid 1 priority 1 ipaddr %s port %s security none' % (i, ip, port)
+                result = self.novi_cmd(cmd)
+                if 'error' in result.lower():
+                    log.error('error running del-controller in switch %s: %s\n' % (self.novi_name, result))
+        else:
+            log.error("vsctl command not implemented: %s" % args)
+
+    def controllerUUIDs(self, *args, **kwargs):
+        pass
+
+    def configLinkStatus(self, intfs, status):
+        """config link status"""
+        for intf in intfs:
+            portno = self.intf_name_to_number(intf.name)
+            portdown = 'off' if status == 'up' else 'on'
+            cmd = 'set config port portno %d portdown %s' % (portno, portdown)
+            self.novi_cmd(cmd)
