@@ -285,7 +285,7 @@ class TestE2EMefEline:
 
         # Verify that the flow is in the flow table
         s1 = self.net.net.get('s1')
-        flows_s1 = s1.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         # Each switch had BASIC_FLOWS flows + 02 for the EVC (ingress + egress)
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
 
@@ -383,7 +383,7 @@ class TestE2EMefEline:
 
         # Verify that the flow is not in the flow table
         s1 = self.net.net.get('s1')
-        flows_s1 = s1.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         # Each switch had BASIC_FLOWS flows + 02 for the EVC (ingress + egress)
         # at this point the flow number should be reduced to BASIC_FLOWS
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1

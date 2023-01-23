@@ -212,15 +212,15 @@ class TestE2EMefEline:
         time.sleep(10)
 
         # Command to disable links to test if back-up path is taken with the following command:
-        self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.configLinkStatus('s1', 's2', 'down')
         time.sleep(10)
 
         # Check on the virtual switches directly for flows
         s1, s2, s3, s4 = self.net.net.get('s1', 's2', 's3', 's4')
-        flows_s1 = s1.dpctl('dump-flows')
-        flows_s2 = s2.dpctl('dump-flows')
-        flows_s3 = s3.dpctl('dump-flows')
-        flows_s4 = s4.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+        flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+        flows_s3 = s3.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+        flows_s4 = s4.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
 
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
         assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2

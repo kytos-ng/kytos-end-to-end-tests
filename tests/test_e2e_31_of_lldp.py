@@ -208,7 +208,7 @@ class TestE2EOfLLDP:
         # Wait just so hellos are missed
         time.sleep(15)
         s2 = self.net.net.get('s2')
-        flows_s2 = s2.dpctl("dump-flows")
+        flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         # Expects 2x LLDP flow entries
         assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 1, flows_s2
 
@@ -235,7 +235,7 @@ class TestE2EOfLLDP:
         # Wait just so hellos are received again
         time.sleep(10)
         s2 = self.net.net.get('s2')
-        flows_s2 = s2.dpctl("dump-flows")
+        flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         # Expects 1x LLDP flow entry
         assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
 

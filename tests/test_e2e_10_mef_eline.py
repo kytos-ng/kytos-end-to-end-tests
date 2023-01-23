@@ -117,7 +117,7 @@ class TestE2EMefEline:
         time.sleep(10)
 
         s1 = self.net.net.get('s1')
-        flow_s1 = s1.dpctl('dump-flows')
+        flow_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         #Make sure that the flows have EVPL default values
         assert 'priority=20000' in flow_s1
 
@@ -133,7 +133,7 @@ class TestE2EMefEline:
         assert ', 0% packet loss,' in result
 
         s1 = self.net.net.get('s1')
-        flows_s1 = s1.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
 
         # Each switch must have BASIC_FLOWS + 02 for the EVC (ingress + egress)
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
@@ -177,8 +177,8 @@ class TestE2EMefEline:
         #  - 2 for the current path
         #  - 1 for the failover path
         s1, s2 = self.net.net.get('s1', 's2')
-        flows_s1 = s1.dpctl('dump-flows')
-        flows_s2 = s2.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+        flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
 
         #Make sure that both flow have EVPL default values
         assert 'priority=20000' in flows_s1
@@ -299,8 +299,8 @@ class TestE2EMefEline:
         assert 'priority=10000' in flows_s2
 
         # make sure it should be dl_vlan instead of vlan_vid
-        assert 'in_port="s1-eth1",dl_vlan=104' in flows_s1, flows_s1
-        assert 'in_port="s2-eth1",dl_vlan' not in flows_s2, flows_s2
+        assert 'in_port=1,dl_vlan=104' in flows_s1, flows_s1
+        assert 'in_port=1,dl_vlan' not in flows_s2, flows_s2
 
         # Make the final and most important test: connectivity
         # 1. create the vlans and setup the ip addresses
@@ -631,7 +631,7 @@ class TestE2EMefEline:
         h3.cmd('ip link del vlan101')
 
         # Command to up/down links to test if back-up path is taken
-        self.net.net.configLinkStatus('s1', 's2', 'up')
+        self.net.configLinkStatus('s1', 's2', 'up')
 
         assert ', 0% packet loss,' in result
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2
@@ -710,8 +710,8 @@ class TestE2EMefEline:
 
             # make sure the evcs are active and the flows were created
             s1, s2 = self.net.net.get('s1', 's2')
-            flows_s1 = s1.dpctl('dump-flows')
-            flows_s2 = s2.dpctl('dump-flows')
+            flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+            flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
             for vid in evcs:
                 evc_id = evcs[vid]
                 api_url = KYTOS_API + '/mef_eline/v2/evc/' + evc_id
@@ -772,8 +772,8 @@ class TestE2EMefEline:
 
         # make sure the evcs are active and the flows were created
         s1, s2 = self.net.net.get('s1', 's2')
-        flows_s1 = s1.dpctl('dump-flows')
-        flows_s2 = s2.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+        flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         for vid in self.evcs:
 
             api_url = KYTOS_API + '/mef_eline/v2/evc/' + self.evcs[vid]
@@ -963,8 +963,8 @@ class TestE2EMefEline:
         assert data['sb_priority'] == sb_priority, data
 
         s1, s2 = self.net.net.get('s1', 's2')
-        flows_s1 = s1.dpctl('dump-flows')
-        flows_s2 = s2.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+        flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         assert 'priority=100' in flows_s1
         assert 'priority=100' in flows_s2
 
@@ -973,7 +973,7 @@ class TestE2EMefEline:
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
-        queue_id = 3
+        queue_id = 0
         payload = {
             "queue_id": queue_id
         }
@@ -990,11 +990,11 @@ class TestE2EMefEline:
         assert data['queue_id'] == queue_id
 
         s1, s2 = self.net.net.get('s1', 's2')
-        flows_s1 = s1.dpctl('dump-flows')
-        flows_s2 = s2.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
+        flows_s2 = s2.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
 
-        assert 'set_queue:3' in flows_s1
-        assert 'set_queue:3' in flows_s2
+        assert 'set_queue:%d' % queue_id in flows_s1, flows_s1
+        assert 'set_queue:%d' % queue_id in flows_s2, flows_s2
 
     def test_125_patch_dynamic_backup_path(self):
         """Test patching an EVC to be non dynamic with primary_path."""
@@ -1125,6 +1125,7 @@ class TestE2EMefEline:
         }
         response = requests.post(api_url, data=json.dumps(payload),
                                  headers={'Content-type': 'application/json'})
+        assert response.status_code == 201, response.text
         data = response.json()
         evc1 = data['circuit_id']
 
@@ -1184,7 +1185,7 @@ class TestE2EMefEline:
         time.sleep(10)
 
         # Command to up/down links to test if back-up path is taken
-        self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.configLinkStatus('s1', 's2', 'down')
 
         # Wait just a few seconds to give time to the controller receive and process the linkDown event
         time.sleep(10)
@@ -1204,7 +1205,7 @@ class TestE2EMefEline:
                           "endpoint_b": {"id": _path['endpoint_b']['id']}})
 
         # Command to up/down links to test if back-up path is taken
-        self.net.net.configLinkStatus('s1', 's2', 'up')
+        self.net.configLinkStatus('s1', 's2', 'up')
 
         assert paths == current_path
 
@@ -1245,7 +1246,7 @@ class TestE2EMefEline:
         assert paths == current_path
 
         # Command to up/down links to test if back-up path is taken
-        self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.configLinkStatus('s1', 's2', 'down')
 
         # Wait just a few seconds to give time to the controller receive and process the linkDown event
         time.sleep(10)
@@ -1265,7 +1266,7 @@ class TestE2EMefEline:
                           "endpoint_b": {"id": _path['endpoint_b']['id']}})
 
         # Command to up/down links to test if back-up path is taken
-        self.net.net.configLinkStatus('s1', 's2', 'up')
+        self.net.configLinkStatus('s1', 's2', 'up')
 
         assert paths == current_path
 
@@ -1296,7 +1297,7 @@ class TestE2EMefEline:
         time.sleep(10)
 
         # Command to up/down links to test if back-up path is taken
-        self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.configLinkStatus('s1', 's2', 'down')
 
         # Wait just a few seconds to give time to the controller receive and process the linkDown event
         time.sleep(10)
@@ -1306,7 +1307,7 @@ class TestE2EMefEline:
         data = response.json()
 
         # Command to up/down links to test if back-up path is taken
-        self.net.net.configLinkStatus('s1', 's2', 'up')
+        self.net.configLinkStatus('s1', 's2', 'up')
 
         assert data['active'] is False
         assert data['enabled'] is True

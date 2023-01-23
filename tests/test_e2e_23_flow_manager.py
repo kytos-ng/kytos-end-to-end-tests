@@ -1013,7 +1013,7 @@ class TestE2EFlowManager:
         # wait for the flow to be installed
         time.sleep(15)
 
-        flows_s1 = s1.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
 
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 3, flows_s1
         assert 'actions=drop' in flows_s1
@@ -1055,7 +1055,7 @@ class TestE2EFlowManager:
         time.sleep(10)
 
         s1 = self.net.net.get('s1')
-        flows_s1 = s1.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
 
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 100, flows_s1
 
@@ -1100,5 +1100,5 @@ class TestE2EFlowManager:
         time.sleep(10)
 
         s1 = self.net.net.get('s1')
-        flows_s1 = s1.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 100, flows_s1

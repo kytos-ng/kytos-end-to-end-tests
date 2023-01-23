@@ -135,6 +135,6 @@ class TestE2EFlowManager:
         # wait for the flow to be installed
         time.sleep(10)
 
-        flows_s1 = s1.dpctl('dump-flows')
+        flows_s1 = s1.dpctl('dump-flows', '--no-names', '--protocols=OpenFlow13', '|grep -v OFPST_FLOW')
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
         assert 'dl_vlan=999' in flows_s1

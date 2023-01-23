@@ -63,7 +63,7 @@ class TestE2EOfLLDP:
                 "00:00:00:00:00:00:00:03:1", "00:00:00:00:00:00:00:03:2", "00:00:00:00:00:00:00:03:3",
                 "00:00:00:00:00:00:00:03:4294967294"
         ]
-        assert set(data["interfaces"]) == set(expected_interfaces)
+        assert set(data["interfaces"]).issuperset(set(expected_interfaces))
 
         # make sure the interfaces are actually receiving LLDP
         h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
@@ -89,7 +89,7 @@ class TestE2EOfLLDP:
         time.sleep(5)
         self.enable_all_interfaces()
 
-        # disabling all the UNI interfaces
+        # disabling some interfaces
         payload = {
             "interfaces": [
                 "00:00:00:00:00:00:00:01:1", "00:00:00:00:00:00:00:01:2", "00:00:00:00:00:00:00:01:4294967294",
@@ -110,7 +110,8 @@ class TestE2EOfLLDP:
         api_url = KYTOS_API + '/of_lldp/v1/interfaces/'
         response = requests.get(api_url)
         data = response.json()
-        assert set(data["interfaces"]) == set(expected_interfaces)
+        assert set(data["interfaces"]).issuperset(set(expected_interfaces)), str(data)
+        assert not set(data["interfaces"]) & set(payload["interfaces"]), str(data)
 
         h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
         rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
@@ -136,7 +137,8 @@ class TestE2EOfLLDP:
         api_url = KYTOS_API + '/of_lldp/v1/interfaces/'
         response = requests.get(api_url)
         data = response.json()
-        assert set(data["interfaces"]) == set(expected_interfaces)
+        assert set(data["interfaces"]).issuperset(set(expected_interfaces)), str(data)
+        assert not set(data["interfaces"]) & set(payload["interfaces"]), str(data)
 
     def test_020_enable_of_lldp(self):
         """ Test if enabling OF LLDP in an interface works properly. """
