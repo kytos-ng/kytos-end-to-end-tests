@@ -367,7 +367,7 @@ class TestE2EFlowManager:
                     "cookie": 0xaa00000000000001,
                     "match": {
                         "in_port": 1,
-                        "dl_vlan": 100
+                        "dl_vlan": "100"
                     },
                     "actions": [
                         {
@@ -380,7 +380,7 @@ class TestE2EFlowManager:
                     "cookie": 0xaa00000000000002,
                     "match": {
                         "in_port": 1,
-                        "dl_vlan": 101
+                        "dl_vlan": "101"
                     },
                     "actions": [
                         {
@@ -463,7 +463,7 @@ class TestE2EFlowManager:
                     "cookie": 0xaa00000000000001,
                     "match": {
                         "in_port": 1,
-                        "dl_vlan": 100
+                        "dl_vlan": "100"
                     },
                     "actions": [
                         {
@@ -476,7 +476,7 @@ class TestE2EFlowManager:
                     "cookie": 0xaa00000000000002,
                     "match": {
                         "in_port": 1,
-                        "dl_vlan": 101
+                        "dl_vlan": "101"
                     },
                     "actions": [
                         {
@@ -489,7 +489,7 @@ class TestE2EFlowManager:
                     "cookie": 0xbb00000000000001,
                     "match": {
                         "in_port": 1,
-                        "dl_vlan": 102
+                        "dl_vlan": "102"
                     },
                     "actions": [
                         {
@@ -560,7 +560,7 @@ class TestE2EFlowManager:
                     "cookie": 0xaa00000000000001,
                     "match": {
                         "in_port": 1,
-                        "dl_vlan": 100
+                        "dl_vlan": "100"
                     },
                     "actions": [
                         {
@@ -573,7 +573,7 @@ class TestE2EFlowManager:
                     "cookie": 0xaa00000000000002,
                     "match": {
                         "in_port": 1,
-                        "dl_vlan": 101
+                        "dl_vlan": "101"
                     },
                     "actions": [
                         {
