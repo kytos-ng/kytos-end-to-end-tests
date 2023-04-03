@@ -783,9 +783,6 @@ class TestE2ESDNTrace:
                             "switch": {
                                 "dpid": "00:00:00:00:00:00:00:01",
                                 "in_port": 1
-                            },
-                            "eth": {
-                                "dl_vlan": 0
                             }
                         }
                     }
@@ -825,7 +822,7 @@ class TestE2ESDNTrace:
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
-        list_results = data["result"] 
+        list_results = data["result"]
 
         assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:01"
         assert list_results[0][0]["port"] == 1
