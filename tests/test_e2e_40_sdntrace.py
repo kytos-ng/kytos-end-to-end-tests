@@ -827,3 +827,60 @@ class TestE2ESDNTrace:
         assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:01"
         assert list_results[0][0]["port"] == 1
         assert list_results[0][-1]["type"] == "last"
+
+    def test_080_validate_attribute_on_payload(self):
+        "Validate parameters"
+
+        # Mandatory parameter missing:
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:01"
+                            },
+                            "eth": {
+                                "dl_vlan": 10
+                            }
+                        }
+                    }               ]
+                
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 400, response.text
+
+        # Wrong data type:
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": 1,
+                                "in_port": 3
+                            },
+                            "eth": {
+                                "dl_vlan": 10
+                            }
+                        }
+                    }               ]
+                
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 400, response.text
+
+        # Wrong dl_vlan:
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:01",
+                                "in_port": 3
+                            },
+                            "eth": {
+                                "dl_vlan": "10"
+                            }
+                        }
+                    }               ]
+                
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 400, response.text
+ 
