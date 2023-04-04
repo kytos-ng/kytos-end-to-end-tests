@@ -843,7 +843,7 @@ class TestE2ESDNTrace:
                             }
                         }
                     }               ]
-                
+
         api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
@@ -851,7 +851,7 @@ class TestE2ESDNTrace:
         # Wrong data type (dpid should be string):
         payload[0]['trace']['switch']['in_port'] = 3
         payload[0]['trace']['switch']['dpid'] = 1
-                
+
         api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
@@ -864,9 +864,9 @@ class TestE2ESDNTrace:
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
 
-        # dl_vlan out of range (should be in [1, 4096¡5]):
+        # dl_vlan out of range (should be in [1, 4095]):
         payload[0]['trace']['eth']['dl_vlan'] = 4096
-                
+
         api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
@@ -874,14 +874,14 @@ class TestE2ESDNTrace:
         # Wrong dl_type (should be integer):
         payload[0]['trace']['eth']['dl_vlan'] = 10
         payload[0]['trace']['eth']['dl_type'] = "1"
-                
+
         api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
  
         # Valid request:
         payload[0]['trace']['eth']['dl_type'] = 1
-                
+
         api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200
