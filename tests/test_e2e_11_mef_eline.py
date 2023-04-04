@@ -317,3 +317,32 @@ class TestE2EMefEline:
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
+
+        data = response.json()
+        expected_desc = "Additional properties are not allowed ('active' was unexpected)"
+        assert data["code"] == 400
+        assert data["name"] == "Bad Request"
+        assert expected_desc in data["description"]
+
+    def test_026_validate_bad_request_response_format(self):
+        """Test bad request response shape format."""
+        payload = {
+            "name": "epl",
+            "dynamic_backup_path": True,
+            "uni_a": {
+                "interface_id": 1
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:03:1"
+            }
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert response.status_code == 400, response.text
+
+        data = response.json()
+        assert data["code"] == 400
+        assert data["name"] == "Bad Request"
+        assert "The request body contains invalid API data" in data["description"]
+        assert "not of type" in data["description"]
+        assert "for field uni_a/interface_id" in data["description"]
