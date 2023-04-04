@@ -772,3 +772,58 @@ class TestE2ESDNTrace:
         data = response.json()
         list_results = data["result"]
         assert list_results[0][0]["out"]["port"] == 1
+
+    def test_070_run_sdntrace_untagged_vlan(cls):
+        """Run SDNTrace to test /traces endpoint when vlan is untagged in evc"""
+
+        cls.create_evc("untagged")
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:01",
+                                "in_port": 1
+                            }
+                        }
+                    }
+        ]
+
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        list_results = data["result"]
+
+        assert len(list_results[0]) == 10
+        assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:01"
+        assert list_results[0][0]["port"] == 1
+        assert list_results[0][-1]["type"] == "last"
+
+    def test_075_run_sdntrace_any_vlan(cls):
+        """Run SDNTrace to test /traces endpoint when vlan is any in evc"""
+        cls.create_evc("any")
+        time.sleep(10)
+
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:01",
+                                "in_port": 1
+                            },
+                            "eth": {
+                                "dl_vlan": 1
+                            }
+                        }
+                    }
+                ]
+
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        list_results = data["result"]
+
+        assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:01"
+        assert list_results[0][0]["port"] == 1
+        assert list_results[0][-1]["type"] == "last"

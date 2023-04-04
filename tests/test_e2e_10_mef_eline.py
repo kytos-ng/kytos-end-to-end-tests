@@ -1998,4 +1998,3 @@ class TestE2EMefEline:
         data = response.json()
         assert "test" in data[evc_1_id]["metadata"]
         assert "test" in data[evc_2_id]["metadata"]
-
