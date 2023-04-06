@@ -793,9 +793,11 @@ class TestE2ESDNTrace:
         assert response.status_code == 200, response.text
         data = response.json()
         list_results = data["result"]
+
         assert len(list_results[0]) == 2
         assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:02"
         assert list_results[0][0]["port"] == 1
+        assert list_results[0][-1]["type"] == "last"
 
     def test_075_run_sdntrace_any_vlan(cls):
         """Run SDNTrace to test /traces endpoint when vlan is any in evc"""
@@ -824,6 +826,7 @@ class TestE2ESDNTrace:
 
         assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:02"
         assert list_results[0][0]["port"] == 1
+        assert list_results[0][-1]["type"] == "last"
 
     def test_080_validate_attribute_on_payload(self):
         "Validate parameters"
