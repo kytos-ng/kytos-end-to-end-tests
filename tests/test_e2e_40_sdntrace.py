@@ -776,7 +776,22 @@ class TestE2ESDNTrace:
     def test_070_run_sdntrace_untagged_vlan(cls):
         """Run SDNTrace to test /traces endpoint when vlan is untagged in evc"""
 
-        cls.create_evc("untagged", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'  
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        
+        uni_a = {'interface_id': '00:00:00:00:00:00:00:02:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
+        uni_z = {'interface_id': '00:00:00:00:00:00:00:03:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
+        for circuit_id, circuit in data.items():
+            if uni_a in (circuit['uni_a'], circuit['uni_z']) or uni_z in (circuit['uni_a'], circuit['uni_z']):
+                api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{circuit_id}' 
+                response = requests.delete(api_url)
+                assert response.status_code == 200, response.text
+
+        cls.create_evc("untagged", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")        
+        time.sleep(10)
+
         payload = [
                     {
                         "trace": {
@@ -801,6 +816,7 @@ class TestE2ESDNTrace:
 
     def test_075_run_sdntrace_any_vlan(cls):
         """Run SDNTrace to test /traces endpoint when vlan is any in evc"""
+
         cls.create_evc("any", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")
         time.sleep(10)
 
