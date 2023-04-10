@@ -776,7 +776,23 @@ class TestE2ESDNTrace:
     def test_070_run_sdntrace_untagged_vlan(cls):
         """Run SDNTrace to test /traces endpoint when vlan is untagged in evc"""
 
-        cls.create_evc("untagged", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")
+        payload = {
+            "name": "Vlan_untagged",
+            "enabled": True,
+            "dynamic_backup_path": True,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {"tag_type": 1, "value": "untagged"}
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:03:1",
+                "tag": {"tag_type": 1, "value": "untagged"}
+            }
+        }
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code in [201, 409], response.text
+
         payload = [
                     {
                         "trace": {
@@ -801,7 +817,23 @@ class TestE2ESDNTrace:
 
     def test_075_run_sdntrace_any_vlan(cls):
         """Run SDNTrace to test /traces endpoint when vlan is any in evc"""
-        cls.create_evc("any", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")
+       
+        payload = {
+            "name": "Vlan_any",
+            "enabled": True,
+            "dynamic_backup_path": True,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {"tag_type": 1, "value": "any"}
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:03:1",
+                "tag": {"tag_type": 1, "value": "any"}
+            }
+        }
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code in [201, 409], response.text
         time.sleep(10)
 
         payload = [
