@@ -64,7 +64,7 @@ class TestE2ESDNTrace:
                 "eth": {"dl_type": 33024, "dl_vlan": 400}
             }
         }
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -95,7 +95,7 @@ class TestE2ESDNTrace:
                 "eth": {"dl_type": 33024, "dl_vlan": 400}
             }
         }
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -262,7 +262,7 @@ class TestE2ESDNTrace:
                 "eth": {"dl_type": 33024, "dl_vlan": 400}
             }
         }
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload_1)
         data = response.json()
         # only 4 steps are expected: starting, 1->2, 2->3, 3->4, 4->5(incomplete)
@@ -340,7 +340,7 @@ class TestE2ESDNTrace:
         time.sleep(10)
         self.circuit = self.get_evc(circuit_id)
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload_1)
         data = response.json()
         assert len(data["result"]) == 10, data
@@ -424,7 +424,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -523,7 +523,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -575,7 +575,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -623,7 +623,7 @@ class TestE2ESDNTrace:
                     }
                 ]
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -704,7 +704,7 @@ class TestE2ESDNTrace:
         assert response.status_code == 202, response.text
         time.sleep(10)
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -766,7 +766,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -803,7 +803,7 @@ class TestE2ESDNTrace:
                     }
         ]
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -834,7 +834,7 @@ class TestE2ESDNTrace:
                     }
                 ]
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -860,7 +860,7 @@ class TestE2ESDNTrace:
                         }
                     }               ]
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
 
@@ -868,7 +868,7 @@ class TestE2ESDNTrace:
         payload[0]['trace']['switch']['in_port'] = 3
         payload[0]['trace']['switch']['dpid'] = 1
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
 
@@ -876,14 +876,14 @@ class TestE2ESDNTrace:
         payload[0]['trace']['switch']['dpid'] = "00:00:00:00:00:00:00:01"
         payload[0]['trace']['eth']['dl_vlan'] = "10"
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
 
         # dl_vlan out of range (should be in [1, 4095]):
         payload[0]['trace']['eth']['dl_vlan'] = 4096
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
  
@@ -891,13 +891,13 @@ class TestE2ESDNTrace:
         payload[0]['trace']['eth']['dl_vlan'] = 10
         payload[0]['trace']['eth']['dl_type'] = "1"
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
  
         # Valid request:
         payload[0]['trace']['eth']['dl_type'] = 1
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200
