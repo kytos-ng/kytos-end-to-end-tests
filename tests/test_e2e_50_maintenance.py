@@ -297,7 +297,7 @@ class TestE2EMaintenance:
     def test_030_create_mw_on_switch_should_fail_payload_empty(self):
         """Tests to create maintenance with the wrong payload
         Test:
-            415 response calling
+            400 response calling
             /api/kytos/maintenance/v1 on POST
         """
         self.net.restart_kytos_clean()
@@ -309,7 +309,7 @@ class TestE2EMaintenance:
         # Creates a new maintenance window
         api_url = KYTOS_API + '/maintenance/v1'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
-        assert response.status_code == 415, response.text
+        assert response.status_code == 400, response.text
 
     def test_035_create_mw_on_switch_and_patch_new_end(self):
         """Tests the maintenance window data update
