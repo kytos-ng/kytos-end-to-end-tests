@@ -64,7 +64,7 @@ class TestE2ESDNTrace:
                 "eth": {"dl_type": 33024, "dl_vlan": 400}
             }
         }
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -95,7 +95,7 @@ class TestE2ESDNTrace:
                 "eth": {"dl_type": 33024, "dl_vlan": 400}
             }
         }
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -262,7 +262,7 @@ class TestE2ESDNTrace:
                 "eth": {"dl_type": 33024, "dl_vlan": 400}
             }
         }
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload_1)
         data = response.json()
         # only 4 steps are expected: starting, 1->2, 2->3, 3->4, 4->5(incomplete)
@@ -340,7 +340,7 @@ class TestE2ESDNTrace:
         time.sleep(10)
         self.circuit = self.get_evc(circuit_id)
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload_1)
         data = response.json()
         assert len(data["result"]) == 10, data
@@ -424,7 +424,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -523,7 +523,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -575,7 +575,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -623,7 +623,7 @@ class TestE2ESDNTrace:
                     }
                 ]
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -704,7 +704,7 @@ class TestE2ESDNTrace:
         assert response.status_code == 202, response.text
         time.sleep(10)
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -766,7 +766,7 @@ class TestE2ESDNTrace:
                     }
                 ]
                 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -776,39 +776,55 @@ class TestE2ESDNTrace:
     def test_070_run_sdntrace_untagged_vlan(cls):
         """Run SDNTrace to test /traces endpoint when vlan is untagged in evc"""
 
-        cls.create_evc("untagged")
-        payload = [
-                    {
-                        "trace": {
-                            "switch": {
-                                "dpid": "00:00:00:00:00:00:00:01",
-                                "in_port": 1
-                            }
-                        }
-                    }
-        ]
-
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
-        response = requests.put(api_url, json=payload)
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'  
+        response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
-        list_results = data["result"]
+        
+        uni_a = {'interface_id': '00:00:00:00:00:00:00:02:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
+        uni_z = {'interface_id': '00:00:00:00:00:00:00:03:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
+        for circuit_id, circuit in data.items():
+            if uni_a in (circuit['uni_a'], circuit['uni_z']) or uni_z in (circuit['uni_a'], circuit['uni_z']):
+                api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{circuit_id}' 
+                response = requests.delete(api_url)
+                assert response.status_code == 200, response.text
 
-        assert len(list_results[0]) == 10
-        assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:01"
-        assert list_results[0][0]["port"] == 1
-        assert list_results[0][-1]["type"] == "last"
-
-    def test_075_run_sdntrace_any_vlan(cls):
-        """Run SDNTrace to test /traces endpoint when vlan is any in evc"""
-        cls.create_evc("any")
+        cls.create_evc("untagged", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")        
         time.sleep(10)
 
         payload = [
                     {
                         "trace": {
                             "switch": {
-                                "dpid": "00:00:00:00:00:00:00:01",
+                                "dpid": "00:00:00:00:00:00:00:02",
+                                "in_port": 1
+                            }
+                        }
+                    }
+        ]
+
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        list_results = data["result"]
+
+        assert len(list_results[0]) == 2
+        assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:02"
+        assert list_results[0][0]["port"] == 1
+        assert list_results[0][-1]["type"] == "last"
+
+    def test_075_run_sdntrace_any_vlan(cls):
+        """Run SDNTrace to test /traces endpoint when vlan is any in evc"""
+
+        cls.create_evc("any", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")
+        time.sleep(10)
+
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:02",
                                 "in_port": 1
                             },
                             "eth": {
@@ -818,13 +834,13 @@ class TestE2ESDNTrace:
                     }
                 ]
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
         list_results = data["result"]
 
-        assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:01"
+        assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:02"
         assert list_results[0][0]["port"] == 1
         assert list_results[0][-1]["type"] == "last"
 
@@ -844,7 +860,7 @@ class TestE2ESDNTrace:
                         }
                     }               ]
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
 
@@ -852,7 +868,7 @@ class TestE2ESDNTrace:
         payload[0]['trace']['switch']['in_port'] = 3
         payload[0]['trace']['switch']['dpid'] = 1
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
 
@@ -860,14 +876,14 @@ class TestE2ESDNTrace:
         payload[0]['trace']['switch']['dpid'] = "00:00:00:00:00:00:00:01"
         payload[0]['trace']['eth']['dl_vlan'] = "10"
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
 
         # dl_vlan out of range (should be in [1, 4095]):
         payload[0]['trace']['eth']['dl_vlan'] = 4096
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
  
@@ -875,13 +891,13 @@ class TestE2ESDNTrace:
         payload[0]['trace']['eth']['dl_vlan'] = 10
         payload[0]['trace']['eth']['dl_type'] = "1"
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 400, response.text
  
         # Valid request:
         payload[0]['trace']['eth']['dl_type'] = 1
 
-        api_url = KYTOS_API + '/amlight/sdntrace_cp/traces'
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200

@@ -181,7 +181,7 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="still needs validaton for negative values")
     def test_035_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -203,7 +203,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
     def test_040_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -225,7 +224,7 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="still needs validation for overflowed values")
     def test_045_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -363,7 +362,7 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="still needs validation for negative values")
     def test_085_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -385,7 +384,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
     def test_090_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -407,7 +405,7 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="still needs validation for overflowed values")
     def test_095_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
