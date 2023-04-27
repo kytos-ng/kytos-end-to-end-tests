@@ -333,7 +333,7 @@ class TestE2ESDNTrace:
 
         # 4. redeploy evc and check again
         circuit_id = self.circuit['id']
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc'
         response = requests.patch(f"{api_url}/{circuit_id}/redeploy")
         assert response.status_code == 202, response.text
         time.sleep(10)
