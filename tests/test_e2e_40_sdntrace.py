@@ -18,7 +18,7 @@ class TestE2ESDNTrace:
         cls.net.wait_switches_connect()
         time.sleep(10)
         circuit_id = cls.create_evc(400)
-        time.sleep(10)
+        time.sleep(20)
         cls.circuit = cls.get_evc(circuit_id)
 
     @classmethod

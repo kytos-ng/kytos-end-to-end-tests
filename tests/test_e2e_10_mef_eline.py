@@ -739,7 +739,7 @@ class TestE2EMefEline:
                 response = requests.delete(api_url)
                 assert response.status_code == 200, response.text
 
-            time.sleep(10)
+            time.sleep(20)
 
             # make sure the circuits were deleted
             api_url = KYTOS_API + '/mef_eline/v2/evc/'
