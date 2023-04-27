@@ -206,11 +206,6 @@ class TestE2EMefEline:
         response = requests.delete(api_url)
         assert response.status_code == 200, response.text
 
-        # Verify if the circuit schedule does not exist
-        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/' + schedule_id
-        response = requests.get(api_url)
-        assert response.status_code == 405, response.text
-
         # Verify the list of schedules
         api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.get(api_url)
