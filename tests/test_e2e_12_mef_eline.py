@@ -107,7 +107,7 @@ class TestE2EMefEline:
         assert json.get("enabled") is False
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
@@ -150,7 +150,7 @@ class TestE2EMefEline:
         assert json.get("enabled") is False
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
@@ -182,7 +182,7 @@ class TestE2EMefEline:
         }
 
         # Create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
@@ -232,7 +232,7 @@ class TestE2EMefEline:
         }
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         json = response.json()
         assert response.status_code == 201, response.text
