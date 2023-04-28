@@ -54,16 +54,17 @@ class TestE2ESDNTrace:
         data = response.json()
         return data
 
+    @classmethod
     def wait_until_evc_is_active(
-        self, evc_id: str, wait_secs=6, i=0, max_i=20
+        cls, evc_id: str, wait_secs=6, i=0, max_i=20
     ) -> dict:
         """Wait until evc is active."""
-        evc = self.get_evc(evc_id)
+        evc = cls.get_evc(evc_id)
         if evc["active"]:
             return evc
         time.sleep(wait_secs)
         if i < max_i:
-            return self.wait_until_evc_is_active(evc_id, wait_secs, i + 1, max_i)
+            return cls.wait_until_evc_is_active(evc_id, wait_secs, i + 1, max_i)
         else:
             raise ValueError(f"TimeoutError: {evc_id} didn't get active. {evc}")
 
