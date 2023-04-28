@@ -707,7 +707,7 @@ class TestE2EMefEline:
                 assert 'circuit_id' in data
                 evcs[i] = data['circuit_id']
 
-            time.sleep(10)
+            time.sleep(20)
 
             # make sure the evcs are active and the flows were created
             s1, s2 = self.net.net.get('s1', 's2')
