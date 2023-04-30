@@ -13,7 +13,7 @@ class TestE2EOfLLDPLoopDetection:
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name='looped')
         cls.net.start()
-        cls.net.start_controller(enable_all=True)
+        cls.net.start_controller(clean_config=True, enable_all=True)
         cls.net.wait_switches_connect()
         time.sleep(10)
 
@@ -35,11 +35,8 @@ class TestE2EOfLLDPLoopDetection:
         """ This will test that given a looped topology, assuming that there is a loop
         it's going to shutdown the interface. """
 
-        polling_time = 5
-
         interface_id = "00:00:00:00:00:00:00:01:1"
-    
-        time.sleep(polling_time)
+        time.sleep(10)
 
         # GET topology with the interface ensuring that it's disabled
         api_url = KYTOS_API + '/topology/v3/interfaces' 
@@ -47,53 +44,48 @@ class TestE2EOfLLDPLoopDetection:
         assert response.status_code == 200, response.text
         data = response.json()
         assert 'looped' in data['interfaces'][interface_id]['metadata']
-        assert data['interfaces'][interface_id]['enabled'] == False
-
+        assert not data['interfaces'][interface_id]['enabled']
 
     def test_010_lldp_ignored_loops(self):
         """ Test that the ports 4 and 5 are ignored. """
 
-        polling_time = 5
-
         interface_id4 = "00:00:00:00:00:00:00:01:4"
 
         # GET topology with the interfaces ensuring that they are enabled
-        api_url = KYTOS_API + '/topology/v3/interfaces' 
+        api_url = KYTOS_API + '/topology/v3/interfaces'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data['interfaces'][interface_id4]['enabled'] == True
+        assert data['interfaces'][interface_id4]['enabled']
 
         # WAIT for some time, until the feature kicks
-        time.sleep(polling_time)
+        time.sleep(10)
 
         # GET topology with the interface ensuring that they are enabled
-        api_url = KYTOS_API + '/topology/v3/interfaces' 
+        api_url = KYTOS_API + '/topology/v3/interfaces'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data['interfaces'][interface_id4]['enabled'] == True  # [4,5] is an ignored loop
-
+        # [4,5] is an ignored loop
+        assert data['interfaces'][interface_id4]['enabled']
 
     def test_020_reconfigure_ignored_loops(self):
         """ Test that when we reconfigure the ignored loop with 
         POST /api/kytos/topology/v3/switches/{{dpid}}/metadata 
         the loops aren't ignored anymore.. """
 
-        polling_time = 5
-
         switch = '00:00:00:00:00:00:00:01'
         interface_id4 = "00:00:00:00:00:00:00:01:4"
 
         # GET topology with the interfaces ensuring that they are enabled
-        api_url = KYTOS_API + '/topology/v3/interfaces' 
+        api_url = KYTOS_API + '/topology/v3/interfaces'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data['interfaces'][interface_id4]['enabled'] == True
+        assert data['interfaces'][interface_id4]['enabled']
 
         # WAIT for some time, until the feature kicks
-        time.sleep(polling_time)
+        time.sleep(10)
 
         # Reconfigure the ignored loops
         api_url = KYTOS_API + '/topology/v3/switches/%s/metadata' % switch
@@ -103,8 +95,9 @@ class TestE2EOfLLDPLoopDetection:
         self.restart()
 
         # GET topology with the interface ensuring that they are enabled
-        api_url = KYTOS_API + '/topology/v3/interfaces' 
+        api_url = KYTOS_API + '/topology/v3/interfaces'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data['interfaces'][interface_id4]['enabled'] == False # [4,5] is an ignored loop, it was reconfigured
+        # [4,5] is an ignored loop, it was reconfigured
+        assert not data['interfaces'][interface_id4]['enabled']
