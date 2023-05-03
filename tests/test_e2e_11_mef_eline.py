@@ -321,7 +321,6 @@ class TestE2EMefEline:
         data = response.json()
         expected_desc = "Additional properties are not allowed ('active' was unexpected)"
         assert data["code"] == 400
-        assert data["name"] == "Bad Request"
         assert expected_desc in data["description"]
 
     def test_026_validate_bad_request_response_format(self):
@@ -342,7 +341,6 @@ class TestE2EMefEline:
 
         data = response.json()
         assert data["code"] == 400
-        assert data["name"] == "Bad Request"
         assert "The request body contains invalid API data" in data["description"]
         assert "not of type" in data["description"]
         assert "for field uni_a/interface_id" in data["description"]

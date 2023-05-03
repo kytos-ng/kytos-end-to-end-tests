@@ -1,7 +1,6 @@
 import requests
 from tests.helpers import NetworkTest
 import time
-import pytest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api' % CONTROLLER
@@ -20,7 +19,7 @@ class TestE2ESDNTrace:
         time.sleep(10)
         circuit_id = cls.create_evc(400)
         time.sleep(10)
-        cls.circuit = cls.get_evc(circuit_id)
+        cls.circuit = cls.wait_until_evc_is_active(circuit_id)
 
     @classmethod
     def teardown_class(cls):
@@ -54,6 +53,20 @@ class TestE2ESDNTrace:
         assert response.status_code == 200, response.text
         data = response.json()
         return data
+
+    @classmethod
+    def wait_until_evc_is_active(
+        cls, evc_id: str, wait_secs=6, i=0, max_i=20
+    ) -> dict:
+        """Wait until evc is active."""
+        evc = cls.get_evc(evc_id)
+        if evc["active"]:
+            return evc
+        time.sleep(wait_secs)
+        if i < max_i:
+            return cls.wait_until_evc_is_active(evc_id, wait_secs, i + 1, max_i)
+        else:
+            raise ValueError(f"TimeoutError: {evc_id} didn't get active. {evc}")
 
     def test_001_run_sdntrace_cp(self):
         """Run SDNTrace-CP (Control Plane)."""
@@ -334,11 +347,11 @@ class TestE2ESDNTrace:
 
         # 4. redeploy evc and check again
         circuit_id = self.circuit['id']
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc'
         response = requests.patch(f"{api_url}/{circuit_id}/redeploy")
         assert response.status_code == 202, response.text
         time.sleep(10)
-        self.circuit = self.get_evc(circuit_id)
+        self.circuit = self.wait_until_evc_is_active(circuit_id)
 
         api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload_1)
