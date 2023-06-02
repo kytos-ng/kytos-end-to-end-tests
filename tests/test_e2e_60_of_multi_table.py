@@ -123,26 +123,26 @@ class TestE2EOfMultiTable:
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline)
         data = response.json()
-        assert response.status_code == 201
+        assert response.status_code == 201, response.text
         assert 'id' in data
 
         # Enabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}/enable"
         response = requests.post(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         time.sleep(10)
 
         # Get pipeline dictionary
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}"
         response = requests.get(api_url)
         pipeline_data = response.json()
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         assert pipeline_data["status"] == "enabled"
 
         # Assert installed flows
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 9
+        assert len(flows_s1) == 9, flows_s1
         assert "table=0" in flows_s1[0]
         assert 'priority=0 actions=resubmit(,1)' in flows_s1[0] or \
                'priority=0 actions=goto_table:1' in flows_s1[0]
@@ -173,7 +173,7 @@ class TestE2EOfMultiTable:
         # Assert installed flows
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 9
+        assert len(flows_s1) == 9, flows_s1
         assert "table=0" in flows_s1[0]
         assert 'priority=0 actions=resubmit(,1)' in flows_s1[0] or \
                'priority=0 actions=goto_table:1' in flows_s1[0]
@@ -201,12 +201,12 @@ class TestE2EOfMultiTable:
         # Disabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}/disable"
         response = requests.post(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         time.sleep(10)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 5
+        assert len(flows_s1) == 5, flows_s1
         for flow in flows_s1:
             assert 'table=0' in flow
         assert 'actions=CONTROLLER:65535' in flows_s1[0]
@@ -218,7 +218,7 @@ class TestE2EOfMultiTable:
         # Delete disabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}"
         response = requests.delete(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
 
     def test_010_delete_miss_flow(self):
         """Delete a miss flow so is recreated"""
@@ -252,13 +252,13 @@ class TestE2EOfMultiTable:
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline)
         data = response.json()
-        assert response.status_code == 201
+        assert response.status_code == 201, response.text
         assert 'id' in data
 
         # Enabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}/enable"
         response = requests.post(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         time.sleep(10)
 
         s1 = self.net.net.get('s1')
@@ -334,7 +334,7 @@ class TestE2EOfMultiTable:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 6
+        assert len(flows_s1) == 6, flows_s1
         for flow in flows_s1:   
             assert 'table=0' in flow
 
@@ -342,13 +342,13 @@ class TestE2EOfMultiTable:
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline)
         data = response.json()
-        assert response.status_code == 201
+        assert response.status_code == 201, response.text
         assert 'id' in data
 
         # Enabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}/enable"
         response = requests.post(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         time.sleep(10)
 
         h11, h2 = self.net.net.get('h11', 'h2')
@@ -363,7 +363,7 @@ class TestE2EOfMultiTable:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 7
+        assert len(flows_s1) == 7, flows_s1
         assert 'table=1' in flows_s1[4]
         assert 'in_port="s1-eth1",dl_vlan=100' in flows_s1[4]
         assert 'table=1' in flows_s1[5]
@@ -412,42 +412,42 @@ class TestE2EOfMultiTable:
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline1)
         data1 = response.json()
-        assert response.status_code == 201
+        assert response.status_code == 201, response.text
         assert 'id' in response.json()
 
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline2)
         data2 = response.json()
-        assert response.status_code == 201
+        assert response.status_code == 201, response.text
         assert 'id' in response.json()
 
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline3)
         data3 = response.json()
-        assert response.status_code == 201
+        assert response.status_code == 201, response.text
         assert 'id' in response.json()
 
         # Enabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data1['id']}/enable"
         response = requests.post(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         time.sleep(10)
 
         # Try to enable another pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data2['id']}/enable"
         response = requests.post(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
         time.sleep(10)
 
         # Try to delete an enabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data2['id']}"
         response = requests.delete(api_url)
-        assert response.status_code == 409
+        assert response.status_code == 409, response.text
 
         # Try to disable an already disable pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data3['id']}/disable"
         response = requests.post(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
 
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.get(api_url)
@@ -470,7 +470,7 @@ class TestE2EOfMultiTable:
 
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline1)
-        assert response.status_code == 400
+        assert response.status_code == 400, response.text
 
         # Invalid: Duplicated table group from napp
         pipeline2 = {
@@ -492,7 +492,7 @@ class TestE2EOfMultiTable:
 
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline2)
-        assert response.status_code == 400
+        assert response.status_code == 400, response.text
 
         # Invalid: goto_table value is lower than table_id
         pipeline3 = {
@@ -513,4 +513,4 @@ class TestE2EOfMultiTable:
 
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline3)
-        assert response.status_code == 400
+        assert response.status_code == 400, response.text
