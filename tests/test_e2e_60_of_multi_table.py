@@ -142,22 +142,27 @@ class TestE2EOfMultiTable:
         # Assert installed flows
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
+        assert len(flows_s1) == 9
         assert "table=0" in flows_s1[0]
-        assert 'priority=0 actions=resubmit(,1)' in flows_s1[0]
+        assert 'priority=0 actions=resubmit(,1)' in flows_s1[0] or \
+               'priority=0 actions=goto_table:1' in flows_s1[0]
         assert "table=1" in flows_s1[1]
         assert 'actions=CONTROLLER:65535' in flows_s1[1]
         assert "table=1" in flows_s1[2]
         assert 'actions=CONTROLLER:65535' in flows_s1[2]
         assert "table=1" in flows_s1[3]
-        assert 'priority=0 actions=resubmit(,2)' in flows_s1[3]
+        assert 'priority=0 actions=resubmit(,2)' in flows_s1[3] or \
+               'priority=0 actions=goto_table:2' in flows_s1[3]
         assert "table=2" in flows_s1[4]
         assert 'dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
         assert "table=2" in flows_s1[5]
-        assert 'priority=0 actions=resubmit(,3)' in flows_s1[5]
+        assert 'priority=0 actions=resubmit(,3)' in flows_s1[5] or \
+               'priority=0 actions=goto_table:3' in flows_s1[5]
         assert "table=3" in flows_s1[6]
         assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[6]
         assert "table=3" in flows_s1[7]
-        assert 'priority=0 actions=resubmit(,4)' in flows_s1[7]
+        assert 'priority=0 actions=resubmit(,4)' in flows_s1[7] or \
+               'priority=0 actions=goto_table:4' in flows_s1[7]
         assert "table=4" in flows_s1[8]
         assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[8]
 
@@ -168,22 +173,27 @@ class TestE2EOfMultiTable:
         # Assert installed flows
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
+        assert len(flows_s1) == 9
         assert "table=0" in flows_s1[0]
-        assert 'priority=0 actions=resubmit(,1)' in flows_s1[0]
+        assert 'priority=0 actions=resubmit(,1)' in flows_s1[0] or \
+               'priority=0 actions=goto_table:1' in flows_s1[0]
         assert "table=1" in flows_s1[1]
         assert 'actions=CONTROLLER:65535' in flows_s1[1]
         assert "table=1" in flows_s1[2]
         assert 'actions=CONTROLLER:65535' in flows_s1[2]
         assert "table=1" in flows_s1[3]
-        assert 'priority=0 actions=resubmit(,2)' in flows_s1[3]
+        assert 'priority=0 actions=resubmit(,2)' in flows_s1[3] or \
+               'priority=0 actions=goto_table:2' in flows_s1[3]
         assert "table=2" in flows_s1[4]
         assert 'dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
         assert "table=2" in flows_s1[5]
-        assert 'priority=0 actions=resubmit(,3)' in flows_s1[5]
+        assert 'priority=0 actions=resubmit(,3)' in flows_s1[5] or \
+               'priority=0 actions=goto_table:3' in flows_s1[5]
         assert "table=3" in flows_s1[6]
         assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[6]
         assert "table=3" in flows_s1[7]
-        assert 'priority=0 actions=resubmit(,4)' in flows_s1[7]
+        assert 'priority=0 actions=resubmit(,4)' in flows_s1[7] or \
+               'priority=0 actions=goto_table:4' in flows_s1[7]
         assert "table=4" in flows_s1[8]
         assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[8]
 
@@ -194,18 +204,21 @@ class TestE2EOfMultiTable:
         assert response.status_code == 200
         time.sleep(10)
 
+        s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows').splitlines()
+        assert len(flows_s1) == 5
+        for flow in flows_s1:
+            assert 'table=0' in flow
+        assert 'actions=CONTROLLER:65535' in flows_s1[0]
+        assert 'actions=CONTROLLER:65535' in flows_s1[1]
+        assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[2]
+        assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[3]
+        assert 'dl_vlan=3799,dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
+
         # Delete disabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}"
         response = requests.delete(api_url)
         assert response.status_code == 200
-
-        self.net.reconnect_switches()
-        time.sleep(10)
-
-        s1 = self.net.net.get('s1')
-        flows_s1 = s1.dpctl('dump-flows').splitlines()
-        for flow in flows_s1:
-            assert 'table=0' in flow
 
     def test_010_delete_miss_flow(self):
         """Delete a miss flow so is recreated"""
@@ -319,6 +332,12 @@ class TestE2EOfMultiTable:
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
+        s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows').splitlines()
+        assert len(flows_s1) == 6
+        for flow in flows_s1:   
+            assert 'table=0' in flow
+
         # Add pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
         response = requests.post(api_url, json=pipeline)
@@ -341,6 +360,16 @@ class TestE2EOfMultiTable:
         h2.cmd('ip addr add 100.0.0.2/24 dev vlan_ra')
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
+
+        s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows').splitlines()
+        assert len(flows_s1) == 7
+        assert 'table=1' in flows_s1[4]
+        assert 'in_port="s1-eth1",dl_vlan=100' in flows_s1[4]
+        assert 'table=1' in flows_s1[5]
+        assert 'in_port="s1-eth3",dl_vlan=1 ' in flows_s1[5]
+        assert 'table=1' in flows_s1[6]
+        assert 'in_port="s1-eth4",dl_vlan=1 ' in flows_s1[6]
 
     def test_020_install_multiple_pipelines(test):
         """Test changing pipeline status"""
@@ -428,3 +457,60 @@ class TestE2EOfMultiTable:
                 assert pipeline['status'] == 'enabled'
                 continue
             assert pipeline['status'] == 'disabled'
+
+    def test_020_invalid_pipelines(test):
+        """Test invalid pipelines"""
+        # Invalid: Duplicated table id
+        pipeline1 = {
+            "multi_table": [
+                {"table_id": 1},
+                {"table_id": 1},
+            ]
+        }
+
+        api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
+        response = requests.post(api_url, json=pipeline1)
+        assert response.status_code == 400
+
+        # Invalid: Duplicated table group from napp
+        pipeline2 = {
+            "multi_table": [
+                {
+                    "table_id": 1,
+                    "napps_table_groups": {
+                        "mef_eline": ["epl"]
+                    },
+                },
+                {
+                    "table_id": 0,
+                    "napps_table_groups": {
+                        "mef_eline": ["epl", "evpl"]
+                    },
+                },
+            ]
+        }
+
+        api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
+        response = requests.post(api_url, json=pipeline2)
+        assert response.status_code == 400
+
+        # Invalid: goto_table value is lower than table_id
+        pipeline3 = {
+            "multi_table": [
+                {
+                    "table_id": 3,
+                    "table_miss_flow": {
+                        "priority": 0,
+                        "instructions": [{
+                            "instruction_type": "goto_table",
+                            "table_id": 1
+                        }]
+                    },
+                },
+            ]
+        }
+
+
+        api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}"
+        response = requests.post(api_url, json=pipeline3)
+        assert response.status_code == 400
