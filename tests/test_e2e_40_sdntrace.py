@@ -787,7 +787,7 @@ class TestE2ESDNTrace:
         assert list_results[0][0]["out"]["port"] == 1
 
     def test_070_run_sdntrace_untagged_vlan(cls):
-        """Run SDNTrace to test /traces endpoint when vlan is untagged in evc"""
+        """Run sdntrace_cp and sdntrace when vlan is untagged in evc"""
 
         api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'  
         response = requests.get(api_url)
@@ -827,8 +827,22 @@ class TestE2ESDNTrace:
         assert list_results[0][0]["port"] == 1
         assert list_results[0][-1]["type"] == "last"
 
+        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        response = requests.put(api_url, json=payload[0])
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert "result" in data, data
+        assert "trace_id" in data["result"], data
+        result = cls.wait_sdntrace_result(data["result"]["trace_id"])
+
+        assert len(result) == 3, result
+        assert result[0]["dpid"] == "00:00:00:00:00:00:00:02"
+        assert result[0]["port"] == 1
+        assert result[0]["type"] == "starting"
+        assert result[1]["dpid"] == "00:00:00:00:00:00:00:03"
+
     def test_075_run_sdntrace_any_vlan(cls):
-        """Run SDNTrace to test /traces endpoint when vlan is any in evc"""
+        """Run sdntrace_cp and sdntrace when vlan is any in evc"""
 
         cls.create_evc("any", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")
         time.sleep(10)
@@ -856,6 +870,20 @@ class TestE2ESDNTrace:
         assert list_results[0][0]["dpid"] == "00:00:00:00:00:00:00:02"
         assert list_results[0][0]["port"] == 1
         assert list_results[0][-1]["type"] == "last"
+
+        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        response = requests.put(api_url, json=payload[0])
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert "result" in data, data
+        assert "trace_id" in data["result"], data
+        result = cls.wait_sdntrace_result(data["result"]["trace_id"])
+
+        assert len(result) == 3, result
+        assert result[0]["dpid"] == "00:00:00:00:00:00:00:02"
+        assert result[0]["port"] == 1
+        assert result[0]["type"] == "starting"
+        assert result[1]["dpid"] == "00:00:00:00:00:00:00:03"
 
     def test_080_validate_attribute_on_payload(self):
         "Validate parameters"
