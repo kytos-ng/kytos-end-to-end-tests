@@ -59,6 +59,7 @@ class TestE2EKytosServer:
                 ("kytos", "of_core"),
                 ("kytos", "topology"),
                 ("kytos", "of_lldp"),
+                ("kytos", "of_multi_table"),
                 ('amlight', 'sdntrace'),
                 ('amlight', 'flow_stats'),
                 ('amlight', 'coloring'),
