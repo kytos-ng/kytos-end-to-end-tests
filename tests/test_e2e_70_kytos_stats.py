@@ -1,4 +1,5 @@
 import time
+import json
 
 from tests.helpers import NetworkTest
 import requests
@@ -190,4 +191,47 @@ class TestE2EKytosStats:
             count = data_flow[flow_id]['byte_count']
             assert info_flow['bytes_counter'] == count
             assert info_flow['bits_per_second'] == 8 * count/data_flow[flow_id]['duration_sec']
+
+    def test_035_table_fields_update(self):
+        """Test fields are updating on table 0.
+        active_count increments only when new flows are added
+        matched_count and lookup_count keep incrementing
+        """ 
+
+        api_url = KYTOS_STATS + '/table/stats?table=0'
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+
+        # install a flow
+        payload = {"flows": [{"match": {"in_port": 1}}]}
+
+        api_url_flow_manager = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        response = requests.post(api_url_flow_manager, data=json.dumps(payload),
+                                 headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+        data_flow = response.json()
+        assert 'FlowMod Messages Sent' in data_flow['response']
+
+        time.sleep(10)
+
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data_1 = response.json()
+        increase_active_count = False
+        increase_lookup_count = False
+        increase_matched_count = False
+
+        for sw in data_1:
+            if data[sw]['0']['active_count'] < data_1[sw]['0']['active_count']:
+                increase_active_count = True
+            if data[sw]['0']['lookup_count'] < data_1[sw]['0']['lookup_count']:
+                increase_lookup_count = True
+            if data[sw]['0']['matched_count'] < data_1[sw]['0']['matched_count']:
+                increase_matched_count = True
+        assert increase_active_count
+        assert increase_lookup_count
+        assert increase_matched_count
+
+
 
