@@ -64,6 +64,7 @@ class TestE2EKytosServer:
                 ('amlight', 'flow_stats'),
                 ('amlight', 'coloring'),
                 ('amlight', 'sdntrace_cp'),
+                ('amlight', 'kytos_stats'),
             ]
         api_url = KYTOS_API+'/core/napps_enabled/'
         response = requests.get(api_url)
