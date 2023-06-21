@@ -1192,8 +1192,8 @@ class TestE2EMefEline:
 
         current_path = [{"endpoint_a": {"id": "00:00:00:00:00:00:00:01:4"},
                          "endpoint_b": {"id": "00:00:00:00:00:00:00:03:3"}},
-                        {"endpoint_a": {"id": "00:00:00:00:00:00:00:03:2"},
-                         "endpoint_b": {"id": "00:00:00:00:00:00:00:02:3"}}]
+                        {"endpoint_a": {"id": "00:00:00:00:00:00:00:02:3"},
+                         "endpoint_b": {"id": "00:00:00:00:00:00:00:03:2"}}]
 
         # It verifies EVC's data
         response = requests.get(api_url + evc1)
@@ -1253,8 +1253,8 @@ class TestE2EMefEline:
 
         current_path = [{"endpoint_a": {"id": "00:00:00:00:00:00:00:01:4"},
                          "endpoint_b": {"id": "00:00:00:00:00:00:00:03:3"}},
-                        {"endpoint_a": {"id": "00:00:00:00:00:00:00:03:2"},
-                         "endpoint_b": {"id": "00:00:00:00:00:00:00:02:3"}}]
+                        {"endpoint_a": {"id": "00:00:00:00:00:00:00:02:3"},
+                         "endpoint_b": {"id": "00:00:00:00:00:00:00:03:2"}}]
 
         # It verifies EVC's data
         response = requests.get(api_url + evc1)
