@@ -780,8 +780,8 @@ class TestE2EMaintenance:
             "start": start.strftime(TIME_FMT),
             "end": end.strftime(TIME_FMT),
             "switches": [
-                "00:00:00:00:00:00:02"
-            ]
+                "00:00:00:00:00:00:00:02",
+            ],
         }
 
         # Creates a new maintenance window
@@ -819,8 +819,8 @@ class TestE2EMaintenance:
             "start": start.strftime(TIME_FMT),
             "end": end.strftime(TIME_FMT),
             "switches": [
-                "00:00:00:00:00:00:02"
-            ]
+                "00:00:00:00:00:00:00:02",
+            ],
         }
 
         # Creates a new maintenance window
@@ -984,8 +984,8 @@ class TestE2EMaintenance:
             "start": start.strftime(TIME_FMT),
             "end": end.strftime(TIME_FMT),
             "switches": [
-                "00:00:00:00:00:00:02"
-            ]
+                "00:00:00:00:00:00:00:02",
+            ],
         }
 
         # Creates a new maintenance window
