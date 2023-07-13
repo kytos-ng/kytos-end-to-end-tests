@@ -162,7 +162,10 @@ class TestE2EMefEline:
             uni_z="00:00:00:00:00:00:00:03:1",
             vlan_id=100,
             primary_constraints={"mandatory_metrics": {"ownership": "red"}},
-            secondary_constraints={"mandatory_metrics": {"ownership": "blue"}},
+            secondary_constraints={
+                "spf_attribute": "hop",
+                "mandatory_metrics": {"ownership": "blue"}
+            },
         )
 
         time.sleep(10)
@@ -173,8 +176,7 @@ class TestE2EMefEline:
         assert data["current_path"], data["current_path"]
         assert data["failover_path"], data["failover_path"]
         assert data["primary_constraints"] == {
-            "mandatory_metrics": {"ownership": "red"},
-            "spf_attribute": "hop",
+            "mandatory_metrics": {"ownership": "red"}
         }
         assert data["secondary_constraints"] == {
             "mandatory_metrics": {"ownership": "blue"},
@@ -192,8 +194,7 @@ class TestE2EMefEline:
         self.update_evc(
             evc_id,
             primary_constraints={
-                "mandatory_metrics": {"ownership": "blue"},
-                "spf_attribute": "hop",
+                "mandatory_metrics": {"ownership": "blue"}
             },
             secondary_constraints={
                 "mandatory_metrics": {"ownership": "red"},
@@ -208,8 +209,7 @@ class TestE2EMefEline:
         assert data["current_path"], data["current_path"]
         assert data["failover_path"], data["failover_path"]
         assert data["primary_constraints"] == {
-            "mandatory_metrics": {"ownership": "blue"},
-            "spf_attribute": "hop",
+            "mandatory_metrics": {"ownership": "blue"}
         }
         assert data["secondary_constraints"] == {
             "mandatory_metrics": {"ownership": "red"},
