@@ -204,6 +204,8 @@ class TestE2EOfMultiTable:
         assert response.status_code == 200, response.text
         time.sleep(10)
 
+        # of_lldp and coloring have same priority and
+        # order is not deterministic
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
         assert len(flows_s1) == 5, flows_s1
@@ -211,9 +213,9 @@ class TestE2EOfMultiTable:
             assert 'table=0' in flow
         assert 'actions=CONTROLLER:65535' in flows_s1[0]
         assert 'actions=CONTROLLER:65535' in flows_s1[1]
-        assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[2]
-        assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[3]
-        assert 'dl_vlan=3799,dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
+        assert 'actions=CONTROLLER:65535' in flows_s1[2]
+        assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[3]
+        assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[4]
 
         # Delete disabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}"
