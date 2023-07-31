@@ -202,7 +202,7 @@ class TestE2EOfLLDP:
         are no longer sent. This will force hello to be missed.
         """
         s2 = self.net.net.get("s2")
-        flow_entry = "cookie=0xdd00000000000000,priority=30000,dl_type=0x088cc,dl_vlan=3799,actions=drop"
+        flow_entry = "cookie=0xdd00000000000000,priority=60000,dl_type=0x088cc,dl_vlan=3799,actions=drop"
         s2.dpctl("add-flow", flow_entry)
 
         # Wait just so hellos are missed
