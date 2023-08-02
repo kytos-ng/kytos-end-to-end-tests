@@ -946,30 +946,22 @@ class TestE2ESDNTrace:
     def test_085_test_evcs_terminating_on_nnis(cls):
         "Test EVCs terminating on NNIs"
 
-        cls.create_evc(999, "00:00:00:00:00:00:00:02:1", "00:00:00:00:00:00:00:04:1")
+        cid1 = cls.create_evc(999, "00:00:00:00:00:00:00:02:1", "00:00:00:00:00:00:00:04:1")
         
         payload = {
-                "name": "pw_s2",
+                "name": "pw_s3",
                 "dynamic_backup_path": True,
                 "uni_a": {
-                    "interface_id": "00:00:00:00:00:00:00:02:1"
+                    "interface_id": "00:00:00:00:00:00:00:03:2"
                 },
                 "uni_z": {
-                    "interface_id": "00:00:00:00:00:00:00:01:1"
+                    "interface_id": "00:00:00:00:00:00:00:03:3"
                 }
             }
         api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
-
-        payload["name"] = "pw_s3"
-        payload["uni_a"]["interface_id"] = "00:00:00:00:00:00:00:03:2"
-        payload["uni_z"]["interface_id"] = "00:00:00:00:00:00:00:03:3"
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
-        response = requests.post(api_url, json=payload)
-        assert response.status_code == 201, response.text
-        data = response.json()
-        cid = data['circuit_id']
+        cid2 = response.json()['circuit_id']
         
         payload = [
                     {
@@ -989,3 +981,12 @@ class TestE2ESDNTrace:
         assert data['dpid'] == '00:00:00:00:00:00:00:03'
         assert data['port'] == 2
         assert data['out']['port'] == 3
+
+        # Delete the created circuits 
+        api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{cid1}' 
+        response = requests.delete(api_url)
+        assert response.status_code == 200, response.text
+
+        api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{cid2}' 
+        response = requests.delete(api_url)
+        assert response.status_code == 200, response.text
