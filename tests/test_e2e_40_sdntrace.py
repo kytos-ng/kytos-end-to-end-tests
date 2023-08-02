@@ -942,3 +942,50 @@ class TestE2ESDNTrace:
         api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200
+
+    def test_085_test_evcs_terminating_on_nnis(cls):
+        "Test EVCs terminating on NNIs"
+
+        cls.create_evc(999, "00:00:00:00:00:00:00:02:1", "00:00:00:00:00:00:00:04:1")
+        
+        payload = {
+                "name": "pw_s2",
+                "dynamic_backup_path": True,
+                "uni_a": {
+                    "interface_id": "00:00:00:00:00:00:00:02:1"
+                },
+                "uni_z": {
+                    "interface_id": "00:00:00:00:00:00:00:01:1"
+                }
+            }
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+
+        payload["name"] = "pw_s3"
+        payload["uni_a"]["interface_id"] = "00:00:00:00:00:00:00:03:2"
+        payload["uni_z"]["interface_id"] = "00:00:00:00:00:00:00:03:3"
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+        data = response.json()
+        cid = data['circuit_id']
+        
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:03",
+                                "in_port": 2
+                            }
+                        }
+                    }               ]
+
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 200, response.text
+        data = response.json()['result'][0][0]
+        assert data['type'] == 'last'
+        assert data['dpid'] == '00:00:00:00:00:00:00:03'
+        assert data['port'] == 2
+        assert data['out']['port'] == 3
