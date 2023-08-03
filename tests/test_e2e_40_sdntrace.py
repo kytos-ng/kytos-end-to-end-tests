@@ -971,16 +971,36 @@ class TestE2ESDNTrace:
                                 "in_port": 2
                             }
                         }
-                    }               ]
+                    }, {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:02",
+                                "in_port": 1
+                            },
+                            "eth": {"dl_vlan": 999}
+                        }
+                    }               
+                ]
 
         api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
-        data = response.json()['result'][0][0]
+        results = response.json()['result']
+        data = results[0][0]
         assert data['type'] == 'last'
         assert data['dpid'] == '00:00:00:00:00:00:00:03'
         assert data['port'] == 2
         assert data['out']['port'] == 3
+
+        data = results[1]
+        assert data[0]['dpid'] == '00:00:00:00:00:00:00:02'
+        assert data[0]['port'] == 1
+        assert data[0]['type'] == 'starting'
+        assert data[0]['vlan'] == 999
+        assert data[-1]['dpid'] == '00:00:00:00:00:00:00:04'
+        assert data[-1]['out']['port'] == 1
+        assert data[-1]['type'] == 'last'
+        assert data[-1]['out']['vlan'] == 999
 
         # Delete the created circuits 
         api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{cid1}' 
