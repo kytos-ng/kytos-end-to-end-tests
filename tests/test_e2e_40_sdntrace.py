@@ -278,9 +278,8 @@ class TestE2ESDNTrace:
         api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/trace'
         response = requests.put(api_url, json=payload_1)
         data = response.json()
-        # only 4 steps are expected: starting, 1->2, 2->3, 3->4, 4->5(incomplete)
-        assert len(data["result"]) == 5, str(data)
-        assert data["result"][-1]['type'] == "incomplete"
+        # only 4 steps are expected: starting, 1->2, 2->3, 3->4
+        assert len(data["result"]) == 4, str(data)
 
         full_path = [
             (
@@ -297,7 +296,7 @@ class TestE2ESDNTrace:
         ]
 
         assert full_path != actual, f"Full path {full_path}. Actual: {actual}"
-        assert full_path[:4] == actual, f"Expected {full_path[:4]}. Actual: {actual}"
+        assert full_path[:3] == actual, f"Expected {full_path[:3]}. Actual: {actual}"
 
         # 3. sdntrace data plane - Trace from UNI_A
         payload_2 = {
@@ -443,8 +442,7 @@ class TestE2ESDNTrace:
         data = response.json()
         list_results = data["result"] 
         assert len(list_results) == 4
-        assert len(list_results[0]) == 1
-        assert list_results[0][-1]["type"] == "incomplete"
+        assert len(list_results[0]) == 0
 
         assert len(list_results[1]) == 10
         assert list_results[1][0]["dpid"] == "00:00:00:00:00:00:00:01"
@@ -452,8 +450,7 @@ class TestE2ESDNTrace:
         assert list_results[1][-1]["type"] == "last"
         assert list_results[1][-1]["out"] == {'port': 1, 'vlan': 100}
 
-        assert len(list_results[0]) == 1
-        assert list_results[0][-1]["type"] == "incomplete"
+        assert len(list_results[2]) == 0
 
         assert len(list_results[3]) == 8
         assert list_results[3][0]["dpid"] == "00:00:00:00:00:00:00:03"
@@ -541,8 +538,7 @@ class TestE2ESDNTrace:
         assert response.status_code == 200, response.text
         data = response.json()
         list_results = data["result"] 
-        assert len(list_results[0]) == 3
-        assert list_results[0][-1]['type'] == 'incomplete'
+        assert len(list_results[0]) == 2
 
     def test_050_run_sdntrace_loop(cls):
         """Run SDNTrace to verify loop type"""
