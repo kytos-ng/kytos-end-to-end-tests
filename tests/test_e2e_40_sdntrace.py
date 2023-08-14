@@ -9,7 +9,6 @@ KYTOS_API = 'http://%s:8181/api' % CONTROLLER
 class TestE2ESDNTrace:
     net = None
     circuit = None
-    circuit_id = None
 
     @classmethod
     def setup_class(cls):
@@ -17,26 +16,20 @@ class TestE2ESDNTrace:
         cls.net.start()
         cls.net.restart_kytos_clean()
         cls.net.wait_switches_connect()
-        time.sleep(10)
-        cls.circuit_id = cls.create_evc(400)
-        time.sleep(10)
-        cls.circuit = cls.wait_until_evc_is_active(cls.circuit_id)
 
     @classmethod
     def teardown_class(cls):
         cls.net.stop()
 
-    def teardown_method(cls):
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'  
-        response = requests.get(api_url)
-        assert response.status_code == 200, response.text
-        data = response.json()
-
-        for circuit_id in data.keys():
-            if circuit_id != cls.circuit_id:
-                api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{circuit_id}' 
-                response = requests.delete(api_url)
-                assert response.status_code == 200, response.text
+    def setup_method(self, method):
+        """
+        It is called at the beginning of each method execution
+        """
+        self.net.start_controller(clean_config=True, enable_all=True)
+        time.sleep(10)
+        circuit_id = self.create_evc(400)
+        time.sleep(10)
+        self.circuit = self.wait_until_evc_is_active(circuit_id)
 
 
     @staticmethod
