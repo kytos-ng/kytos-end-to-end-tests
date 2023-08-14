@@ -9,6 +9,7 @@ KYTOS_API = 'http://%s:8181/api' % CONTROLLER
 class TestE2ESDNTrace:
     net = None
     circuit = None
+    circuit_id = None
 
     @classmethod
     def setup_class(cls):
@@ -17,13 +18,26 @@ class TestE2ESDNTrace:
         cls.net.restart_kytos_clean()
         cls.net.wait_switches_connect()
         time.sleep(10)
-        circuit_id = cls.create_evc(400)
+        cls.circuit_id = cls.create_evc(400)
         time.sleep(10)
-        cls.circuit = cls.wait_until_evc_is_active(circuit_id)
+        cls.circuit = cls.wait_until_evc_is_active(cls.circuit_id)
 
     @classmethod
     def teardown_class(cls):
         cls.net.stop()
+
+    def teardown_method(cls):
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'  
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+
+        for circuit_id in data.keys():
+            if circuit_id != cls.circuit_id:
+                api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{circuit_id}' 
+                response = requests.delete(api_url)
+                assert response.status_code == 200, response.text
+
 
     @staticmethod
     def create_evc(vlan_id, interface_a="00:00:00:00:00:00:00:01:1", interface_z="00:00:00:00:00:00:00:0a:1"):
@@ -785,19 +799,6 @@ class TestE2ESDNTrace:
     def test_070_run_sdntrace_untagged_vlan(cls):
         """Run sdntrace_cp and sdntrace when vlan is untagged in evc"""
 
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'  
-        response = requests.get(api_url)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        
-        uni_a = {'interface_id': '00:00:00:00:00:00:00:02:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
-        uni_z = {'interface_id': '00:00:00:00:00:00:00:03:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
-        for circuit_id, circuit in data.items():
-            if uni_a in (circuit['uni_a'], circuit['uni_z']) or uni_z in (circuit['uni_a'], circuit['uni_z']):
-                api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{circuit_id}' 
-                response = requests.delete(api_url)
-                assert response.status_code == 200, response.text
-
         cls.create_evc("untagged", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")        
         time.sleep(10)
 
@@ -998,11 +999,3 @@ class TestE2ESDNTrace:
         assert data[-1]['type'] == 'last'
         assert data[-1]['out']['vlan'] == 999
 
-        # Delete the created circuits 
-        api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{cid1}' 
-        response = requests.delete(api_url)
-        assert response.status_code == 200, response.text
-
-        api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{cid2}' 
-        response = requests.delete(api_url)
-        assert response.status_code == 200, response.text
