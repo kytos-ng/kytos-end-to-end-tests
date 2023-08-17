@@ -26,6 +26,7 @@ class TestE2ESDNTrace:
         It is called at the beginning of each method execution
         """
         self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
         time.sleep(10)
         circuit_id = self.create_evc(400)
         time.sleep(10)
