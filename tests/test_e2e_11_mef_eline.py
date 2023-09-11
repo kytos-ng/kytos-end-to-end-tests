@@ -54,14 +54,14 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
@@ -126,14 +126,14 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
@@ -295,14 +295,14 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },

@@ -41,11 +41,11 @@ class TestE2ESDNTrace:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": interface_a,
-                "tag": {"tag_type": 1, "value": vlan_id}
+                "tag": {"tag_type": "vlan", "value": vlan_id}
             },
             "uni_z": {
                 "interface_id": interface_z,
-                "tag": {"tag_type": 1, "value": vlan_id}
+                "tag": {"tag_type": "vlan", "value": vlan_id}
             }
         }
         api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
