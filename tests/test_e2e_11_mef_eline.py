@@ -79,7 +79,7 @@ class TestE2EMefEline:
             ]
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
 
@@ -144,7 +144,7 @@ class TestE2EMefEline:
             "dynamic_backup_path": True
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         r = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert r.status_code == 201, r.text
 
@@ -205,7 +205,7 @@ class TestE2EMefEline:
             ]
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         r = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert r.status_code == 201, r.text
 
@@ -256,7 +256,7 @@ class TestE2EMefEline:
             }
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
 
@@ -314,7 +314,7 @@ class TestE2EMefEline:
             "active": True,
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
@@ -335,7 +335,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:03:1"
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 

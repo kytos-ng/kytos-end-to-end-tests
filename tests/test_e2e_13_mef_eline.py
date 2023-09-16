@@ -56,7 +56,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": vlan_id}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         data = response.json()
         if store:
@@ -64,7 +64,7 @@ class TestE2EMefEline:
         return data['circuit_id']
 
     def test_005_patch_unknown_circuit(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         time.sleep(10)
@@ -92,7 +92,7 @@ class TestE2EMefEline:
         assert data == data2
 
     def test_010_patch_an_empty_uni_a(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -107,7 +107,7 @@ class TestE2EMefEline:
     def test_015_patch_an_inconsistent_uni_a(self):
         """ No existing switch """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -124,7 +124,7 @@ class TestE2EMefEline:
     def test_020_patch_an_inconsistent_uni_a(self):
         """ Valid switch but invalid Interface ID """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -139,16 +139,16 @@ class TestE2EMefEline:
         assert response.status_code == 400, response.text
 
     def test_025_patch_an_inconsistent_uni_a(self):
-        """ Valid switch, valid Interface ID, but invalid tag_type (string) """
+        """ Valid switch, valid Interface ID, but invalid tag_type (int) """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": "A",
+                    "tag_type": 1,
                     "value": 101
                 }
             }
@@ -163,7 +163,7 @@ class TestE2EMefEline:
     def test_030_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, but invalid tag_type (invalid value) """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -185,7 +185,7 @@ class TestE2EMefEline:
     def test_035_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -206,7 +206,7 @@ class TestE2EMefEline:
     def test_040_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -228,7 +228,7 @@ class TestE2EMefEline:
     def test_045_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -249,7 +249,7 @@ class TestE2EMefEline:
     def test_050_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag_name """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -273,7 +273,7 @@ class TestE2EMefEline:
         pass
 
     def test_060_patch_an_empty_uni_z(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -288,7 +288,7 @@ class TestE2EMefEline:
     def test_065_patch_an_inconsistent_uni_z(self):
         """ No existing switch """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -305,7 +305,7 @@ class TestE2EMefEline:
     def test_070_patch_an_inconsistent_uni_z(self):
         """ Valid switch but invalid Interface ID """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -320,16 +320,16 @@ class TestE2EMefEline:
         assert response.status_code == 400, response.text
 
     def test_075_patch_an_inconsistent_uni_z(self):
-        """ Valid switch, valid Interface ID, but invalid tag_type (string) """
+        """ Valid switch, valid Interface ID, but invalid tag_type (int) """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": "A",
+                    "tag_type": 1,
                     "value": 101
                 }
             }
@@ -344,7 +344,7 @@ class TestE2EMefEline:
     def test_080_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, but invalid tag_type (invalid value) """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -366,7 +366,7 @@ class TestE2EMefEline:
     def test_085_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -387,7 +387,7 @@ class TestE2EMefEline:
     def test_090_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -409,7 +409,7 @@ class TestE2EMefEline:
     def test_095_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -430,7 +430,7 @@ class TestE2EMefEline:
     def test_100_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag_name """
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -451,7 +451,7 @@ class TestE2EMefEline:
     """It is returning Response [200], should be 400"""
     @pytest.mark.xfail
     def test_105_patch_an_inconsistent_primary_path(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -499,7 +499,7 @@ class TestE2EMefEline:
     """It is returning Response [200], should be 400"""
     @pytest.mark.xfail
     def test_110_patch_an_unrelated_primary_path(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -546,7 +546,7 @@ class TestE2EMefEline:
     """It is returning Response [200], should be 400"""
     @pytest.mark.xfail
     def test_115_patch_an_empty_primary_path(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload = {
             "name": "my evc1",
             "enabled": True,
@@ -587,7 +587,7 @@ class TestE2EMefEline:
     """It is returning Response [200], should be 400"""
     @pytest.mark.xfail
     def test_120_patch_an_inconsistent_backup_path(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -639,7 +639,7 @@ class TestE2EMefEline:
         assert data['active'] is True
 
     def test_125_patch_an_unrelated_backup_path(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -693,7 +693,7 @@ class TestE2EMefEline:
     """It is returning Response [500], should be 400"""
     @pytest.mark.xfail
     def test_130_patch_an_inconsistent_primary_links(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -741,7 +741,7 @@ class TestE2EMefEline:
     """It is returning Response [500], should be 400"""
     @pytest.mark.xfail
     def test_135_patch_an_unrelated_primary_links(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -789,7 +789,7 @@ class TestE2EMefEline:
     """It is returning Response [500], should be 400"""
     @pytest.mark.xfail
     def test_140_patch_an_inconsistent_backup_links(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -843,7 +843,7 @@ class TestE2EMefEline:
     """It is returning Response [500], should be 400"""
     @pytest.mark.xfail
     def test_145_patch_an_unrelated_backup_links(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -896,7 +896,7 @@ class TestE2EMefEline:
         assert data['active'] is True
 
     def test_150_patch_creation_time(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         # It verifies EVC's data
@@ -921,7 +921,7 @@ class TestE2EMefEline:
         assert data['creation_time'] == creation_time
 
     def test_155_patch_evc_active(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -941,7 +941,7 @@ class TestE2EMefEline:
     """It is returning Response 200, should be 400"""
     @pytest.mark.xfail
     def test_160_patch_request_time(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         start = datetime.now()
@@ -960,7 +960,7 @@ class TestE2EMefEline:
         assert data['request_time'] != start.strftime(TIME_FMT)
 
     def test_165_patch_current_path(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -1013,7 +1013,7 @@ class TestE2EMefEline:
         assert data["current_path"][0]["active"] is True
 
     def test_170_post_invalid_json(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload = {
             "unknown_tag": "my evc1",
         }
@@ -1023,14 +1023,14 @@ class TestE2EMefEline:
         assert response.status_code == 400, response.text
 
     def test_175_post_empty_json(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload = {}
         response = requests.post(api_url, data=json.dumps(payload),
                                  headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
     def test_180_post_unknown_port_on_interface(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -1048,7 +1048,7 @@ class TestE2EMefEline:
         assert response.status_code == 400, response.text
 
     def test_185_post_unknown_interface(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -1066,7 +1066,7 @@ class TestE2EMefEline:
         assert response.status_code == 400, response.text
 
     def test_190_post_an_evc_twice(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -1088,7 +1088,7 @@ class TestE2EMefEline:
         assert response.status_code == 409, response.text
 
     def test_195_get_unknown_circuit(self):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         evc1 = self.create_evc(100)
 
         # It verifies EVC's data
@@ -1114,7 +1114,7 @@ class TestE2EMefEline:
             ]
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
@@ -1134,7 +1134,7 @@ class TestE2EMefEline:
             'primary_path': []
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
@@ -1153,7 +1153,7 @@ class TestE2EMefEline:
             }
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
@@ -1172,7 +1172,7 @@ class TestE2EMefEline:
             'primary_path': []
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
@@ -1190,7 +1190,7 @@ class TestE2EMefEline:
             }
         }
 
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 

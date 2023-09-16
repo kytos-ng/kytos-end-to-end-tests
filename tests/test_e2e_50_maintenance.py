@@ -34,7 +34,7 @@ class TestE2EMaintenance:
 
     @staticmethod
     def get_evc(circuit_id):
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.get(api_url+circuit_id)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -67,7 +67,7 @@ class TestE2EMaintenance:
                  "endpoint_b": {"id": "00:00:00:00:00:00:00:03:2"}}
             ],
         }
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        api_url = KYTOS_API + '/mef_eline/v3/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()

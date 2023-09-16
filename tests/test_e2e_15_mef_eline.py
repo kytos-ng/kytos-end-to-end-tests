@@ -84,7 +84,7 @@ class TestE2EMefEline:
             payload.update({"primary_constraints": primary_constraints})
         if secondary_constraints:
             payload.update({"secondary_constraints": secondary_constraints})
-        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        api_url = KYTOS_API + "/mef_eline/v3/evc/"
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -92,7 +92,7 @@ class TestE2EMefEline:
 
     def update_evc(self, circuit_id: str, **kwargs) -> dict:
         """Update an EVC."""
-        api_url = f"{KYTOS_API}/mef_eline/v2/evc/{circuit_id}"
+        api_url = f"{KYTOS_API}/mef_eline/v3/evc/{circuit_id}"
         response = requests.patch(api_url, json=kwargs)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -100,7 +100,7 @@ class TestE2EMefEline:
 
     def delete_evc(self, circuit_id) -> dict:
         """Delete an EVC."""
-        api_url = f"{KYTOS_API}/mef_eline/v2/evc/{circuit_id}"
+        api_url = f"{KYTOS_API}/mef_eline/v3/evc/{circuit_id}"
         response = requests.delete(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -108,7 +108,7 @@ class TestE2EMefEline:
 
     def test_002_update_uni(self):
         """Test when a uni is updated"""
-        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        api_url = KYTOS_API + "/mef_eline/v3/evc/"
         evc_id = self.create_evc(
             uni_a="00:00:00:00:00:00:00:01:1",
             uni_z="00:00:00:00:00:00:00:03:1",
@@ -156,7 +156,7 @@ class TestE2EMefEline:
             if v["ownership"] == "red":
                 red_link_ids.add(k)
 
-        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        api_url = KYTOS_API + "/mef_eline/v3/evc/"
         evc_id = self.create_evc(
             uni_a="00:00:00:00:00:00:00:01:1",
             uni_z="00:00:00:00:00:00:00:03:1",
