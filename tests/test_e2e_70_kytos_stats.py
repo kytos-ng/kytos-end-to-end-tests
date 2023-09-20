@@ -151,6 +151,7 @@ class TestE2EKytosStats:
         for flow_id, flow in data_flow.items():
             if flow['cookie'] == cookie:
                 packet_counter = flow['packet_count']
+                assert packet_counter >= n, str(flow)
                 packet_per_second = packet_counter/flow['duration_sec']
                 break
         
