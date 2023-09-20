@@ -16,14 +16,22 @@ class TestE2ESDNTrace:
         cls.net.start()
         cls.net.restart_kytos_clean()
         cls.net.wait_switches_connect()
-        time.sleep(10)
-        circuit_id = cls.create_evc(400)
-        time.sleep(10)
-        cls.circuit = cls.wait_until_evc_is_active(circuit_id)
 
     @classmethod
     def teardown_class(cls):
         cls.net.stop()
+
+    def setup_method(self, method):
+        """
+        It is called at the beginning of each method execution
+        """
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+        circuit_id = self.create_evc(400)
+        time.sleep(10)
+        self.circuit = self.wait_until_evc_is_active(circuit_id)
+
 
     @staticmethod
     def create_evc(vlan_id, interface_a="00:00:00:00:00:00:00:01:1", interface_z="00:00:00:00:00:00:00:0a:1"):
@@ -785,19 +793,6 @@ class TestE2ESDNTrace:
     def test_070_run_sdntrace_untagged_vlan(cls):
         """Run sdntrace_cp and sdntrace when vlan is untagged in evc"""
 
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'  
-        response = requests.get(api_url)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        
-        uni_a = {'interface_id': '00:00:00:00:00:00:00:02:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
-        uni_z = {'interface_id': '00:00:00:00:00:00:00:03:1', 'tag': {'tag_type': 1, 'value': "untagged"}}
-        for circuit_id, circuit in data.items():
-            if uni_a in (circuit['uni_a'], circuit['uni_z']) or uni_z in (circuit['uni_a'], circuit['uni_z']):
-                api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{circuit_id}' 
-                response = requests.delete(api_url)
-                assert response.status_code == 200, response.text
-
         cls.create_evc("untagged", interface_a="00:00:00:00:00:00:00:02:1", interface_z="00:00:00:00:00:00:00:03:1")        
         time.sleep(10)
 
@@ -942,7 +937,7 @@ class TestE2ESDNTrace:
     def test_085_test_evcs_terminating_on_nnis(cls):
         "Test EVCs terminating on NNIs"
 
-        cid1 = cls.create_evc(999, "00:00:00:00:00:00:00:02:1", "00:00:00:00:00:00:00:04:1")
+        cls.create_evc(999, "00:00:00:00:00:00:00:02:1", "00:00:00:00:00:00:00:04:1")
         
         payload = {
                 "name": "pw_s3",
@@ -957,7 +952,6 @@ class TestE2ESDNTrace:
         api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
-        cid2 = response.json()['circuit_id']
         
         payload = [
                     {
@@ -998,11 +992,52 @@ class TestE2ESDNTrace:
         assert data[-1]['type'] == 'last'
         assert data[-1]['out']['vlan'] == 999
 
-        # Delete the created circuits 
-        api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{cid1}' 
-        response = requests.delete(api_url)
+    def test_090_test_flows_with_instruction(cls):
+        "Test flows with instruction"
+        payload_stored_flow = {
+            "flows": [
+                {
+                    "match": {
+                        "in_port": 2,
+                        "dl_vlan": 100
+                    },
+                    "instructions": [
+                        {
+                            "instruction_type": "apply_actions",
+                            "actions": [
+                                {"action_type": "output", "port": 1}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        response = requests.post(api_url, json = payload_stored_flow)
+        assert response.status_code == 202, response.text
+        time.sleep(10)
+       
+        payload = [
+                    {
+                        "trace": {
+                            "switch": {
+                                "dpid": "00:00:00:00:00:00:00:01",
+                                "in_port": 2,
+                            },
+                            "eth": {
+                                "dl_vlan": 100
+                            }
+                        }
+                    }
+                ]
+                
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
+        response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
-
-        api_url = KYTOS_API + f'/kytos/mef_eline/v2/evc/{cid2}' 
-        response = requests.delete(api_url)
-        assert response.status_code == 200, response.text
+        data = response.json()["result"][0][0]
+        
+        assert data['dpid'] == '00:00:00:00:00:00:00:01'
+        assert data['port'] == 2
+        assert data['type'] == 'last'
+        assert data['out']['port'] == 1
+        assert data['out']['vlan'] == 100
