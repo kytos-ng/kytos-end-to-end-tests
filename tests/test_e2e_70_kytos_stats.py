@@ -132,6 +132,16 @@ class TestE2EKytosStats:
         data_flow = response.json()
         assert 'FlowMod Messages Sent' in data_flow['response']
 
+        # wait the flow to be installed
+        time.sleep(5)
+
+        # send N packets, each one containing 1500 bytes
+        # (14 ether hdr + 40 ipv6 + 8 icmp + 1438 payload)
+        h11 = self.net.net.get('h11')
+        n = 20
+        h11.cmd(f"ping -6 -b -c {n} -s 1438 FF02::2%h11-eth0 -Mdo -i 0.01 -W 2")
+
+        # give enough time for stats gathering (of_core.STATS_INTERVAL)
         time.sleep(10)
 
         api_url = KYTOS_STATS + f'/flow/stats?dpid={sw}'  
