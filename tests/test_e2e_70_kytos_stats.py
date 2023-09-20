@@ -169,7 +169,13 @@ class TestE2EKytosStats:
 
         # install a flow
         cookie = 5
-        payload = {"flows": [{"cookie": cookie}]}
+        payload = {
+            "flows": [{
+                "cookie": cookie,
+                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
+                'actions': [{'action_type': 'output', 'port': 2}]
+            }]
+        }
 
         api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
         response = requests.post(api_url_flow_manager, data=json.dumps(payload),
