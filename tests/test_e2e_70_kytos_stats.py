@@ -117,7 +117,13 @@ class TestE2EKytosStats:
 
         # install a flow
         cookie = 5
-        payload = {"flows": [{"cookie": cookie}]}
+        payload = {
+            "flows": [{
+                "cookie": cookie,
+                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
+                'actions': [{'action_type': 'output', 'port': 2}]
+            }]
+        }
 
         api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
         response = requests.post(api_url_flow_manager, data=json.dumps(payload),
@@ -126,6 +132,16 @@ class TestE2EKytosStats:
         data_flow = response.json()
         assert 'FlowMod Messages Sent' in data_flow['response']
 
+        # wait the flow to be installed
+        time.sleep(5)
+
+        # send N packets, each one containing 1500 bytes
+        # (14 ether hdr + 40 ipv6 + 8 icmp + 1438 payload)
+        h11 = self.net.net.get('h11')
+        n = 20
+        h11.cmd(f"ping -6 -b -c {n} -s 1438 FF02::2%h11-eth0 -Mdo -i 0.01 -W 2")
+
+        # give enough time for stats gathering (of_core.STATS_INTERVAL)
         time.sleep(10)
 
         api_url = KYTOS_STATS + f'/flow/stats?dpid={sw}'  
@@ -135,6 +151,7 @@ class TestE2EKytosStats:
         for flow_id, flow in data_flow.items():
             if flow['cookie'] == cookie:
                 packet_counter = flow['packet_count']
+                assert packet_counter >= n, str(flow)
                 packet_per_second = packet_counter/flow['duration_sec']
                 break
         
@@ -152,7 +169,13 @@ class TestE2EKytosStats:
 
         # install a flow
         cookie = 5
-        payload = {"flows": [{"cookie": cookie}]}
+        payload = {
+            "flows": [{
+                "cookie": cookie,
+                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
+                'actions': [{'action_type': 'output', 'port': 2}]
+            }]
+        }
 
         api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
         response = requests.post(api_url_flow_manager, data=json.dumps(payload),
@@ -161,6 +184,16 @@ class TestE2EKytosStats:
         data_flow = response.json()
         assert 'FlowMod Messages Sent' in data_flow['response']
 
+        # wait the flow to be installed
+        time.sleep(5)
+
+        # send N packets, each one containing 1500 bytes
+        # (14 ether hdr + 40 ipv6 + 8 icmp + 1438 payload)
+        h11 = self.net.net.get('h11')
+        n = 20
+        h11.cmd(f"ping -6 -b -c {n} -s 1438 FF02::2%h11-eth0 -Mdo -i 0.01 -W 2")
+
+        # waiting to give enough time for stats gathering (of_core.STATS_INTERVAL)
         time.sleep(10)
 
         api_url = KYTOS_STATS + f'/flow/stats?dpid={sw}'  
@@ -170,6 +203,7 @@ class TestE2EKytosStats:
         for flow_id, flow in data_flow.items():
             if flow['cookie'] == cookie:
                 bytes_counter = flow['byte_count']
+                assert bytes_counter >= n*1500, str(flow)
                 bits_per_second = 8*bytes_counter/flow['duration_sec']
                 break
         
