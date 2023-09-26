@@ -35,15 +35,15 @@ class TestE2EKytosStats:
         assert response.status_code == 200, response.text
         data = response.json()
         assert len(data) == 1
-        assert '00:00:00:00:00:00:00:01' in data
+        assert '00:00:00:00:00:00:00:01' in data, str(data)
 
         api_url = KYTOS_STATS + '/flow/stats?dpid=00:00:00:00:00:00:00:01&dpid=00:00:00:00:00:00:00:02'  
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
         assert len(data) == 2
-        assert '00:00:00:00:00:00:00:01' in data
-        assert '00:00:00:00:00:00:00:02' in data
+        assert '00:00:00:00:00:00:00:01' in data, str(data)
+        assert '00:00:00:00:00:00:00:02' in data, str(data)
 
         api_url = KYTOS_STATS + '/flow/stats'  
         response = requests.get(api_url)
@@ -63,15 +63,15 @@ class TestE2EKytosStats:
         assert response.status_code == 200, response.text
         data = response.json()
         assert len(data) == 1
-        assert '00:00:00:00:00:00:00:01' in data
+        assert '00:00:00:00:00:00:00:01' in data, str(data)
 
         api_url = KYTOS_STATS + '/table/stats?dpid=00:00:00:00:00:00:00:01&dpid=00:00:00:00:00:00:00:02' 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
         assert len(data) == 2
-        assert '00:00:00:00:00:00:00:01' in data
-        assert '00:00:00:00:00:00:00:02' in data
+        assert '00:00:00:00:00:00:00:01' in data, str(data)
+        assert '00:00:00:00:00:00:00:02' in data, str(data)
 
         api_url = KYTOS_API + '/kytos/topology/v3/switches'
         response = requests.get(api_url)
@@ -85,7 +85,7 @@ class TestE2EKytosStats:
         assert len(data) == len(topo_switches)
         for sw in topo_switches:
             assert len(data[sw]) == 1
-            assert '0' in data[sw]
+            assert '0' in data[sw], str(data)
 
         api_url = KYTOS_STATS + '/table/stats?table=0&table=1'  
         response = requests.get(api_url)
@@ -94,8 +94,8 @@ class TestE2EKytosStats:
         assert len(data) == len(topo_switches)
         for sw in topo_switches:
             assert len(data[sw]) == 2
-            assert '0' in data[sw]
-            assert '1' in data[sw]
+            assert '0' in data[sw], str(data)
+            assert '1' in data[sw], str(data)
 
         api_url = KYTOS_STATS + '/table/stats?dpid=00:00:00:00:00:00:00:01&table=0'
         response = requests.get(api_url)
@@ -103,7 +103,7 @@ class TestE2EKytosStats:
         data = response.json()
         assert len(data) == 1
         assert len(data['00:00:00:00:00:00:00:01']) == 1
-        assert '0' in data['00:00:00:00:00:00:00:01']
+        assert '0' in data['00:00:00:00:00:00:00:01'], str(data)
 
         api_url = KYTOS_STATS + '/table/stats'  
         response = requests.get(api_url)
@@ -113,16 +113,46 @@ class TestE2EKytosStats:
 
     def test_015_packet_count(self):
         """Test packet_count""" 
+        sw = "00:00:00:00:00:00:00:01"
+
+        # install a flow
+        cookie = 5
+        payload = {
+            "flows": [{
+                "cookie": cookie,
+                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
+                'actions': [{'action_type': 'output', 'port': 2}]
+            }]
+        }
+
+        api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
+        response = requests.post(api_url_flow_manager, data=json.dumps(payload),
+                                 headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+        data_flow = response.json()
+        assert 'FlowMod Messages Sent' in data_flow['response']
+
+        # wait the flow to be installed
+        time.sleep(5)
+
+        # send N packets, each one containing 1500 bytes
+        # (14 ether hdr + 40 ipv6 + 8 icmp + 1438 payload)
+        h11 = self.net.net.get('h11')
+        n = 20
+        h11.cmd(f"ping -6 -b -c {n} -s 1438 FF02::2%h11-eth0 -Mdo -i 0.01 -W 2")
+
+        # give enough time for stats gathering (of_core.STATS_INTERVAL)
         time.sleep(10)
-        api_url = KYTOS_STATS + '/flow/stats'  
+
+        api_url = KYTOS_STATS + f'/flow/stats?dpid={sw}'  
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
-        data_flow = response.json()
-        for sw in data_flow:
-            if len(data_flow[sw]):
-                flow_id = list(data_flow[sw].keys())[0]
-                packet_counter = data_flow[sw][flow_id]['packet_count']
-                packet_per_second = packet_counter/data_flow[sw][flow_id]['duration_sec']
+        data_flow = response.json()[sw]
+        for flow_id, flow in data_flow.items():
+            if flow['cookie'] == cookie:
+                packet_counter = flow['packet_count']
+                assert packet_counter >= n, str(flow)
+                packet_per_second = packet_counter/flow['duration_sec']
                 break
         
         api_url = KYTOS_STATS + f'/packet_count/{flow_id}' 
@@ -135,16 +165,46 @@ class TestE2EKytosStats:
 
     def test_020_bytes_count(self):
         """Test bytes_count""" 
+        sw = "00:00:00:00:00:00:00:01"
 
-        api_url = KYTOS_STATS + '/flow/stats'  
+        # install a flow
+        cookie = 5
+        payload = {
+            "flows": [{
+                "cookie": cookie,
+                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
+                'actions': [{'action_type': 'output', 'port': 2}]
+            }]
+        }
+
+        api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
+        response = requests.post(api_url_flow_manager, data=json.dumps(payload),
+                                 headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+        data_flow = response.json()
+        assert 'FlowMod Messages Sent' in data_flow['response']
+
+        # wait the flow to be installed
+        time.sleep(5)
+
+        # send N packets, each one containing 1500 bytes
+        # (14 ether hdr + 40 ipv6 + 8 icmp + 1438 payload)
+        h11 = self.net.net.get('h11')
+        n = 20
+        h11.cmd(f"ping -6 -b -c {n} -s 1438 FF02::2%h11-eth0 -Mdo -i 0.01 -W 2")
+
+        # waiting to give enough time for stats gathering (of_core.STATS_INTERVAL)
+        time.sleep(10)
+
+        api_url = KYTOS_STATS + f'/flow/stats?dpid={sw}'  
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
-        data_flow = response.json()
-        for sw in data_flow:
-            if len(data_flow[sw]):
-                flow_id = list(data_flow[sw].keys())[0]
-                bytes_counter = data_flow[sw][flow_id]['byte_count']
-                bits_per_second = 8*bytes_counter/data_flow[sw][flow_id]['duration_sec']
+        data_flow = response.json()[sw]
+        for flow_id, flow in data_flow.items():
+            if flow['cookie'] == cookie:
+                bytes_counter = flow['byte_count']
+                assert bytes_counter >= n*1500, str(flow)
+                bits_per_second = 8*bytes_counter/flow['duration_sec']
                 break
         
         api_url = KYTOS_STATS + f'/bytes_count/{flow_id}' 
@@ -233,5 +293,30 @@ class TestE2EKytosStats:
         assert increase_lookup_count
         assert increase_matched_count
 
+    def test_036_table_1_active_count_update(self):
+        """Test active count are increasing on table 1.
+        """ 
 
+        api_url = KYTOS_STATS + '/table/stats?table=1'
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+
+        # install a flow
+        payload = {"flows": [{"table_id": 1, "match": {"in_port": 1}}]}
+        sw = "00:00:00:00:00:00:00:01"
+        api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
+        response = requests.post(api_url_flow_manager, data=json.dumps(payload),
+                                 headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+        data_flow = response.json()
+        assert 'FlowMod Messages Sent' in data_flow['response']
+
+        time.sleep(10)
+
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data_1 = response.json()
+
+        assert data[sw]['1']['active_count'] < data_1[sw]['1']['active_count']
 
