@@ -59,7 +59,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": vlan_id}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         data = response.json()
         return data['circuit_id']
@@ -71,7 +71,7 @@ class TestE2EMefEline:
     def test_005_create_evc_on_nni(self):
         """Test to evaluate how mef_eline will behave when the uni is actually
         an NNI."""
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:16:5',
                                uni_z='00:00:00:00:00:00:00:11:1',
                                vlan_id=100)

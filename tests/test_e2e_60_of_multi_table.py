@@ -112,7 +112,7 @@ class TestE2EOfMultiTable:
         }
 
         # Add circuit
-        api_url = f"{KYTOS_API}/mef_eline/v3/evc/"
+        api_url = f"{KYTOS_API}/mef_eline/v2/evc/"
         response = requests.post(api_url, json=evc)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -317,7 +317,7 @@ class TestE2EOfMultiTable:
         }
 
         # Add circuit
-        api_url = f"{KYTOS_API}/mef_eline/v3/evc/"
+        api_url = f"{KYTOS_API}/mef_eline/v2/evc/"
         response = requests.post(api_url, json=evc)
         assert response.status_code == 201, response.text
         data = response.json()

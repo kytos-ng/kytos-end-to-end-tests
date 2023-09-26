@@ -74,7 +74,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": vlan_id}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -84,7 +84,7 @@ class TestE2EMefEline:
 
     def test_010_list_evcs_should_be_empty(self):
         """Test if list circuits return 'no circuit stored.'."""
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         assert response.json() == {}
@@ -110,7 +110,7 @@ class TestE2EMefEline:
                 }
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -167,7 +167,7 @@ class TestE2EMefEline:
                 }
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -224,7 +224,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": 103}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -279,7 +279,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -336,7 +336,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": 110}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -358,7 +358,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": 110}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -422,7 +422,7 @@ class TestE2EMefEline:
 
     def test_040_disable_circuit_should_remove_openflow_rules(self):
         # let's suppose that xyz is the circuit id previously created
-        # curl -X PATCH -H "Content-Type: application/json" -d '{"enable": false}' http://172.18.0.2:8181/api/kytos/mef_eline/v3/evc/xyz
+        # curl -X PATCH -H "Content-Type: application/json" -d '{"enable": false}' http://172.18.0.2:8181/api/kytos/mef_eline/v2/evc/xyz
         payload = {
             "name": "Vlan125_Test_evc1",
             "enabled": True,
@@ -436,7 +436,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": 125}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -496,7 +496,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": 125}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -524,7 +524,7 @@ class TestE2EMefEline:
                 "tag": {"tag_type": "vlan", "value": 125}
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -588,7 +588,7 @@ class TestE2EMefEline:
             ]
         }
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
 
@@ -640,7 +640,7 @@ class TestE2EMefEline:
         assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS + 2
 
     def test_055_delete_evc_after_restart_kytos_and_no_switch_reconnected(self):
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         # restart the controller and change the port on purpose to avoid switches to connect
@@ -668,7 +668,7 @@ class TestE2EMefEline:
     def test_patch_evc_by_changing_unis_from_interface_to_another(self):
         """To edit an EVC, a PATCH request must be used:
 
-        PATCH /kytos/mef_eline/v3.0/evc/<id>
+        PATCH /kytos/mef_eline/v2.0/evc/<id>
 
         Information necessary to modify the EVC:
 
@@ -700,7 +700,7 @@ class TestE2EMefEline:
                         "tag": {"tag_type": "vlan", "value": i}
                     }
                 }
-                api_url = KYTOS_API + '/mef_eline/v3/evc/'
+                api_url = KYTOS_API + '/mef_eline/v2/evc/'
                 response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
                 assert response.status_code == 201, response.text
                 data = response.json()
@@ -715,7 +715,7 @@ class TestE2EMefEline:
             flows_s2 = s2.dpctl('dump-flows')
             for vid in evcs:
                 evc_id = evcs[vid]
-                api_url = KYTOS_API + '/mef_eline/v3/evc/' + evc_id
+                api_url = KYTOS_API + '/mef_eline/v2/evc/' + evc_id
                 response = requests.get(api_url)
                 assert response.status_code == 200, response.text
                 evc = response.json()
@@ -735,14 +735,14 @@ class TestE2EMefEline:
             # Delete the circuits
             for vid in evcs:
                 evc_id = evcs[vid]
-                api_url = KYTOS_API + '/mef_eline/v3/evc/' + evc_id
+                api_url = KYTOS_API + '/mef_eline/v2/evc/' + evc_id
                 response = requests.delete(api_url)
                 assert response.status_code == 200, response.text
 
             time.sleep(10)
 
             # make sure the circuits were deleted
-            api_url = KYTOS_API + '/mef_eline/v3/evc/'
+            api_url = KYTOS_API + '/mef_eline/v2/evc/'
             response = requests.get(api_url)
             assert response.status_code == 200, response.text
             assert response.json() == {}
@@ -777,7 +777,7 @@ class TestE2EMefEline:
         flows_s2 = s2.dpctl('dump-flows')
         for vid in self.evcs:
 
-            api_url = KYTOS_API + '/mef_eline/v3/evc/' + self.evcs[vid]
+            api_url = KYTOS_API + '/mef_eline/v2/evc/' + self.evcs[vid]
             response = requests.get(api_url)
             assert response.status_code == 200, response.text
             evc = response.json()
@@ -798,14 +798,14 @@ class TestE2EMefEline:
         # Delete the circuits
         for vid in self.evcs:
             evc_id = self.evcs[vid]
-            api_url = KYTOS_API + '/mef_eline/v3/evc/' + evc_id
+            api_url = KYTOS_API + '/mef_eline/v2/evc/' + evc_id
             response = requests.delete(api_url)
             assert response.status_code == 200, response.text
 
         time.sleep(10)
 
         # make sure the circuits were deleted
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         assert response.json() == {}
@@ -818,7 +818,7 @@ class TestE2EMefEline:
 
     def test_090_patch_evc_new_name(self):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         # It verifies EVC's name
@@ -842,7 +842,7 @@ class TestE2EMefEline:
         assert data['name'] == 'My EVC_100'
 
     def test_095_patch_evc_new_unis(self):
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -864,7 +864,7 @@ class TestE2EMefEline:
         assert data['uni_a']['interface_id'] == "00:00:00:00:00:00:00:01:2"
 
     def test_100_patch_evc_new_unis(self):
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         payload = {
@@ -890,7 +890,7 @@ class TestE2EMefEline:
     @pytest.mark.xfail
     def test_105_patch_end_date(self):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         end_delay = 1
@@ -914,14 +914,14 @@ class TestE2EMefEline:
         time.sleep(end_delay*60+5)
 
         # Verify if the circuit is active
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + evc1
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + evc1
         response = requests.get(api_url)
         data = response.json()
         assert data["active"] is False
 
     def test_110_patch_bandwidth(self):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         bandwidth = 40
@@ -943,7 +943,7 @@ class TestE2EMefEline:
 
     def test_115_patch_priority(self):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         sb_priority = 100
@@ -971,7 +971,7 @@ class TestE2EMefEline:
 
     def test_120_patch_queue_id(self):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         queue_id = 3
@@ -1000,7 +1000,7 @@ class TestE2EMefEline:
     def test_125_patch_dynamic_backup_path(self):
         """Test patching an EVC to be non dynamic with primary_path."""
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
 
         dynamic_backup_path = False
@@ -1030,7 +1030,7 @@ class TestE2EMefEline:
         """Test try to patch dynamic_backup_path as False with an EVC
         that doesn't have a static primary_path."""
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)
         payload = {
             "dynamic_backup_path": False,
@@ -1046,7 +1046,7 @@ class TestE2EMefEline:
     @pytest.mark.xfail
     def test_130_patch_primary_path(self):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
@@ -1095,7 +1095,7 @@ class TestE2EMefEline:
 
     def test_135_patch_backup_path(self):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload = {
             "name": "my evc1",
             "enabled": True,
@@ -1177,7 +1177,7 @@ class TestE2EMefEline:
             ]
         }
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         data = response.json()
         evc1 = data['circuit_id']
@@ -1224,7 +1224,7 @@ class TestE2EMefEline:
             }
         }
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         data = response.json()
         evc1 = data['circuit_id']
@@ -1289,7 +1289,7 @@ class TestE2EMefEline:
             ]
         }
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         data = response.json()
         evc1 = data['circuit_id']
@@ -1315,14 +1315,14 @@ class TestE2EMefEline:
 
     def test_155_removing_evc_metadata_persistent(self):
         """
-        Test /api/kytos/mef_eline/v3/evc/{evc_id}/metadata/{key} on DELETE
+        Test /api/kytos/mef_eline/v2/evc/{evc_id}/metadata/{key} on DELETE
         supported by:
-            /api/kytos/mef_eline/v3/evc/{evc_id}/metadata on POST
+            /api/kytos/mef_eline/v2/evc/{evc_id}/metadata on POST
             and
-            /api/kytos/mef_eline/v3/evc/{evc_id}/metadata on GET
+            /api/kytos/mef_eline/v2/evc/{evc_id}/metadata on GET
         """
         evc1 = self.create_evc(100)
-        api_url = KYTOS_API + '/mef_eline/v3/evc/%s/metadata' % evc1
+        api_url = KYTOS_API + '/mef_eline/v2/evc/%s/metadata' % evc1
 
         # Make sure the metadata is initially empty
         response = requests.get(api_url)
@@ -1394,7 +1394,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1444,7 +1444,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1499,7 +1499,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1569,7 +1569,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1640,7 +1640,7 @@ class TestE2EMefEline:
             }
         }
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1695,7 +1695,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1745,7 +1745,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1790,7 +1790,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1849,7 +1849,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1912,7 +1912,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1956,7 +1956,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=evc_1)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1975,7 +1975,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:02:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=evc_2)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -1988,11 +1988,11 @@ class TestE2EMefEline:
             "circuit_ids":[evc_1_id, evc_2_id],
             "test": "data"
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/metadata'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/metadata'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc?metadata.test=data'
+        api_url = KYTOS_API + '/mef_eline/v2/evc?metadata.test=data'
         response = requests.get(api_url, json=payload)
         assert response.status_code == 200
         data = response.json()

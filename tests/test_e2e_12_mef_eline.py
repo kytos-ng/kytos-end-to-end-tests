@@ -49,7 +49,7 @@ class TestE2EMefEline:
         return circuit_id
 
     def _circuit_exists(self, circuit_id):
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
         response = requests.get(api_url)
         return response.status_code == 200
 
@@ -64,7 +64,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
@@ -81,7 +81,7 @@ class TestE2EMefEline:
         payload = {
             "enable": False,
         }
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
         response = requests.patch(api_url, json=payload)
 
         assert response.status_code == 200, response.text
@@ -101,13 +101,13 @@ class TestE2EMefEline:
         }
 
         # verify if the circuit is really disabled
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + disabled_circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + disabled_circuit_id
         response = requests.get(api_url)
         json = response.json()
         assert json.get("enabled") is False
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
@@ -116,7 +116,7 @@ class TestE2EMefEline:
         time.sleep(sched_wait)
 
         # Verify if the circuit is enabled 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + disabled_circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + disabled_circuit_id
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
 
@@ -144,13 +144,13 @@ class TestE2EMefEline:
         }
 
         # verify if the circuit is really disabled
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + disabled_circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + disabled_circuit_id
         response = requests.get(api_url)
         json = response.json()
         assert json.get("enabled") is False
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
@@ -159,7 +159,7 @@ class TestE2EMefEline:
         time.sleep(sched_wait)
 
         # Verify if the circuit is enabled 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + disabled_circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + disabled_circuit_id
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
 
@@ -182,12 +182,12 @@ class TestE2EMefEline:
         }
 
         # Create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
         # Verify the list of schedules
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
 
@@ -196,18 +196,18 @@ class TestE2EMefEline:
         assert len(response.json()) == 1
 
         # Recover schedule id created
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
         response = requests.get(api_url)
         json = response.json()
         schedule_id = json.get("circuit_scheduler")[0].get("id")
 
         # Delete circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/' + schedule_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/' + schedule_id
         response = requests.delete(api_url)
         assert response.status_code == 200, response.text
 
         # Verify the list of schedules
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
 
@@ -227,7 +227,7 @@ class TestE2EMefEline:
         }
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         response = requests.post(api_url, json=payload)
         json = response.json()
         assert response.status_code == 201, response.text
@@ -236,7 +236,7 @@ class TestE2EMefEline:
         schedule_id = json.get("id")
 
         # verify if the circuit is really disabled
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + disabled_circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + disabled_circuit_id
         response = requests.get(api_url)
         json = response.json()
         assert json.get("enabled") is False
@@ -247,7 +247,7 @@ class TestE2EMefEline:
         }
 
         # patch circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/' + schedule_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/' + schedule_id
         response = requests.patch(api_url, json=payload)
         assert response.status_code == 200, response.text
 
@@ -256,7 +256,7 @@ class TestE2EMefEline:
         time.sleep(sched_wait)
 
         # Verify if the circuit is enabled
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + disabled_circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + disabled_circuit_id
         response = requests.get(api_url)
         json = response.json()
 
@@ -270,7 +270,7 @@ class TestE2EMefEline:
         """ Test circuit listing action. """
 
         # List all the circuits stored
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -290,7 +290,7 @@ class TestE2EMefEline:
     @pytest.mark.xfail
     def test_patch_start_date_in_no_scheduled_circuit(self, circuit_id):
 
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         start_delay = 60
         start = datetime.now() + timedelta(minutes=start_delay)
 
@@ -331,7 +331,7 @@ class TestE2EMefEline:
         }
 
         # create circuit schedule
-        api_url = KYTOS_API + '/mef_eline/v3/evc/schedule/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
         requests.post(api_url, json=payload)
 
         # It verifies circuit schedule data
@@ -353,7 +353,7 @@ class TestE2EMefEline:
         time.sleep(10)
 
         # It verifies EVC's data
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.get(api_url + disabled_circuit_id)
         data = response.json()
         assert data['start_date'] == start.strftime(TIME_FMT)
@@ -362,7 +362,7 @@ class TestE2EMefEline:
         """ Test circuit removal action. """
 
         # Delete the circuit
-        api_url = KYTOS_API + '/mef_eline/v3/evc/' + circuit_id
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
         response = requests.delete(api_url)
         assert response.status_code == 200, response.text
 
@@ -370,7 +370,7 @@ class TestE2EMefEline:
 
         # Verify circuit removal by
         # listing all the circuits stored
-        api_url = KYTOS_API + '/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()

@@ -48,7 +48,7 @@ class TestE2ESDNTrace:
                 "tag": {"tag_type": "vlan", "value": vlan_id}
             }
         }
-        api_url = KYTOS_API + '/kytos/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         data = response.json()
@@ -56,7 +56,7 @@ class TestE2ESDNTrace:
 
     @staticmethod
     def get_evc(circuit_id):
-        api_url = KYTOS_API + '/kytos/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
         response = requests.get(api_url+circuit_id)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -354,7 +354,7 @@ class TestE2ESDNTrace:
 
         # 4. redeploy evc and check again
         circuit_id = self.circuit['id']
-        api_url = KYTOS_API + '/kytos/mef_eline/v3/evc'
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc'
         response = requests.patch(f"{api_url}/{circuit_id}/redeploy")
         assert response.status_code == 202, response.text
         time.sleep(10)
@@ -949,7 +949,7 @@ class TestE2ESDNTrace:
                     "interface_id": "00:00:00:00:00:00:00:03:3"
                 }
             }
-        api_url = KYTOS_API + '/kytos/mef_eline/v3/evc/'
+        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         
