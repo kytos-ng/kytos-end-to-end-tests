@@ -217,7 +217,6 @@ class TestE2EKytosStats:
 
     def test_025_packet_count_per_flow(self):
         """Test packet_count_per_flow""" 
-        time.sleep(10)
         api_url = KYTOS_STATS + '/flow/stats?dpid=00:00:00:00:00:00:00:01'  
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
