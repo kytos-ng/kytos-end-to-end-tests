@@ -56,7 +56,7 @@ class TestE2EMaintenance:
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:03:1",
                 "tag": {
-                    "tag_type": "vlan",
+                    "tag_type": 1,
                     "value": vlan_id
                 }
             },

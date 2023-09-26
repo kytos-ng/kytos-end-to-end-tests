@@ -56,7 +56,7 @@ class TestE2EMefEline:
             },
             "uni_z": {
                 "interface_id": uni_z,
-                "tag": {"tag_type": "vlan", "value": vlan_id}
+                "tag": {"tag_type": 1, "value": vlan_id}
             }
         }
         api_url = KYTOS_API + '/mef_eline/v2/evc/'

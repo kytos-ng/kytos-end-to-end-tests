@@ -214,7 +214,7 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": "vlan",
+                    "tag_type": 1,
                     "value": 99999
                 }
             }
@@ -331,7 +331,7 @@ class TestE2EMefEline:
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": "vlan",
+                    "tag_type": 1,
                     "value": -1
                 }
             }
@@ -374,7 +374,7 @@ class TestE2EMefEline:
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": "vlan",
+                    "tag_type": 1,
                     "value": 99999
                 }
             }
@@ -1060,7 +1060,7 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": "vlan", "value": 100}
+                "tag": {"tag_type": 1, "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
@@ -1083,11 +1083,11 @@ class TestE2EMefEline:
             "dynamic_backup_path": False,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": "vlan", "value": 100}
+                "tag": {"tag_type": 1, "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": "vlan", "value": 100}
+                "tag": {"tag_type": 1, "value": 100}
             },
             'primary_path': []
         }
@@ -1121,11 +1121,11 @@ class TestE2EMefEline:
             "enabled": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": "vlan", "value": 100}
+                "tag": {"tag_type": 1, "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": "vlan", "value": 100}
+                "tag": {"tag_type": 1, "value": 100}
             },
             'primary_path': []
         }

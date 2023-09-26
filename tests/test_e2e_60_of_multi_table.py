@@ -312,7 +312,7 @@ class TestE2EOfMultiTable:
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": "vlan", "value": 100}
+                "tag": {"tag_type": 1, "value": 100}
             }
         }
 

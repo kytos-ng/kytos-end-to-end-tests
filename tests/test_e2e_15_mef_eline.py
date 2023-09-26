@@ -77,7 +77,7 @@ class TestE2EMefEline:
             "name": "Vlan_%s" % vlan_id,
             "enabled": True,
             "dynamic_backup_path": True,
-            "uni_a": {"interface_id": uni_a, "tag": {"tag_type": "vlan", "value": vlan_id}},
+            "uni_a": {"interface_id": uni_a, "tag": {"tag_type": 1, "value": vlan_id}},
             "uni_z": {"interface_id": uni_z, "tag": {"tag_type": "vlan", "value": vlan_id}},
         }
         if primary_constraints:
@@ -125,7 +125,7 @@ class TestE2EMefEline:
             evc_id,
             uni_z={
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": "vlan", "value": 100}
+                "tag": {"tag_type": 1, "value": 100}
             },
         )
         time.sleep(10)
