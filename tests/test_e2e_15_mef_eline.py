@@ -245,9 +245,16 @@ class TestE2EMefEline:
         topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
         response = requests.get(topo_url)
         data = response.json()
-        actual = data["00:00:00:00:00:00:00:02"]["1"]["available_tags"]["vlan"]
+        actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
         expected = [[1, 99], [101, 3798], [3800, 4095]]
+        expected_tr = [[1, 4095]]
         assert actual == expected
+        assert actual_tr == expected_tr
+        actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
 
         evc_2 = {
             "name": "EVC_2",
@@ -268,6 +275,29 @@ class TestE2EMefEline:
         assert 'circuit_id' in data
         evc_2_id = data["circuit_id"]
 
+        # Verify if EVC tag has been allocated
+        topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+        response = requests.get(topo_url)
+        data = response.json()
+        actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
+        expected_tr = [[1, 4095]]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        actual = data["00:00:00:00:00:00:00:01:1"]["available_tags"]["vlan"]
+        expected = [[1, 199], [201, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:01:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
         # Patch EVC with used tag value
         payload = {
             "uni_a": {
@@ -277,6 +307,22 @@ class TestE2EMefEline:
         }
         response = requests.patch(api_url+evc_2_id, json=payload)
         assert response.status_code == 400, response.text
+
+        # Verify that patch has not allocated a tag
+        topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+        response = requests.get(topo_url)
+        data = response.json()
+        actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
 
     def test_004_tag_restriction(self):
         """Test restrict tag range"""
