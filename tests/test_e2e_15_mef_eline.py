@@ -298,6 +298,8 @@ class TestE2EMefEline:
         assert actual == expected
         assert actual_tr == expected_tr
 
+        self.restart()
+
         # Patch EVC with used tag value
         payload = {
             "uni_a": {
