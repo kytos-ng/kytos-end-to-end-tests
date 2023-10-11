@@ -221,3 +221,206 @@ class TestE2EMefEline:
         failover_path_ids = {link["id"] for link in data["failover_path"]}
         assert current_path_ids == blue_link_ids, current_path_ids
         assert failover_path_ids == red_link_ids, failover_path_ids
+
+    def test_003_evc_vlan_allocation(self):
+        """Test patch an evc with a duplicated tag value"""
+        evc_1 = {
+            "name": "EVC_1",
+            "enabled": True,
+            "uni_a": {
+                "tag": {"tag_type": 1, "value": 100},
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+            },
+            "uni_z": {
+                "tag": {"tag_type": 1, "value": 100},
+                "interface_id": "00:00:00:00:00:00:00:02:2",
+            }
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=evc_1)
+        assert response.status_code == 201, response.text
+        assert 'circuit_id' in response.json()
+
+        # Verify if EVC tag has been allocated
+        topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+        response = requests.get(topo_url)
+        data = response.json()
+        actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        expected = [[1, 99], [101, 3798], [3800, 4095]]
+        expected_tr = [[1, 4095]]
+        assert actual == expected
+        assert actual_tr == expected_tr
+        actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        evc_2 = {
+            "name": "EVC_2",
+            "enabled": True,
+            "dynamic_backup_path": True,
+            "uni_a": {
+                "tag": {"tag_type": 1, "value": 200},
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+            },
+            "uni_z": {
+                "tag": {"tag_type": 1, "value": 200},
+                "interface_id": "00:00:00:00:00:00:00:02:2",
+            }
+        }
+        response = requests.post(api_url, json=evc_2)
+        assert response.status_code == 201, response.text
+        data = response.json()
+        assert 'circuit_id' in data
+        evc_2_id = data["circuit_id"]
+
+        # Verify if EVC tag has been allocated
+        topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+        response = requests.get(topo_url)
+        data = response.json()
+        actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
+        expected_tr = [[1, 4095]]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        actual = data["00:00:00:00:00:00:00:01:1"]["available_tags"]["vlan"]
+        expected = [[1, 199], [201, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:01:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        self.restart()
+
+        # Patch EVC with used tag value
+        payload = {
+            "uni_a": {
+                "tag": {"tag_type": 1, "value": 100},
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+            },
+        }
+        response = requests.patch(api_url+evc_2_id, json=payload)
+        assert response.status_code == 400, response.text
+
+        # Verify that patch has not allocated a tag
+        topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+        response = requests.get(topo_url)
+        data = response.json()
+        actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+        actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
+        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4095]]
+        actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
+        assert actual == expected
+        assert actual_tr == expected_tr
+
+    def test_004_tag_restriction(self):
+        """Test restrict tag range"""
+        payload = {
+            "name": "evc_1",
+            "enabled": True,
+            "dynamic_backup_path": True,
+            "uni_a": {
+                "tag": {"tag_type": 1, "value": 200},
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+            },
+            "uni_z": {
+                "tag": {"tag_type": 1, "value": 200},
+                "interface_id": "00:00:00:00:00:00:00:01:2",
+            }
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+
+        intf_id = '00:00:00:00:00:00:00:01:1'
+        api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.get(api_url)
+        data = response.json()
+        assert response.status_code == 200, response.text
+
+        expected = [[1, 199], [201, 3798], [3800, 4095]]
+        assert expected == data[intf_id]["available_tags"]["vlan"]
+
+        # Ignoring EVC tag
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[1, 180], [300, 3500]]
+        }
+        api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 400, response.text
+
+        # Every used tag included
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[200, 4000]]
+        }
+        api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.get(api_url)
+        data = response.json()
+        assert response.status_code == 200, response.text
+
+        expected = [[201, 3798], [3800, 4000]]
+        assert expected == data[intf_id]["available_tags"]["vlan"]
+
+        # Trying EVC with not available tag
+        payload = {
+            "name": "evc_2",
+            "enabled": True,
+            "dynamic_backup_path": True,
+            "uni_a": {
+                "tag": {"tag_type": 1, "value": 100},
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+            },
+            "uni_z": {
+                "tag": {"tag_type": 1, "value": 100},
+                "interface_id": "00:00:00:00:00:00:00:01:2",
+            }
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 400, response.text
+
+        # EVC with available tag
+        payload = {
+            "name": "evc_2",
+            "enabled": True,
+            "dynamic_backup_path": True,
+            "uni_a": {
+                "tag": {"tag_type": 1, "value": 300},
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+            },
+            "uni_z": {
+                "tag": {"tag_type": 1, "value": 300},
+                "interface_id": "00:00:00:00:00:00:00:01:2",
+            }
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+
+        intf_id = '00:00:00:00:00:00:00:01:1'
+        api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.get(api_url)
+        data = response.json()
+        assert response.status_code == 200, response.text
+
+        expected = [[201, 299], [301, 3798], [3800, 4000]]
+        assert expected == data[intf_id]["available_tags"]["vlan"]
