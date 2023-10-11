@@ -67,11 +67,11 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": vlan_id}
+                "tag": {"tag_type": "vlan", "value": vlan_id}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": vlan_id}
+                "tag": {"tag_type": "vlan", "value": vlan_id}
             }
         }
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -98,14 +98,14 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:2",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             }
@@ -155,7 +155,7 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 15
                 }
             },
@@ -221,7 +221,7 @@ class TestE2EMefEline:
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": 103}
+                "tag": {"tag_type": "vlan", "value": 103}
             }
         }
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -273,7 +273,7 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 104}
+                "tag": {"tag_type": "vlan", "value": 104}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1"
@@ -351,11 +351,11 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:2",
-                "tag": {"tag_type": 1, "value": 110}
+                "tag": {"tag_type": "vlan", "value": 110}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:03:1",
-                "tag": {"tag_type": 1, "value": 110}
+                "tag": {"tag_type": "vlan", "value": 110}
             }
         }
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -429,7 +429,7 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 125}
+                "tag": {"tag_type": "vlan", "value": 125}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
@@ -489,11 +489,11 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 125}
+                "tag": {"tag_type": "vlan", "value": 125}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": 125}
+                "tag": {"tag_type": "vlan", "value": 125}
             }
         }
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -565,14 +565,14 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:03:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": 101
                 }
             },
@@ -697,7 +697,7 @@ class TestE2EMefEline:
                     },
                     "uni_z": {
                         "interface_id": "00:00:00:00:00:00:00:02:1",
-                        "tag": {"tag_type": 1, "value": i}
+                        "tag": {"tag_type": "vlan", "value": i}
                     }
                 }
                 api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -1165,11 +1165,11 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "primary_path": [
                 {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
@@ -1277,7 +1277,7 @@ class TestE2EMefEline:
             "dynamic_backup_path": False,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
@@ -1390,7 +1390,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:1"
             },
             "uni_z": {
-                "tag": {"tag_type": 1, "value": "untagged"},
+                "tag": {"tag_type": "vlan", "value": "untagged"},
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
@@ -1436,7 +1436,7 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "enabled": True,
             "uni_a": {
-                "tag": {"tag_type": 1, "value": "any"},
+                "tag": {"tag_type": "vlan", "value": "any"},
                 "interface_id": "00:00:00:00:00:00:00:01:1"
             },
             "uni_z": {
@@ -1495,7 +1495,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:1"
             },
             "uni_z": {
-                "tag": {"tag_type": 1, "value": 100},
+                "tag": {"tag_type": "vlan", "value": 100},
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
@@ -1561,7 +1561,7 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "enabled": True,
             "uni_a": {
-                "tag": {"tag_type": 1, "value": 100},
+                "tag": {"tag_type": "vlan", "value": 100},
                 "interface_id": "00:00:00:00:00:00:00:01:1"
             },
             "uni_z": {
@@ -1635,7 +1635,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:1"
             },
             "uni_z": {
-                "tag": {"tag_type": 1, "value": "untagged"},
+                "tag": {"tag_type": "vlan", "value": "untagged"},
                 "interface_id": "00:00:00:00:00:00:00:02:1"
             }
         }
@@ -1687,7 +1687,7 @@ class TestE2EMefEline:
             "name": "my evc1",
             "enabled": True,
             "uni_a": {
-                "tag": {"tag_type": 1, "value": "any"},
+                "tag": {"tag_type": "vlan", "value": "any"},
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
@@ -1741,7 +1741,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
-                "tag": {"tag_type": 1, "value": "untagged"},
+                "tag": {"tag_type": "vlan", "value": "untagged"},
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
@@ -1782,7 +1782,7 @@ class TestE2EMefEline:
             "name": "my evc1",
             "enabled": True,
             "uni_a": {
-                "tag": {"tag_type": 1, "value": "any"},
+                "tag": {"tag_type": "vlan", "value": "any"},
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
@@ -1845,7 +1845,7 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
-                "tag": {"tag_type": 1, "value": "untagged"},
+                "tag": {"tag_type": "vlan", "value": "untagged"},
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }
@@ -1904,7 +1904,7 @@ class TestE2EMefEline:
             "name": "my evc1",
             "enabled": True,
             "uni_a": {
-                "tag": {"tag_type": 1, "value": "any"},
+                "tag": {"tag_type": "vlan", "value": "any"},
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
@@ -1948,11 +1948,11 @@ class TestE2EMefEline:
             "name": "EVC_1",
             "enabled": True,
             "uni_a": {
-                "tag": {"tag_type": 1, "value": 100},
+                "tag": {"tag_type": "vlan", "value": 100},
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
-                "tag": {"tag_type": 1, "value": 200},
+                "tag": {"tag_type": "vlan", "value": 200},
                 "interface_id": "00:00:00:00:00:00:00:01:2",
             }
         }

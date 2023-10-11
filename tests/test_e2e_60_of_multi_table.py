@@ -104,7 +104,7 @@ class TestE2EOfMultiTable:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:2"
@@ -308,7 +308,7 @@ class TestE2EOfMultiTable:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",

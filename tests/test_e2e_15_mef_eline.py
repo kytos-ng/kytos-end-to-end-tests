@@ -78,7 +78,7 @@ class TestE2EMefEline:
             "enabled": True,
             "dynamic_backup_path": True,
             "uni_a": {"interface_id": uni_a, "tag": {"tag_type": 1, "value": vlan_id}},
-            "uni_z": {"interface_id": uni_z, "tag": {"tag_type": 1, "value": vlan_id}},
+            "uni_z": {"interface_id": uni_z, "tag": {"tag_type": "vlan", "value": vlan_id}},
         }
         if primary_constraints:
             payload.update({"primary_constraints": primary_constraints})

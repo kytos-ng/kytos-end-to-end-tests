@@ -49,11 +49,11 @@ class TestE2EMefEline:
             "dynamic_backup_path": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": vlan_id}
+                "tag": {"tag_type": "vlan", "value": vlan_id}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": vlan_id}
+                "tag": {"tag_type": "vlan", "value": vlan_id}
             }
         }
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -138,27 +138,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    def test_025_patch_an_inconsistent_uni_a(self):
-        """ Valid switch, valid Interface ID, but invalid tag_type (string) """
-
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
-        evc1 = self.create_evc(100)
-
-        payload = {
-            "uni_a": {
-                "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {
-                    "tag_type": "A",
-                    "value": 101
-                }
-            }
-        }
-
-        # It tries to setting up a new uni_a
-        response = requests.patch(api_url + evc1, data=json.dumps(payload),
-                                  headers={'Content-type': 'application/json'})
-        assert response.status_code == 400, response.text
-
     @pytest.mark.xfail
     def test_030_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, but invalid tag_type (invalid value) """
@@ -170,7 +149,7 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 2,
+                    "tag_type": "vlan_qinq",
                     "value": 101
                 }
             }
@@ -192,7 +171,7 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": -1
                 }
             }
@@ -213,7 +192,7 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": "bla"
                 }
             }
@@ -256,7 +235,7 @@ class TestE2EMefEline:
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type_one": 1,
+                    "tag_type_one": "vlan",
                     "value": 101
                 }
             }
@@ -319,27 +298,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    def test_075_patch_an_inconsistent_uni_z(self):
-        """ Valid switch, valid Interface ID, but invalid tag_type (string) """
-
-        api_url = KYTOS_API + '/mef_eline/v2/evc/'
-        evc1 = self.create_evc(100)
-
-        payload = {
-            "uni_z": {
-                "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {
-                    "tag_type": "A",
-                    "value": 101
-                }
-            }
-        }
-
-        # It tries to setting up a new uni_z
-        response = requests.patch(api_url + evc1, data=json.dumps(payload),
-                                  headers={'Content-type': 'application/json'})
-        assert response.status_code == 400, response.text
-
     @pytest.mark.xfail
     def test_080_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, but invalid tag_type (invalid value) """
@@ -351,7 +309,7 @@ class TestE2EMefEline:
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 2,
+                    "tag_type": "vlan_qinq",
                     "value": 101
                 }
             }
@@ -394,7 +352,7 @@ class TestE2EMefEline:
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type": 1,
+                    "tag_type": "vlan",
                     "value": "bla"
                 }
             }
@@ -437,7 +395,7 @@ class TestE2EMefEline:
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
                 "tag": {
-                    "tag_type_one": 1,
+                    "tag_type_one": "vlan",
                     "value": 101
                 }
             }
@@ -997,7 +955,7 @@ class TestE2EMefEline:
                       "metadata": {}},
                  "active": False,
                  "id": "78282c4d5b579265f04ebadc4405ca1b49628eb1d684bb45e5d0607fa8b713d0",
-                 "metadata": {"s_vlan": {"value": 43, "tag_type": 1}}}]
+                 "metadata": {"s_vlan": {"value": 43, "tag_type": "vlan"}}}]
         }
 
         # It sets a new circuit's creation_time
@@ -1106,7 +1064,7 @@ class TestE2EMefEline:
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "backup_path": [
                 {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
@@ -1145,11 +1103,11 @@ class TestE2EMefEline:
             "dynamic_backup_path": False,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             }
         }
 
@@ -1182,11 +1140,11 @@ class TestE2EMefEline:
             "enabled": True,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             },
             "uni_z": {
                 "interface_id": "00:00:00:00:00:00:00:02:1",
-                "tag": {"tag_type": 1, "value": 100}
+                "tag": {"tag_type": "vlan", "value": 100}
             }
         }
 
