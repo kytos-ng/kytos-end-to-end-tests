@@ -12,6 +12,7 @@ sed -i 's/LLDP_LOOP_ACTIONS = \["log"\]/LLDP_LOOP_ACTIONS = \["disable","log"\]/
 sed -i 's/LLDP_IGNORED_LOOPS = {}/LLDP_IGNORED_LOOPS = {"00:00:00:00:00:00:00:01": \[\[4, 5\]\]}/' /var/lib/kytos/napps/kytos/of_lldp/settings.py
 sed -i 's/CONSISTENCY_COOKIE_IGNORED_RANGE =.*/CONSISTENCY_COOKIE_IGNORED_RANGE = [(0xdd00000000000000, 0xdd00000000000009)]/g' /var/lib/kytos/napps/kytos/flow_manager/settings.py
 sed -i 's/LIVENESS_DEAD_MULTIPLIER =.*/LIVENESS_DEAD_MULTIPLIER = 3/g' /var/lib/kytos/napps/kytos/of_lldp/settings.py
+sed -i 's/SUBSCRIBED_NAPPS =.*/SUBSCRIBED_NAPPS = {"coloring", "of_lldp", "mef_eline"}/g' /var/lib/kytos/napps/kytos/of_multi_table/settings.py
 
 # increase logging to facilitate troubleshooting
 kytosd --help >/dev/null 2>&1  ## create configs at /etc/kytos from templates
