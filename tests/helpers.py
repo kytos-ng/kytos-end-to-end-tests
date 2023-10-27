@@ -78,6 +78,50 @@ class AmlightTopo(Topo):
         self.addLink(h14, Ampath2, port1=1, port2=63)
         self.addLink(h15, AndesLight2, port1=1, port2=64)
 
+class AmlightLoopedTopo(Topo):
+    """Amlight Topology."""
+    def build(self):
+        # Add switches
+        Ampath1 = self.addSwitch('Ampath1', dpid='00:00:00:00:00:00:00:01')
+        Ampath2 = self.addSwitch('Ampath2', dpid='00:00:00:00:00:00:00:02')
+        Ampath3 = self.addSwitch('Ampath3', dpid='00:00:00:00:00:00:00:03')
+        Ampath4 = self.addSwitch('Ampath4', dpid='00:00:00:00:00:00:00:04')
+        Ampath5 = self.addSwitch('Ampath5', dpid='00:00:00:00:00:00:00:05')
+        Ampath6 = self.addSwitch('Ampath6', dpid='00:00:00:00:00:00:00:06')
+        # add hosts
+        h1 = self.addHost('h1', mac='00:00:00:00:00:01')
+        h2 = self.addHost('h2', mac='00:00:00:00:00:02')
+        h3 = self.addHost('h3', mac='00:00:00:00:00:03')
+        h4 = self.addHost('h4', mac='00:00:00:00:00:04')
+        h5 = self.addHost('h5', mac='00:00:00:00:00:05')
+        # Add links
+        self.addLink(Ampath1, Ampath2, port1=2, port2=2)
+        self.addLink(Ampath1, Ampath5, port1=1, port2=1)
+        self.addLink(Ampath1, Ampath6, port1=11, port2=11)
+        self.addLink(Ampath1, h1, port1=16, port2=1)
+        self.addLink(Ampath1, h2, port1=15, port2=1)
+        self.addLink(Ampath1, Ampath1, port1=17, port2=18)
+        self.addLink(Ampath1, Ampath1, port1=19, port2=20)
+
+        self.addLink(Ampath6, Ampath2, port1=5, port2=1)
+        self.addLink(Ampath6, Ampath5, port1=8, port2=8)
+        self.addLink(Ampath6, Ampath5, port1=9, port2=9)
+        self.addLink(Ampath6, h1, port1=31, port2=2)
+        self.addLink(Ampath6, h3, port1=22, port2=1)
+        self.addLink(Ampath6, h4, port1=21, port2=1)
+        self.addLink(Ampath6, h5, port1=14, port2=4)
+        self.addLink(Ampath6, Ampath6, port1=25, port2=26)
+        self.addLink(Ampath6, Ampath6, port1=12, port2=13)
+
+        self.addLink(Ampath5, Ampath2, port1=3, port2=3)
+        self.addLink(Ampath5, Ampath4, port1=7, port2=7)
+        self.addLink(Ampath5, Ampath5, port1=19, port2=20)
+
+        self.addLink(Ampath4, Ampath3, port1=6, port2=6)
+
+        self.addLink(Ampath3, Ampath2, port1=4, port2=4)
+        self.addLink(Ampath3, Ampath2, port1=10, port2=10)
+        
 class RingTopo(Topo):
     """Ring topology with three switches
     and one host connected to each switch"""
@@ -196,6 +240,7 @@ topos = {
     'ring': (lambda: RingTopo()),
     'ring4': (lambda: Ring4Topo()),
     'amlight': (lambda: AmlightTopo()),
+    'amlight_looped': (lambda: AmlightLoopedTopo()),
     'linear10': (lambda: LinearTopo(10)),
     'multi': (lambda: MultiConnectedTopo()),
     'looped': (lambda: Looped()),
