@@ -3,6 +3,7 @@ import requests
 from tests.helpers import NetworkTest
 import tests.helpers
 import time
+import pytest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
@@ -111,7 +112,7 @@ class TestE2EPathfinder:
     }
         response = requests.post(api_url, json=undesiredlink_post_body)
         data = response.json()
-        assert len(data) == 0, f'Link not removed: {data}'
+        assert len(data['paths']) == 0, f'Link not removed: {data}'
     
     def test_010_spf_attribute(self):
         links_metadata = self.add_topology_metadata()
@@ -148,13 +149,14 @@ class TestE2EPathfinder:
     "source": "00:00:00:00:00:00:00:01:3",
     "destination": "00:00:00:00:00:00:00:06:3",
     "spf_attribute": "priority",
+    "spf_max_path_cost": 15,
     "parameter": "priority"
     }
         
         response = requests.post(api_url, json=post_body)
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data == 10, f'Path cost larger than 10: {data}'
+        assert data['paths'][0]['cost'] == 15, f'Path cost larger than 10: {data}'
 
 
     def test_015_spf_max_path_cost(self):
@@ -213,7 +215,33 @@ class TestE2EPathfinder:
         response = requests.post(api_url, json=post_body)
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data == 0, f'Path cost larger than 1: {data}'
+        assert len(data['paths']) == 0, f'Path cost larger than 1: {data}'
 
     def test_030_minimum_flexible_hits(self):
         pass
+
+    @pytest.mark.parametrize("undesired_link, attribute, max_paths, max_path_cost, ownership, delay", 
+                            [("74bbc9527a0e309a86c95744042bcf9e3beb52955c942cac5fc735b1cf986f7f"), ("2+4", 6), ("6*9", 42)])
+    def test_eval(test_input, expected):
+        post_body = {
+"source": "00:00:00:00:00:00:00:01:3",
+"destination": "00:00:00:00:00:00:00:06:3",
+"undesired_links": [
+    undesired_link
+],
+"spf_attribute": attribute,
+"spf_max_paths": max_paths,
+"spf_max_path_cost": max_path_costs,
+"mandatory_metrics": {
+"ownership": ownership,
+"delay": delay
+},
+"flexible_metrics": {
+"delay": delay,
+"utilization": 100,
+"reliability": 3
+},
+"minimum_flexible_hits": 2,
+"parameter": "hop"
+}
+        assert eval(test_input) == expected
