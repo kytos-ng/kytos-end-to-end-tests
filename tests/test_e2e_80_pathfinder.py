@@ -81,167 +81,80 @@ class TestE2EPathfinder:
             assert response.status_code == 201, response.text
         return links_metadata        
 
-    def test_005_undesired_links(self):
-        Int_1 = "00:00:00:00:00:00:00:01:3"
-        Int_2 = "00:00:00:00:00:00:00:06:3"
+    @pytest.mark.parametrize("undesired_link, expected", 
+                            [([], 1),(["74bbc9527a0e309a86c95744042bcf9e3beb52955c942cac5fc735b1cf986f7f"], 8)])
+    def test_10_undesired_link_and_max_path(self, undesired_link, expected):
+        """Tests fastest path from switch 1 to 6 then blocks it"""
         api_url = KYTOS_API + '/pathfinder/v3/'
-        post_body = {
-    "source": "00:00:00:00:00:00:00:01:3",
-    "destination": "00:00:00:00:00:00:00:06:3",
-    "spf_attribute": "hop",
-    "spf_max_path_cost": 1,
-    "minimum_flexible_hits": 2,
-    "parameter": "hop"
-    }
-        
-        response = requests.post(api_url, json=post_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert data != [], "Response empty"
-        assert len(data) == 1, f'More than 1 result: {data}'
-        undesiredlink_post_body = {
-    "source": "00:00:00:00:00:00:00:01:3",
-    "destination": "00:00:00:00:00:00:00:06:3",
-    "undesired_links": [
-    "74bbc9527a0e309a86c95744042bcf9e3beb52955c942cac5fc735b1cf986f7f"
-    ],
-    "spf_attribute": "hop",
-    "spf_max_path_cost": 1,
-    "minimum_flexible_hits": 2,
-    "parameter": "hop"
-    }
-        response = requests.post(api_url, json=undesiredlink_post_body)
-        data = response.json()
-        assert len(data['paths']) == 0, f'Link not removed: {data}'
-    
-    def test_010_spf_attribute(self):
-        links_metadata = self.add_topology_metadata()
-        api_url = KYTOS_API + '/pathfinder/v3/'
-        post_body = {
-    "source": "00:00:00:00:00:00:00:01:3",
-    "destination": "00:00:00:00:00:00:00:06:3",
-    "spf_attribute": "hop",
-    "spf_max_path_cost": 1,
-    "parameter": "hop"
-    }
-        
-        response = requests.post(api_url, json=post_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert data != [], "Response empty"
-        assert len(data) == 1, f'More than 1 result: {data}'
-        assert data['paths'][0]['cost'] == 1, f'Path cost larger than 1: {data}'
-
-        post_body = {
-    "source": "00:00:00:00:00:00:00:01:3",
-    "destination": "00:00:00:00:00:00:00:06:3",
-    "spf_attribute": "delay",
-    "spf_max_path_cost": 20,
-    "parameter": "delay"
-    }
-        
-        response = requests.post(api_url, json=post_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert data['paths'][0]['cost'] == 20, f'Path cost larger than 20: {data}'
-
-        post_body = {
-    "source": "00:00:00:00:00:00:00:01:3",
-    "destination": "00:00:00:00:00:00:00:06:3",
-    "spf_attribute": "priority",
-    "spf_max_path_cost": 15,
-    "parameter": "priority"
-    }
-        
-        response = requests.post(api_url, json=post_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert data['paths'][0]['cost'] == 15, f'Path cost larger than 10: {data}'
-
-
-    def test_015_spf_max_path_cost(self):
-        pass
-
-
-    def test_020_mandatory_metrics(self):
-        links_metadata = self.add_topology_metadata()
-        api_url = KYTOS_API + '/pathfinder/v3/'
-        post_body = {
-    "source": "00:00:00:00:00:00:00:01:3",
-    "destination": "00:00:00:00:00:00:00:06:3",
-    "spf_attribute": "hop",
-    "mandatory_metrics": {
-    "ownership": "blue"
-    }
-    }
-        response = requests.post(api_url, json=post_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert data != [], "Response empty"
-        assert len(data) == 1, f'More than 1 result: {data}'
-        assert data['paths'][0]['metrics']['ownership'] == "blue", f'Path cost larger than 1: {data}'
-
-    
-    def test_025_flexible_metrics_and_hits(self):
-        links_metadata = self.add_topology_metadata()
-        api_url = KYTOS_API + '/pathfinder/v3/'
-        post_body = {
-  "source": "00:00:00:00:00:00:00:01:3",
-  "destination": "00:00:00:00:00:00:00:06:3",
-  "spf_attribute": "hop",
-  "flexible_metrics": {
-  "delay": 10,
-  "ownership": "blue"
-},
-  "minimum_flexible_hits": 2
-}
-        
-        response = requests.post(api_url, json=post_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert data != 0, f'Path cost larger than 1: {data}'
-
-        post_body = {
-  "source": "00:00:00:00:00:00:00:01:3",
-  "destination": "00:00:00:00:00:00:00:06:3",
-  "spf_attribute": "hop",
-  "flexible_metrics": {
-  "delay": 10,
-  "ownership": "red"
-},
-  "minimum_flexible_hits": 2
-}
-        
-        response = requests.post(api_url, json=post_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert len(data['paths']) == 0, f'Path cost larger than 1: {data}'
-
-    def test_030_minimum_flexible_hits(self):
-        pass
-
-    @pytest.mark.parametrize("undesired_link, attribute, max_paths, max_path_cost, ownership, delay", 
-                            [("74bbc9527a0e309a86c95744042bcf9e3beb52955c942cac5fc735b1cf986f7f"), ("2+4", 6), ("6*9", 42)])
-    def test_eval(test_input, expected):
         post_body = {
 "source": "00:00:00:00:00:00:00:01:3",
 "destination": "00:00:00:00:00:00:00:06:3",
-"undesired_links": [
-    undesired_link
-],
-"spf_attribute": attribute,
-"spf_max_paths": max_paths,
-"spf_max_path_cost": max_path_costs,
-"mandatory_metrics": {
-"ownership": ownership,
-"delay": delay
-},
-"flexible_metrics": {
-"delay": delay,
-"utilization": 100,
-"reliability": 3
-},
-"minimum_flexible_hits": 2,
+"undesired_links": undesired_link,
+"spf_attribute": "hop",
+"spf_max_paths": 1,
 "parameter": "hop"
 }
-        assert eval(test_input) == expected
+
+        response = requests.post(api_url, json=post_body)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data['paths'][0]['cost'] == expected, f'Shortest path expected {expected}: {data}'
+
+    @pytest.mark.parametrize("attribute, expected_cost", 
+                            [("hop", 1), ("delay", 20), ("priority", 15)])
+    def test_20_spf_attribute_and_max_path_cost(self, attribute, expected_cost):
+        """Tests hop, delay, and priority with path cost"""
+        links_metadata = self.add_topology_metadata()
+        api_url = KYTOS_API + '/pathfinder/v3/'
+        post_body = {
+"source": "00:00:00:00:00:00:00:01:3",
+"destination": "00:00:00:00:00:00:00:06:3",
+"spf_attribute": attribute,
+"spf_max_path_cost": expected_cost,
+"parameter": attribute
+}
+
+        response = requests.post(api_url, json=post_body)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data['paths'][0]['cost'] == expected_cost, f'Path cost larger than {expected_cost}: {data}'
+
+    def test_30_mandatory_metrics(self):
+        """The returned path should be of ownership blue"""
+        links_metadata = self.add_topology_metadata()
+        api_url = KYTOS_API + '/pathfinder/v3/'
+        post_body = {
+"source": "00:00:00:00:00:00:00:01:3",
+"destination": "00:00:00:00:00:00:00:06:3",
+"spf_attribute": "hop",
+"mandatory_metrics": {
+"ownership": "blue"
+}
+}
+
+        response = requests.post(api_url, json=post_body)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data['paths'][0]['metrics']['ownership'] == "blue", f'Path ownership not blue: {data}'
+
+    @pytest.mark.parametrize("ownership, expected_cost", 
+                            [("blue", 2), ("red", 0)])
+    def test_40_flexible_metrics_and_hits(self, ownership, expected_cost):
+        """First test has all required metrics and will return paths, second test has no paths since no link meets the required flexible metrics"""
+        links_metadata = self.add_topology_metadata()
+        api_url = KYTOS_API + '/pathfinder/v3/'
+        post_body = {
+  "source": "00:00:00:00:00:00:00:01:3",
+  "destination": "00:00:00:00:00:00:00:06:3",
+  "spf_attribute": "hop",
+  "flexible_metrics": {
+  "delay": 10,
+  "ownership": ownership
+},
+  "minimum_flexible_hits": 2
+}
+
+        response = requests.post(api_url, json=post_body)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert len(data['paths']) == expected_cost, f'Path cost larger than {expected_cost}: {data}'
