@@ -29,36 +29,6 @@ class TestE2ESDNTrace:
         self.net.wait_switches_connect()
         time.sleep(10)
 
-
-    @staticmethod
-    def create_evc(vlan_id, interface_a="00:00:00:00:00:00:00:01:15", interface_z="00:00:00:00:00:00:00:06:22"):
-        payload = {
-            "name": "Vlan_%s" % vlan_id,
-            "enabled": True,
-            "dynamic_backup_path": True,
-            "uni_a": {
-                "interface_id": interface_a,
-                "tag": {"tag_type": 1, "value": vlan_id}
-            },
-            "uni_z": {
-                "interface_id": interface_z,
-                "tag": {"tag_type": 1, "value": vlan_id}
-            }
-        }
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
-        response = requests.post(api_url, json=payload)
-        assert response.status_code == 201, response.text
-        data = response.json()
-        return data['circuit_id']
-
-    @staticmethod
-    def get_evc(circuit_id):
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
-        response = requests.get(api_url+circuit_id)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        return data
-
     def test_001_run_sdntrace_with_goto_table_intra(cls):
         """Run SDNTrace-CP for instruction type goto_table for the intra case:
         - test on switch Ampath1 (S1) with dpid='00:00:00:00:00:00:00:11'.
@@ -251,7 +221,7 @@ class TestE2ESDNTrace:
 
     def test_010_run_sdntrace_with_goto_table_inter(cls):
         """Run SDNTrace-CP for instruction type goto_table for the inter case:
-        - test on switch 00:00:00:00:00:00:00:11 (S1) and 00:00:00:00:00:00:00:18 (S4).
+        - test on switches Ampath1 (S1) with dpid='00:00:00:00:00:00:00:11' and Ampath4 (S4) 00:00:00:00:00:00:00:18 (S4).
         - 2 loops in S1: S1:17 - S1:18 and S1:19 - S1:20.
         - 2 loops in S4: S4:9 - S4:10 and S4:25 - S4:26.
         - make sure sdntrace_cp detects correct traces for flows with goto_table instruction.
