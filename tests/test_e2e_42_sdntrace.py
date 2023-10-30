@@ -28,9 +28,6 @@ class TestE2ESDNTrace:
         self.net.start_controller(clean_config=True, enable_all=True)
         self.net.wait_switches_connect()
         time.sleep(10)
-        #circuit_id = self.create_evc(400)
-        #time.sleep(10)
-        #self.circuit = self.wait_until_evc_is_active(circuit_id)
 
 
     @staticmethod
@@ -62,31 +59,19 @@ class TestE2ESDNTrace:
         data = response.json()
         return data
 
-    @classmethod
-    def wait_until_evc_is_active(
-        cls, evc_id: str, wait_secs=6, i=0, max_i=20
-    ) -> dict:
-        """Wait until evc is active."""
-        evc = cls.get_evc(evc_id)
-        if evc["active"]:
-            return evc
-        time.sleep(wait_secs)
-        if i < max_i:
-            return cls.wait_until_evc_is_active(evc_id, wait_secs, i + 1, max_i)
-        else:
-            raise ValueError(f"TimeoutError: {evc_id} didn't get active. {evc}")
-
-    def test_trace_goto_table_intra(cls):
-        """Test trace rest call."""
-        circuit_id = cls.create_evc(201, interface_a="00:00:00:00:00:00:00:01:15", interface_z="00:00:00:00:00:00:00:01:16")
-        time.sleep(10)
+    def test_001_run_sdntrace_with_goto_table_intra(cls):
+        """Run SDNTrace-CP for instruction type goto_table for the intra case:
+        - test on switch Ampath1 (S1) with dpid='00:00:00:00:00:00:00:11'.
+        - 2 loops: S1:17 - S1:18 and S1:19 - S1:20.
+        - make sure sdntrace_cp detects correct traces for flows with goto_table instruction.
+        """
 
         # Add flows in S1
         payload_stored_flow = {
             "flows": [
                 {
                     "match": {
-                        "in_port": 15,
+                        "in_port": 50,
                         "dl_vlan": 201
                         },
                     "instructions": [{
@@ -100,7 +85,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 16,
+                        "in_port": 2,
                         "dl_vlan": 200
                         },
                     "instructions": [{
@@ -114,7 +99,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 15,
+                        "in_port": 50,
                         "dl_vlan": 201
                         },
                     "instructions": [{
@@ -130,7 +115,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 16,
+                        "in_port": 2,
                         "dl_vlan": 200
                         },
                     "instructions": [{
@@ -171,7 +156,7 @@ class TestE2ESDNTrace:
                             "vlan_id": 200
                         }, {
                             "action_type": "output",
-                            "port": 16
+                            "port": 2
                         }]}
                     ],
                     "table_id": 2,
@@ -205,7 +190,7 @@ class TestE2ESDNTrace:
                             "vlan_id": 201
                         }, {
                             "action_type": "output",
-                            "port": 15
+                            "port": 50
                         }]}
                     ],
                     "table_id": 2,
@@ -214,7 +199,7 @@ class TestE2ESDNTrace:
                 }
             ]
         }
-        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:11'
         response = requests.post(api_url, json = payload_stored_flow)
         assert response.status_code == 202, response.text
         time.sleep(10)
@@ -222,15 +207,15 @@ class TestE2ESDNTrace:
         payload = [
             {"trace": {
                 "switch": {
-                    "dpid": "00:00:00:00:00:00:00:01",
-                    "in_port": 15
+                    "dpid": "00:00:00:00:00:00:00:11",
+                    "in_port": 50
                     },
                 "eth": {"dl_vlan": 201}
                 }},
             {"trace": {
                 "switch": {
-                    "dpid": "00:00:00:00:00:00:00:01",
-                    "in_port": 16
+                    "dpid": "00:00:00:00:00:00:00:11",
+                    "in_port": 2
                     },
                 "eth": {"dl_vlan": 200}
                 }}
@@ -244,37 +229,40 @@ class TestE2ESDNTrace:
 
         result = list_results[0]
 
-        assert result[0]['dpid'] == '00:00:00:00:00:00:00:01'
-        assert result[0]['port'] == 15
+        assert result[0]['dpid'] == '00:00:00:00:00:00:00:11'
+        assert result[0]['port'] == 50
         assert result[0]['vlan'] == 201
 
         assert result[1]['port'] == 20
         assert result[0]['vlan'] == 201
-        assert result[1]['out']['port'] == 16
+        assert result[1]['out']['port'] == 2
         assert result[1]['out']['vlan'] == 200
 
         result = list_results[1]
 
-        assert result[0]['dpid'] == '00:00:00:00:00:00:00:01'
-        assert result[0]['port'] == 16
+        assert result[0]['dpid'] == '00:00:00:00:00:00:00:11'
+        assert result[0]['port'] == 2
         assert result[0]['vlan'] == 200
 
         assert result[1]['port'] == 18
         assert result[0]['vlan'] == 200
-        assert result[1]['out']['port'] == 15
+        assert result[1]['out']['port'] == 50
         assert result[1]['out']['vlan'] == 201
 
-    def test_trace_goto_table_inter(cls):
-        """Test trace rest call."""
-        circuit_id = cls.create_evc(100)
-        time.sleep(10)
+    def test_010_run_sdntrace_with_goto_table_inter(cls):
+        """Run SDNTrace-CP for instruction type goto_table for the inter case:
+        - test on switch 00:00:00:00:00:00:00:11 (S1) and 00:00:00:00:00:00:00:18 (S4).
+        - 2 loops in S1: S1:17 - S1:18 and S1:19 - S1:20.
+        - 2 loops in S4: S5:9 - S4:10 and S4:25 - S4:26.
+        - make sure sdntrace_cp detects correct traces for flows with goto_table instruction.
+        """
 
         # Add flows in S1
         payload_stored_flow = {
             "flows": [
                 {
                     "match": {
-                        "in_port": 15,
+                        "in_port": 50,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -288,7 +276,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 15,
+                        "in_port": 50,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -353,7 +341,7 @@ class TestE2ESDNTrace:
                             "action_type": "pop_vlan"
                         }, {
                             "action_type": "output",
-                            "port": 15
+                            "port": 50
                         }]}
                     ],
                     "table_id": 2,
@@ -362,7 +350,7 @@ class TestE2ESDNTrace:
                 }
             ]
         }
-        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:11'
         response = requests.post(api_url, json = payload_stored_flow)
         assert response.status_code == 202, response.text
         time.sleep(10)
@@ -372,7 +360,7 @@ class TestE2ESDNTrace:
             "flows": [
                 {
                     "match": {
-                        "in_port": 22,
+                        "in_port": 57,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -402,7 +390,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 22,
+                        "in_port": 57,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -451,7 +439,7 @@ class TestE2ESDNTrace:
                             "action_type": "pop_vlan"
                         }, {
                             "action_type": "output",
-                            "port": 22
+                            "port": 57
                         }]}
                     ],
                     "table_id": 2,
@@ -460,7 +448,7 @@ class TestE2ESDNTrace:
                 }
             ]
         }
-        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:06'
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:18'
         response = requests.post(api_url, json = payload_stored_flow)
         assert response.status_code == 202, response.text
         time.sleep(10)
@@ -468,15 +456,15 @@ class TestE2ESDNTrace:
         payload = [
             {"trace": {
                 "switch": {
-                    "dpid": "00:00:00:00:00:00:00:01",
-                    "in_port": 15
+                    "dpid": "00:00:00:00:00:00:00:11",
+                    "in_port": 50
                     },
                 "eth": {"dl_vlan": 100}
                 }},
             {"trace": {
                 "switch": {
-                    "dpid": "00:00:00:00:00:00:00:06",
-                    "in_port": 22
+                    "dpid": "00:00:00:00:00:00:00:18",
+                    "in_port": 57
                     },
                 "eth": {"dl_vlan": 100}
                 }}
@@ -490,32 +478,32 @@ class TestE2ESDNTrace:
 
         result = list_results[0]
 
-        assert result[0]['dpid'] == '00:00:00:00:00:00:00:01'
-        assert result[0]['port'] == 15
+        assert result[0]['dpid'] == '00:00:00:00:00:00:00:11'
+        assert result[0]['port'] == 50
         assert result[0]['vlan'] == 100
 
-        assert result[1]['dpid'] == '00:00:00:00:00:00:00:06'
+        assert result[1]['dpid'] == '00:00:00:00:00:00:00:18'
         assert result[1]['port'] == 11
         assert result[1]['vlan'] == 1
 
-        assert result[2]['dpid'] == '00:00:00:00:00:00:00:06'
+        assert result[2]['dpid'] == '00:00:00:00:00:00:00:18'
         assert result[2]['port'] == 26
         assert result[2]['vlan'] == 1
-        assert result[2]['out']['port'] == 22
+        assert result[2]['out']['port'] == 57
         assert result[2]['out']['vlan'] == 100
 
         result = list_results[1]
 
-        assert result[0]['dpid'] == '00:00:00:00:00:00:00:06'
-        assert result[0]['port'] == 22
+        assert result[0]['dpid'] == '00:00:00:00:00:00:00:18'
+        assert result[0]['port'] == 57
         assert result[0]['vlan'] == 100
 
-        assert result[1]['dpid'] == '00:00:00:00:00:00:00:01'
+        assert result[1]['dpid'] == '00:00:00:00:00:00:00:11'
         assert result[1]['port'] == 11
         assert result[1]['vlan'] == 1
 
-        assert result[2]['dpid'] == '00:00:00:00:00:00:00:01'
+        assert result[2]['dpid'] == '00:00:00:00:00:00:00:11'
         assert result[2]['port'] == 18
         assert result[2]['vlan'] == 1
-        assert result[2]['out']['port'] == 15
+        assert result[2]['out']['port'] == 50
         assert result[2]['out']['vlan'] == 100
