@@ -253,7 +253,7 @@ class TestE2ESDNTrace:
         """Run SDNTrace-CP for instruction type goto_table for the inter case:
         - test on switch 00:00:00:00:00:00:00:11 (S1) and 00:00:00:00:00:00:00:18 (S4).
         - 2 loops in S1: S1:17 - S1:18 and S1:19 - S1:20.
-        - 2 loops in S4: S5:9 - S4:10 and S4:25 - S4:26.
+        - 2 loops in S4: S4:9 - S4:10 and S4:25 - S4:26.
         - make sure sdntrace_cp detects correct traces for flows with goto_table instruction.
         """
 
@@ -355,7 +355,7 @@ class TestE2ESDNTrace:
         assert response.status_code == 202, response.text
         time.sleep(10)
 
-        # Add flows in S6
+        # Add flows in S4
         payload_stored_flow = {
             "flows": [
                 {
