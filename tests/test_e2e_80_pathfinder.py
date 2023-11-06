@@ -7,9 +7,6 @@ import pytest
 
 CONTROLLER = "127.0.0.1"
 KYTOS_API = "http://%s:8181/api/kytos" % CONTROLLER
-source = "00:00:00:00:00:00:00:01:3"
-destination = "00:00:00:00:00:00:00:06:3"
-
 
 class TestE2EPathfinder:
     net = None
@@ -18,6 +15,8 @@ class TestE2EPathfinder:
         """
         It is called at the beginning of every class method execution
         """
+        self.source = "00:00:00:00:00:00:00:01:3"
+        self.destination = "00:00:00:00:00:00:00:06:3"
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
         self.net.start_controller(clean_config=True, enable_all=True)
@@ -109,8 +108,8 @@ class TestE2EPathfinder:
         """Tests fastest path from switch 1 to 6 then blocks it"""
         api_url = KYTOS_API + "/pathfinder/v3/"
         post_body = {
-            "source": source,
-            "destination": destination,
+            "source": self.source,
+            "destination": self.destination,
             "undesired_links": undesired_link,
             "spf_attribute": "hop",
             "spf_max_paths": max_paths,
@@ -179,8 +178,8 @@ class TestE2EPathfinder:
         links_metadata = self.add_topology_metadata()
         api_url = KYTOS_API + "/pathfinder/v3/"
         post_body = {
-            "source": source,
-            "destination": destination,
+            "source": self.source,
+            "destination": self.destination,
             "spf_attribute": attribute,
             "spf_max_path_cost": expected_max_path_cost,
             "parameter": attribute,
@@ -204,8 +203,8 @@ class TestE2EPathfinder:
         links_metadata = self.add_topology_metadata()
         api_url = KYTOS_API + "/pathfinder/v3/"
         post_body = {
-            "source": source,
-            "destination": destination,
+            "source": self.source,
+            "destination": self.destination,
             "spf_attribute": "hop",
             "mandatory_metrics": {"ownership": "blue"},
         }
@@ -261,8 +260,8 @@ class TestE2EPathfinder:
         links_metadata = self.add_topology_metadata()
         api_url = KYTOS_API + "/pathfinder/v3/"
         post_body = {
-            "source": source,
-            "destination": destination,
+            "source": self.source,
+            "destination": self.destination,
             "spf_attribute": "hop",
             "flexible_metrics": {"delay": 10, "ownership": ownership},
             "minimum_flexible_hits": 2,
