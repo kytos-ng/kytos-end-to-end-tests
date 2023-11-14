@@ -1,5 +1,6 @@
 import json
 import time
+import random
 
 import requests
 
@@ -496,6 +497,7 @@ class TestE2EMefEline:
 
         time.sleep(10)
 
+        # Flows created with masks, 12/4092, 16/4092, 20/4094
         s1, s2 = self.net.net.get('s1', 's2')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -507,3 +509,37 @@ class TestE2EMefEline:
         assert 'in_port="s2-eth1",vlan_tci=0x100c/0x1ffc' in flows_s2
         assert 'in_port="s2-eth1",vlan_tci=0x1010/0x1ffc' in flows_s2
         assert 'in_port="s2-eth1",vlan_tci=0x1014/0x1ffe' in flows_s2
+
+        h11, h2 = self.net.net.get('h11', 'h2')
+        # Ping mask 12/4092
+        vlan = random.randrange(12, 16)
+        h11.cmd(f'ip link add link {h11.intfNames()[0]} name vlan12 type vlan id {vlan}')
+        h11.cmd(f'ip link set up vlan12')
+        h11.cmd(f'ip addr add {vlan}.0.0.11/24 dev vlan12')
+        h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan12 type vlan id {vlan}')
+        h2.cmd(f'ip link set up vlan12')
+        h2.cmd(f'ip addr add {vlan}.0.0.2/24 dev vlan12')
+        result = h11.cmd(f'ping -c1 {vlan}.0.0.2')
+        assert ', 0% packet loss,' in result
+
+        # Ping mask 16/4092
+        vlan = random.randrange(16, 20)
+        h11.cmd(f'ip link add link {h11.intfNames()[0]} name vlan16 type vlan id {vlan}')
+        h11.cmd(f'ip link set up vlan16')
+        h11.cmd(f'ip addr add {vlan}.0.0.11/24 dev vlan16')
+        h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan16 type vlan id {vlan}')
+        h2.cmd(f'ip link set up vlan16')
+        h2.cmd(f'ip addr add {vlan}.0.0.2/24 dev vlan16')
+        result = h11.cmd(f'ping -c1 {vlan}.0.0.2')
+        assert ', 0% packet loss,' in result
+
+        # Ping mask 20/4094
+        vlan = random.randrange(20, 22)
+        h11.cmd(f'ip link add link {h11.intfNames()[0]} name vlan20 type vlan id {vlan}')
+        h11.cmd(f'ip link set up vlan20')
+        h11.cmd(f'ip addr add {vlan}.0.0.11/24 dev vlan20')
+        h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan20 type vlan id {vlan}')
+        h2.cmd(f'ip link set up vlan20')
+        h2.cmd(f'ip addr add {vlan}.0.0.2/24 dev vlan20')
+        result = h11.cmd(f'ping -c1 {vlan}.0.0.2')
+        assert ', 0% packet loss,' in result
