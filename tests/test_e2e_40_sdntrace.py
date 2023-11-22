@@ -1,6 +1,7 @@
 import requests
 from tests.helpers import NetworkTest
 import time
+import random
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api' % CONTROLLER
@@ -1041,3 +1042,39 @@ class TestE2ESDNTrace:
         assert data['type'] == 'last'
         assert data['out']['port'] == 1
         assert data['out']['vlan'] == 100
+
+    def test_100_trace_circuit_vlan_range(cls):
+        """Test traces for circuit with vlan range"""
+        cls.create_evc([[12, 21]])
+        vlan1 = random.randrange(12, 16)
+        vlan2 = random.randrange(16, 20)
+        vlan3 = random.randrange(20, 22)
+        payload = [
+            {"trace": {
+                "switch": {"dpid": "00:00:00:00:00:00:00:01", "in_port": 1},
+                "eth": {"dl_type": 33024, "dl_vlan": vlan1}
+            }},
+            {"trace": {
+                "switch": {"dpid": "00:00:00:00:00:00:00:01", "in_port": 1},
+                "eth": {"dl_type": 33024, "dl_vlan": vlan2}
+            }},
+            {"trace": {
+                "switch": {"dpid": "00:00:00:00:00:00:00:01", "in_port": 1},
+                "eth": {"dl_type": 33024, "dl_vlan": vlan3}
+            }}
+        ]
+
+        api_url = KYTOS_API + '/amlight/sdntrace_cp/v1/traces'
+        response = requests.put(api_url, json=payload)
+        assert response.status_code == 200, response.text
+        data = response.json()["result"]
+
+        last_dpid = "00:00:00:00:00:00:00:0a"
+        vlan_list = [vlan1, vlan2, vlan3]
+        assert len(data) == 3, data
+        for i, trace in enumerate(data):
+            assert len(trace) == 10, trace
+            assert trace[-1]["dpid"] == last_dpid
+            assert trace[-1]["type"] == "last"
+            assert trace[-1]["out"]["vlan"] == vlan_list[i]
+        
