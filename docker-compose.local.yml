@@ -1,0 +1,44 @@
+version: '2.1'
+services:
+  mongo-setup:
+    container_name: mongo-test-rs-init
+    image: mongo:5.0
+    restart: on-failure
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: ["scripts/rs-init.sh"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root_user
+      MONGO_INITDB_ROOT_PASSWORD: root_pw
+      MONGO_USERNAME: napp_user
+      MONGO_PASSWORD: napp_pw
+      MONGO_DBNAME: napps
+      Location: VIRTUAL_ENV
+    depends_on:
+      - mongo1LT
+      - mongo2LT
+      - mongo3LT
+  mongo1LT:
+    container_name: mongo1LT
+    image: mongo:5.0
+    ports:
+      - 27037:27037
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0", "--port", "27037" ]
+    depends_on:
+      - mongo2LT
+      - mongo3LT
+  mongo2LT:
+    container_name: mongo2LT
+    image: mongo:5.0
+    ports:
+      - 27038:27038
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0", "--port", "27038" ]
+  mongo3LT:
+    container_name: mongo3LT
+    image: mongo:5.0
+    ports:
+      - 27039:27039
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0", "--port", "27039" ]
