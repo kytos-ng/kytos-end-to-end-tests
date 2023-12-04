@@ -16,5 +16,5 @@ for variable in "${env_variables[@]}"; do
 done
 # Remember to do "source ~/.bashrc" 
 # if you just added the env variables
-echo "exported env varibles"
+echo "added variables to .bashrc"
 

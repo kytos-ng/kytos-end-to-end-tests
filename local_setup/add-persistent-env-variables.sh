@@ -14,7 +14,6 @@ for variable in "${env_variables[@]}"; do
   fi
 
 done
-# Remember to do "" 
-# if you just added the env variables
-echo "exported env varibles"
+
+echo "added variables to etc/enviroment"
 
