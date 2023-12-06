@@ -10,6 +10,7 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
 class AmlightTopo(Topo):
     """Amlight Topology."""
@@ -286,12 +287,13 @@ class NetworkTest:
             #    pid = int(f.read())
             #    os.kill(pid, signal.SIGTERM)
             time.sleep(5)
-            if os.path.exists('/var/run/kytos/kytosd.pid'):
+            pid_path = os.path.join(BASE_ENV, 'var/run/kytos/kytosd.pid')
+            if os.path.exists(pid_path):
                 raise Exception("Kytos pid still exists.")
         except Exception as e:
             print("FAIL to stop kytos after 5 seconds -- %s. Force stop!" % e)
             os.system('pkill -9 kytosd')
-            os.system('rm -f /var/run/kytos/kytosd.pid')
+            os.system(f'rm -f {pid_path}')
 
         if clean_config and database:
             try:

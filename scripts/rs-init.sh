@@ -1,6 +1,13 @@
 #!/bin/bash
 
-MONGO_NODES=(mongo1t:27027 mongo2t:27028 mongo3t:27029)
+COUNT=$(env | grep -c "VIRTUAL_ENV")
+if [ $COUNT -eq 0 ]; then
+  MONGO_NODES=(mongo1t:27027 mongo2t:27028 mongo3t:27029)
+  echo "docker detected"
+else
+  MONGO_NODES=(mongo1LT:27037 mongo2LT:27038 mongo3LT:27039)
+  echo "VM detected"
+fi
 
 echo "Waiting for mongo nodes serverStatus..."
 for mongo_node in "${MONGO_NODES[@]}"

@@ -32,6 +32,25 @@ Which runs all available tests, or run only a specific test::
 
 The above lines are entirely up to the user to modify, and will allow them to choose in which way they want to use the tests.
 
+Running Tests Locally
+#####################
+
+You can start running tests locally by adding the mongoLT (Local Test) hosts with the add-etc-local-hosts.sh bash script as follows::
+
+  $ ./local_setup/add-etc-local-hosts
+  
+Then you can add the required environment variables with the following add-persistent-env-variables.sh bash script::
+
+  $ ./local_setup/add-persistent-env-variables
+
+Subsequently, the docker-compose.local.yml file can be used with the following command to run all of the required docker containers::
+
+  $ sudo docker-compose -f docker-compose.local.yml up -d
+
+Finally, switch to root user as mininet will only run as root and when sudo is used it doesn't have the required dependencies to run kytos and the tests::
+
+  $ sudo su -
+
 Mininet Topologies
 ##################
 
