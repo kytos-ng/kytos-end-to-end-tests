@@ -13,7 +13,6 @@ services:
       MONGO_USERNAME: napp_user
       MONGO_PASSWORD: napp_pw
       MONGO_DBNAME: napps
-      Location: VIRTUAL_ENV
     depends_on:
       - mongo1LT
       - mongo2LT

@@ -45,7 +45,11 @@ Then you can add the required environment variables with the following add-persi
 
 Subsequently, the docker-compose.local.yml file can be used with the following command to run all of the required docker containers::
 
-  $ sudo docker-compose -f docker-compose.local.yml up -d
+  $ docker-compose -f docker-compose.local.yml up -d
+
+To make sure that the DB connectivity is functional run::
+
+  $ python scripts/wait_for_mongo.py
 
 Finally, switch to root user as mininet will only run as root and when sudo is used it doesn't have the required dependencies to run kytos and the tests::
 
