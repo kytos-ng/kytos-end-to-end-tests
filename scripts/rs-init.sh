@@ -1,17 +1,12 @@
 #!/bin/bash
 
-COUNT=$(env | grep -c "VIRTUAL_ENV")
-if [ $COUNT -eq 0 ]; then
-  MONGO_NODES=(mongo1t:27027 mongo2t:27028 mongo3t:27029)
-  echo "docker detected"
-else
-  MONGO_NODES=(mongo1LT:27037 mongo2LT:27038 mongo3LT:27039)
-  echo "VM detected"
-fi
+MONGO_NODES_ARRAY=()
 
 echo "Waiting for mongo nodes serverStatus..."
-for mongo_node in "${MONGO_NODES[@]}"
+for mongo_node in $MONGO_NODES
 do
+  echo $mongo_node
+  MONGO_NODES_ARRAY+=($mongo_node)
   until curl http://${mongo_node}/serverStatus\?text\=1 2>&1 | grep uptime | head -1; do
     printf '.'
     sleep 5
@@ -19,8 +14,8 @@ do
 done
 echo "All mongo nodes are up"
 
-echo "Applying replicaSet rs0 config on ${MONGO_NODES[0]} at `date +"%T" `..."
-mongosh --host ${MONGO_NODES[0]} <<EOF
+echo "Applying replicaSet rs0 config on ${MONGO_NODES_ARRAY[0]} at `date +"%T" `..."
+mongosh --host ${MONGO_NODES_ARRAY[0]} <<EOF
 var config = {
     "_id": "rs0",
     "protocolVersion": 1,
@@ -28,17 +23,17 @@ var config = {
     "members": [
         {
             "_id": 1,
-            "host": "${MONGO_NODES[0]}",
+            "host": "${MONGO_NODES_ARRAY[0]}",
             "priority": 30
         },
         {
             "_id": 2,
-            "host": "${MONGO_NODES[1]}",
+            "host": "${MONGO_NODES_ARRAY[1]}",
             "priority": 20
         },
         {
             "_id": 3,
-            "host": "${MONGO_NODES[2]}",
+            "host": "${MONGO_NODES_ARRAY[2]}",
             "priority": 10
         }
     ]

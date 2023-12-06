@@ -13,6 +13,7 @@ services:
       MONGO_USERNAME: napp_user
       MONGO_PASSWORD: napp_pw
       MONGO_DBNAME: napps
+      MONGO_NODES: mongo1LT:27037 mongo2LT:27038 mongo3LT:27039
     depends_on:
       - mongo1LT
       - mongo2LT
