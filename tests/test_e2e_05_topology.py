@@ -635,6 +635,65 @@ class TestE2ETopology:
         keys = data['metadata'].keys()
         assert key not in keys
 
+    def test_130_delete_link(self):
+        """Test api/kytos/topology/v3/links/{link_id} on DELETE"""
+        switch_1 = "00:00:00:00:00:00:00:01"
+        switch_2 = "00:00:00:00:00:00:00:02"
+
+        # Enable the switches and ports first
+        for i in [1, 2]:
+            sw = "00:00:00:00:00:00:00:0%d" % i
+
+            api_url = KYTOS_API + '/topology/v3/switches/%s/enable' % sw
+            response = requests.post(api_url)
+            assert response.status_code == 201, response.text
+
+            api_url = KYTOS_API + '/topology/v3/interfaces/switch/%s/enable' % sw
+            response = requests.post(api_url)
+            assert response.status_code == 200, response.text
+
+        self.restart()
+
+        # Get the link_id
+        api_url = KYTOS_API + '/topology/v3/links'
+        response = requests.get(api_url)
+        assert response.status_code == 200
+        data = response.json()
+        print("DATA -> ", data)
+        link_id = None
+        for key, value in data['links'].items():
+            if (value["endpoint_a"]["switch"] == switch_1 and 
+                value["endpoint_b"]["switch"] == switch_2):
+                link_id = key
+                break
+        assert link_id
+        api_url = KYTOS_API + f'/topology/v3/links/{link_id}/enable'
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
+
+        # Not disabled
+        api_url = KYTOS_API + f'/topology/v3/links/{link_id}'
+        response = requests.delete(api_url)
+        assert response.status_code == 409, response.text
+        
+        # Disabling link
+        self.net.net.configLinkStatus('s1', 's2', 'down')
+        api_url = KYTOS_API + f'/topology/v3/links/{link_id}/disable'
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
+    
+        # Deleting link
+        api_url = KYTOS_API + f'/topology/v3/links/{link_id}'
+        response = requests.delete(api_url)
+        assert response.status_code == 200, response.text
+
+        # Verify absence of link
+        api_url = KYTOS_API + '/topology/v3/links'
+        response = requests.get(api_url)
+        assert response.status_code == 200
+        data = response.json()
+        assert link_id not in data["links"]
+
     def test_200_switch_disabled_on_clean_start(self):
 
         switch_id = "00:00:00:00:00:00:00:01"
