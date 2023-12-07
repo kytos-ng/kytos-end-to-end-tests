@@ -659,7 +659,6 @@ class TestE2ETopology:
         response = requests.get(api_url)
         assert response.status_code == 200
         data = response.json()
-        print("DATA -> ", data)
         link_id = None
         for key, value in data['links'].items():
             if (value["endpoint_a"]["switch"] == switch_1 and 
