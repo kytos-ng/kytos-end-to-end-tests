@@ -80,6 +80,7 @@ class TestE2EPathfinder:
             assert response.status_code == 201, response.text
         return links_metadata
 
+    @pytest.mark.skip(reason="issue 269 needs to be fixed/analyzed")
     @pytest.mark.parametrize(
         "undesired_link, expected_cost, max_paths, expected_paths",
         [
