@@ -279,7 +279,8 @@ class NetworkTest:
         self.db_client.drop_database(self.db_name)
 
     def start_controller(self, clean_config=False, enable_all=False,
-                         del_flows=False, port=None, database='mongodb'):
+                         del_flows=False, port=None, database='mongodb',
+                         extra_args=os.environ.get("KYTOSD_EXTRA_ARGS", "")):
         # Restart kytos and check if the napp is still disabled
         try:
             os.system('pkill kytosd')
@@ -313,6 +314,8 @@ class NetworkTest:
             daemon += ' --port %s' % port
         if enable_all:
             daemon += ' -E'
+        if extra_args:
+            daemon += ' ' + extra_args
         os.system(daemon)
 
         self.wait_controller_start()
