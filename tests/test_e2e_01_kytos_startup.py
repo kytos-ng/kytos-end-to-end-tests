@@ -61,7 +61,6 @@ class TestE2EKytosServer:
                 ("kytos", "of_lldp"),
                 ("kytos", "of_multi_table"),
                 ('amlight', 'sdntrace'),
-                ('amlight', 'flow_stats'),
                 ('amlight', 'coloring'),
                 ('amlight', 'sdntrace_cp'),
                 ('amlight', 'kytos_stats'),
