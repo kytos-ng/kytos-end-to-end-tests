@@ -41,7 +41,7 @@ You can start running tests locally by adding the mongoLT (Local Test) hosts wit
   
 Then you can add the required environment variables with the following add-persistent-env-variables.sh bash script::
 
-  $ ./local_setup/add-persistent-env-variables
+  $ sudo ./local_setup/add--env-variables
 
 Subsequently, the docker-compose.local.yml file can be used with the following command to run all of the required docker containers::
 

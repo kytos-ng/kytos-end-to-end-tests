@@ -38,11 +38,11 @@ class TestE2EKytosServer:
         try:
             cls.logfile = '/var/log/syslog'
             if not os.path.exists(cls.logfile):
-                raise Exception("/var/log/syslog does not exist")
+                raise Exception(FileNotFoundError)
             shutil.copy(cls.logfile, cls.logfile + '-' + time.strftime("%Y%m%d%H%M%S"))
             open(cls.logfile, 'w').close()
-        except Exception as e:
-            print(e)
+        except FileNotFoundError:
+            pass
 
     @classmethod
     def teardown_class(cls):

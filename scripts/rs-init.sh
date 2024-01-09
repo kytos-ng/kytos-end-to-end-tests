@@ -5,10 +5,11 @@ MONGO_NODES_ARRAY=()
 echo "Waiting for mongo nodes serverStatus..."
 for mongo_node in $MONGO_NODES
 do
-  echo $mongo_node
+  echo "Checking server status uptime of mongo node $mongo_node"
   MONGO_NODES_ARRAY+=($mongo_node)
   until curl http://${mongo_node}/serverStatus\?text\=1 2>&1 | grep uptime | head -1; do
     printf '.'
+    echo "$mongo_node is up"
     sleep 5
   done
 done
