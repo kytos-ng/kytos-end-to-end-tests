@@ -143,7 +143,7 @@ class TestE2EMaintenance:
         # Sets up the maintenance window information
         mw_start_delay = 10
         mw_duration = 20
-        start = datetime.now() + timedelta(seconds=mw_start_delay)
+        start = datetime.utcnow() + timedelta(seconds=mw_start_delay)
         end = start + timedelta(seconds=mw_duration)
 
         # Sets up the maintenance window data
