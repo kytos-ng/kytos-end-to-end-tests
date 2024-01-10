@@ -119,7 +119,7 @@ class TestE2EKytosServer:
     # test auth api
     # TODO
 
-    @pytest.mark.skipif(os.path.exists('/var/log/syslog'), reason="/var/log/syslog does not exist")
+    @pytest.mark.skipif(not os.path.exists('/var/log/syslog'), reason="/var/log/syslog does not exist")
     def test_start_kytos_without_errors(self):
         with open(self.logfile, "r") as f:
             assert re.findall(r'kytos.*?(error|exception)(.*)?', f.read(), re.I) == []
