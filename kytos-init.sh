@@ -2,8 +2,9 @@
 
 set -xe
 
-# the settings below are intended to decrease the tests execution time (in fact, the time.sleep() calls
-# depend on the values below, otherwise many tests would fail)
+# Checks if there is an NAPPS_PATH specified
+# If not it will then try and search for one with the "find" command
+# If a path is not found it will then use the Default Path for NApps
 if ! [ -z "$NAPPS_PATH" ]; then
 echo "NAPPS_PATH is specified."
 elif [[ $(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null) ]]; then
@@ -16,6 +17,8 @@ else
 echo "There is no NAPPS_PATH specified. Default will be used."
 NAPPS_PATH=""
 fi
+# the settings below are intended to decrease the tests execution time (in fact, the time.sleep() calls
+# depend on the values below, otherwise many tests would fail)
 sed -i 's/STATS_INTERVAL = 60/STATS_INTERVAL = 7/g' $NAPPS_PATH/var/lib/kytos/napps/kytos/of_core/settings.py
 sed -i 's/CONSISTENCY_MIN_VERDICT_INTERVAL =.*/CONSISTENCY_MIN_VERDICT_INTERVAL = 60/g' $NAPPS_PATH/var/lib/kytos/napps/kytos/flow_manager/settings.py
 sed -i 's/LINK_UP_TIMER = 10/LINK_UP_TIMER = 1/g' $NAPPS_PATH/var/lib/kytos/napps/kytos/topology/settings.py
