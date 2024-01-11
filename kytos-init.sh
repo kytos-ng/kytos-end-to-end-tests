@@ -7,13 +7,13 @@ set -xe
 if ! [ -z "$NAPPS_PATH" ]; then
 echo "NAPPS_PATH is specified."
 elif [[ $(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null) ]]; then
-echo "NAPPS_PATH was not specified but $(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null) Napps path found"
+echo "NAPPS_PATH was not specified but $(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null) NApps path was found."
 DEFAULT_PATH="/var/lib/kytos/napps"
 PATH_FOUND=$(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null)
 NAPPS_PATH=${PATH_FOUND/$DEFAULT_PATH/""}
 echo $NAPPS_PATH
 else
-echo "There is no NAPPS_PATH specified."
+echo "There is no NAPPS_PATH specified. Default will be used."
 NAPPS_PATH=""
 fi
 sed -i 's/STATS_INTERVAL = 60/STATS_INTERVAL = 7/g' $NAPPS_PATH/var/lib/kytos/napps/kytos/of_core/settings.py
