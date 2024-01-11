@@ -55,11 +55,11 @@ Finally, switch to root user as mininet will only run as root and when sudo is u
 
   $ sudo su -
 
-Make sure to utilize:::
+Make sure to utilize::
 
   $ ./kytos-init.sh
 
-To have the correct settings in order for the tests to run properly
+To have the correct settings in order for the tests to run properly!
 
 Mininet Topologies
 ##################
