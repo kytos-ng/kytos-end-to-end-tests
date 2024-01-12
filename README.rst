@@ -46,6 +46,7 @@ and can be done by activating the venv and installing the dependencies with the 
   $ pip install -r requirements/requirements-local.txt
   
 ---
+
 **NOTE**
 
 You can install dependencies on an existing kytosd environment or use the same one you created both on docker and
