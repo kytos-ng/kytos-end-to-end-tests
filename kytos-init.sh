@@ -3,16 +3,13 @@
 set -xe
 
 # Checks if there is an NAPPS_PATH specified
-# If not it will then try and search for one with the "find" command
+# If not it will then utilize the VIRTUAL_ENV path
 # If a path is not found it will then use the Default Path for NApps
 if ! [ -z "$NAPPS_PATH" ]; then
 echo "NAPPS_PATH is specified."
-elif [[ $(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null) ]]; then
-echo "NAPPS_PATH was not specified but $(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null) NApps path was found."
-DEFAULT_PATH="/var/lib/kytos/napps"
-PATH_FOUND=$(find ../ -type d -path "**var/lib/kytos/napps" 2>/dev/null)
-NAPPS_PATH=${PATH_FOUND/$DEFAULT_PATH/""}
-echo $NAPPS_PATH
+elif ! [ -z "$VIRTUAL_ENV" ]; then
+echo "NAPPS_PATH was not specified. The $VIRTUAL_ENV virtual environment path will be used."
+NAPPS_PATH=$VIRTUAL_ENV
 else
 echo "There is no NAPPS_PATH specified. Default will be used."
 NAPPS_PATH=""

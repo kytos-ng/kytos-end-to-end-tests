@@ -35,6 +35,24 @@ The above lines are entirely up to the user to modify, and will allow them to ch
 Running Tests Locally
 #####################
 
+To run tests locally you should create a new venv (Virtual Environment)::
+
+  $ python3 -m venv venv_name
+
+This venv will have to have current and additional requirements. This can be found within the requirements file
+and can be done by activating the venv and installing the dependencies with the following commands::
+
+  $ source venv_name/bin/activate
+  $ pip install -r requirements/requirements-local.txt
+  
+---
+**NOTE**
+
+You can install dependencies on an existing kytosd environment or use the same one you created both on docker and
+locally, but other unexpected surprises may arise, such as when you introduce new kytos core dependencies.
+
+---
+
 You can start running tests locally by adding the mongoLT (Local Test) hosts with the add-etc-local-hosts.sh bash script as follows::
 
   $ ./local_setup/add-etc-local-hosts
