@@ -133,7 +133,7 @@ class TestE2EMefEline:
             after one minute. """
 
         # Schedule by date to next minute
-        ts = datetime.now() + timedelta(seconds=60)
+        ts = datetime.utcnow() + timedelta(seconds=60)
         schedule_time = ts.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
         payload = {

@@ -10,6 +10,7 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
 class AmlightTopo(Topo):
     """Amlight Topology."""
@@ -278,7 +279,8 @@ class NetworkTest:
         self.db_client.drop_database(self.db_name)
 
     def start_controller(self, clean_config=False, enable_all=False,
-                         del_flows=False, port=None, database='mongodb'):
+                         del_flows=False, port=None, database='mongodb',
+                         extra_args=os.environ.get("KYTOSD_EXTRA_ARGS", "")):
         # Restart kytos and check if the napp is still disabled
         try:
             os.system('pkill kytosd')
@@ -286,12 +288,13 @@ class NetworkTest:
             #    pid = int(f.read())
             #    os.kill(pid, signal.SIGTERM)
             time.sleep(5)
-            if os.path.exists('/var/run/kytos/kytosd.pid'):
+            pid_path = os.path.join(BASE_ENV, 'var/run/kytos/kytosd.pid')
+            if os.path.exists(pid_path):
                 raise Exception("Kytos pid still exists.")
         except Exception as e:
             print("FAIL to stop kytos after 5 seconds -- %s. Force stop!" % e)
             os.system('pkill -9 kytosd')
-            os.system('rm -f /var/run/kytos/kytosd.pid')
+            os.system(f'rm -f {pid_path}')
 
         if clean_config and database:
             try:
@@ -311,6 +314,8 @@ class NetworkTest:
             daemon += ' --port %s' % port
         if enable_all:
             daemon += ' -E'
+        if extra_args:
+            daemon += ' ' + extra_args
         os.system(daemon)
 
         self.wait_controller_start()

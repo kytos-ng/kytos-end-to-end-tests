@@ -3,6 +3,8 @@ import shutil
 import requests
 from tests.helpers import NetworkTest
 import re
+import os
+import pytest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
@@ -15,6 +17,7 @@ KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
 
 class TestE2EKytosServer:
     net = None
+    syslog_found = None
 
     def setup_method(self, method):
         """
@@ -32,9 +35,14 @@ class TestE2EKytosServer:
         cls.net.start()
         cls.net.wait_switches_connect()
         # rotate logfile (copy/truncate strategy)
-        logfile = '/var/log/syslog'
-        shutil.copy(logfile, logfile + '-' + time.strftime("%Y%m%d%H%M%S"))
-        open(logfile, 'w').close()
+        try:
+            cls.logfile = '/var/log/syslog'
+            if not os.path.exists(cls.logfile):
+                raise Exception(FileNotFoundError)
+            shutil.copy(cls.logfile, cls.logfile + '-' + time.strftime("%Y%m%d%H%M%S"))
+            open(cls.logfile, 'w').close()
+        except FileNotFoundError:
+            pass
 
     @classmethod
     def teardown_class(cls):
@@ -111,6 +119,7 @@ class TestE2EKytosServer:
     # test auth api
     # TODO
 
+    @pytest.mark.skipif(not os.path.exists('/var/log/syslog'), reason="/var/log/syslog does not exist")
     def test_start_kytos_without_errors(self):
-        with open('/var/log/syslog', "r") as f:
+        with open(self.logfile, "r") as f:
             assert re.findall(r'kytos.*?(error|exception)(.*)?', f.read(), re.I) == []

@@ -1,19 +1,22 @@
 #!/bin/bash
 
-MONGO_NODES=(mongo1t:27027 mongo2t:27028 mongo3t:27029)
+MONGO_NODES_ARRAY=()
 
 echo "Waiting for mongo nodes serverStatus..."
-for mongo_node in "${MONGO_NODES[@]}"
+for mongo_node in $MONGO_NODES
 do
+  echo "Checking server status uptime of mongo node $mongo_node"
+  MONGO_NODES_ARRAY+=($mongo_node)
   until curl http://${mongo_node}/serverStatus\?text\=1 2>&1 | grep uptime | head -1; do
     printf '.'
+    echo "$mongo_node is up"
     sleep 5
   done
 done
 echo "All mongo nodes are up"
 
-echo "Applying replicaSet rs0 config on ${MONGO_NODES[0]} at `date +"%T" `..."
-mongosh --host ${MONGO_NODES[0]} <<EOF
+echo "Applying replicaSet rs0 config on ${MONGO_NODES_ARRAY[0]} at `date +"%T" `..."
+mongosh --host ${MONGO_NODES_ARRAY[0]} <<EOF
 var config = {
     "_id": "rs0",
     "protocolVersion": 1,
@@ -21,17 +24,17 @@ var config = {
     "members": [
         {
             "_id": 1,
-            "host": "${MONGO_NODES[0]}",
+            "host": "${MONGO_NODES_ARRAY[0]}",
             "priority": 30
         },
         {
             "_id": 2,
-            "host": "${MONGO_NODES[1]}",
+            "host": "${MONGO_NODES_ARRAY[1]}",
             "priority": 20
         },
         {
             "_id": 3,
-            "host": "${MONGO_NODES[2]}",
+            "host": "${MONGO_NODES_ARRAY[2]}",
             "priority": 10
         }
     ]
