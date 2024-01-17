@@ -238,6 +238,11 @@ class TestE2ETopology:
         supported by
             /api/kytos/topology/v3/interfaces on GET
         """
+        # Enable switch
+        dpid = '00:00:00:00:00:00:00:01'
+        api_url = f"{KYTOS_API}/topology/v3/switches/{dpid}/enable"
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
 
         # Make sure the interfaces are disabled
         api_url = KYTOS_API + '/topology/v3/interfaces'
@@ -267,8 +272,11 @@ class TestE2ETopology:
         supported by
             /api/kytos/topology/v3/switches on GET
         """
-
+        # Enable switch
         switch_id = "00:00:00:00:00:00:00:01"
+        api_url = f"{KYTOS_API}/topology/v3/switches/{switch_id}/enable"
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
 
         # Make sure all the interfaces belonging to the target switch are disabled
         api_url = KYTOS_API + '/topology/v3/switches'
@@ -300,7 +308,7 @@ class TestE2ETopology:
 
         self.restart()
 
-        # Make sure all the interfaces belonging to the target switch are enabled
+        # Make sure all the interfaces belonging to the target switch are disable
         api_url = KYTOS_API + '/topology/v3/switches'
         response = requests.get(api_url)
         data = response.json()
@@ -316,9 +324,14 @@ class TestE2ETopology:
             and
             /api/kytos/topology/v3/interfaces on GET
         """
-        interface_id = "00:00:00:00:00:00:00:01:4"
+        # Enable switch
+        switch_id = "00:00:00:00:00:00:00:01"
+        api_url = f"{KYTOS_API}/topology/v3/switches/{switch_id}/enable"
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
 
         # Enable the interface
+        interface_id = "00:00:00:00:00:00:00:01:4"
         api_url = KYTOS_API + '/topology/v3/interfaces/%s/enable' % interface_id
         response = requests.post(api_url)
         assert response.status_code == 200, response.text
@@ -351,8 +364,11 @@ class TestE2ETopology:
             and
             /api/kytos/topology/v3/switches on GET
         """
-
+        # Enable switch
         switch_id = "00:00:00:00:00:00:00:01"
+        api_url = f"{KYTOS_API}/topology/v3/switches/{switch_id}/enable"
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
 
         # Enabling all the interfaces
         api_url = KYTOS_API + '/topology/v3/interfaces/switch/%s/enable' % switch_id

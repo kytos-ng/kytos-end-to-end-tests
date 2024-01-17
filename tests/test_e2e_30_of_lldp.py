@@ -31,6 +31,7 @@ class TestE2EOfLLDP:
         data = response.json()
         switches = data.get("switches", {})
         for sw in switches.keys():
+            response = requests.post(KYTOS_API + '/topology/v3/switches/%s/enable' % sw)
             response = requests.post(KYTOS_API + '/topology/v3/interfaces/switch/%s/enable' % sw)
 
     @staticmethod
