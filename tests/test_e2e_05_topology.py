@@ -712,19 +712,8 @@ class TestE2ETopology:
     def test_140_delete_switch(self):
         """Test api/kytos/topology/v3/switches/{switch_id} on DELETE"""
         # Enable the switches and ports first
-        for i in [1, 2]:
-            sw = "00:00:00:00:00:00:00:0%d" % i
+        self.restart(_clean_config=True, _enable_all=True)
 
-            api_url = KYTOS_API + '/topology/v3/switches/%s/enable' % sw
-            response = requests.post(api_url)
-            assert response.status_code == 201, response.text
-
-            api_url = KYTOS_API + '/topology/v3/interfaces/switch/%s/enable' % sw
-            response = requests.post(api_url)
-            assert response.status_code == 200, response.text
-
-        self.restart()
-        
         # Switch is not disabled, 409
         switch_1 = "00:00:00:00:00:00:00:01"
         api_url = f'{KYTOS_API}/topology/v3/switches/{switch_1}'
@@ -741,34 +730,33 @@ class TestE2ETopology:
         assert response.status_code == 409
 
         # Get the link_id
-        switch_2 = "00:00:00:00:00:00:00:02"
         api_url = KYTOS_API + '/topology/v3/links'
         response = requests.get(api_url)
         assert response.status_code == 200
         data = response.json()
-        link_id = None
+        links_id = list()
         for key, value in data['links'].items():
-            if (value["endpoint_a"]["switch"] == switch_1 and 
-                value["endpoint_b"]["switch"] == switch_2):
-                link_id = key
-                break
-        assert link_id
+            if (value["endpoint_a"]["switch"] == switch_1 or 
+                value["endpoint_b"]["switch"] == switch_1):
+                links_id.append(key)
+        assert links_id
 
-        # Disabling link
-        self.net.net.configLinkStatus('s1', 's2', 'down')
-        api_url = KYTOS_API + f'/topology/v3/links/{link_id}/disable'
-        response = requests.post(api_url)
-        assert response.status_code == 201, response.text
+        for link in links_id:
+            # Disabling links
+            self.net.net.configLinkStatus('s1', 's3', 'down')
+            api_url = KYTOS_API + f'/topology/v3/links/{link}/disable'
+            response = requests.post(api_url)
+            assert response.status_code == 201, response.text
     
-        # Deleting link
-        api_url = KYTOS_API + f'/topology/v3/links/{link_id}'
-        response = requests.delete(api_url)
-        assert response.status_code == 200, response.text
+            # Deleting links
+            api_url = KYTOS_API + f'/topology/v3/links/{link}'
+            response = requests.delete(api_url)
+            assert response.status_code == 200, response.text
 
         # Delete switch, success
         api_url = f'{KYTOS_API}/topology/v3/switches/{switch_1}'
         response = requests.delete(api_url)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.text
 
     def test_200_switch_disabled_on_clean_start(self):
 
