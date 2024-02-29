@@ -1237,8 +1237,8 @@ class TestE2EMaintenance:
             "switches": ["00:00:00:00:00:00:00:02", "00:00:00:00:00:00:00:03"],
             "interfaces": ["00:00:00:00:00:00:00:03:3", "00:00:00:00:00:00:00:02:1"],
             "links": [
-                "cf0f4071be426b3f745027f5d22bc61f8312ae86293c9b28e7e66015607a9260",
-                "4d42dc0852278accac7d9df15418f6d921db160b13d674029a87cef1b5f67f30",
+                "c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07",
+                "78282c4d5b579265f04ebadc4405ca1b49628eb1d684bb45e5d0607fa8b713d0",
             ],
         }
         api_url = KYTOS_API + '/maintenance/v1'
@@ -1258,8 +1258,8 @@ class TestE2EMaintenance:
             "00:00:00:00:00:00:00:02:1",
         ]
         assert data["links"] == [
-            "cf0f4071be426b3f745027f5d22bc61f8312ae86293c9b28e7e66015607a9260",
-            "4d42dc0852278accac7d9df15418f6d921db160b13d674029a87cef1b5f67f30",
+            "c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07",
+            "78282c4d5b579265f04ebadc4405ca1b49628eb1d684bb45e5d0607fa8b713d0",
         ]
 
     def test_130_switch_payload_filtering(self):
@@ -1325,13 +1325,17 @@ class TestE2EMaintenance:
         self.net.wait_switches_connect()
         time.sleep(10)
 
+        api_url = KYTOS_API + '/topology/v3/switches'
+        response = requests.get(api_url, headers={'Content-type': 'application/json'})
+        print(response.json())
+
         start = datetime.utcnow() + timedelta(days=1)
         end = start + timedelta(hours=2)
         payload = {
             "start": start.strftime(TIME_FMT),
             "end": end.strftime(TIME_FMT),
             "links": [
-                "cf0f4071be426b3f745027f5d22bc61f8312ae86293c9b28e7e66015607a9260",
+                "c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07",
             ],
         }
         api_url = KYTOS_API + '/maintenance/v1'
@@ -1347,4 +1351,4 @@ class TestE2EMaintenance:
         assert data["end"] == end.strftime(TIME_FMT)
         assert data["switches"] == []
         assert data["interfaces"] == []
-        assert data["links"] == ["cf0f4071be426b3f745027f5d22bc61f8312ae86293c9b28e7e66015607a9260"]
+        assert data["links"] == ["c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07"]
