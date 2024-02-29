@@ -1,6 +1,5 @@
 import json
 import time
-import pytz
 from datetime import datetime, timedelta
 
 import requests
@@ -1230,7 +1229,7 @@ class TestE2EMaintenance:
         self.net.wait_switches_connect()
         time.sleep(10)
 
-        start = datetime.now(pytz.utc) + timedelta(days=1)
+        start = datetime.utcnow() + timedelta(days=1)
         end = start + timedelta(hours=2)
         payload = {
             "start": start.strftime(TIME_FMT),
@@ -1268,7 +1267,7 @@ class TestE2EMaintenance:
         self.net.wait_switches_connect()
         time.sleep(10)
 
-        start = datetime.now(pytz.utc) + timedelta(days=1)
+        start = datetime.utcnow() + timedelta(days=1)
         end = start + timedelta(hours=2)
         payload = {
             "start": start.strftime(TIME_FMT),
@@ -1297,7 +1296,7 @@ class TestE2EMaintenance:
         self.net.wait_switches_connect()
         time.sleep(10)
 
-        start = datetime.now(pytz.utc) + timedelta(days=1)
+        start = datetime.utcnow() + timedelta(days=1)
         end = start + timedelta(hours=2)
         payload = {
             "start": start.strftime(TIME_FMT),
@@ -1326,7 +1325,7 @@ class TestE2EMaintenance:
         self.net.wait_switches_connect()
         time.sleep(10)
 
-        start = datetime.now(pytz.utc) + timedelta(days=1)
+        start = datetime.utcnow() + timedelta(days=1)
         end = start + timedelta(hours=2)
         payload = {
             "start": start.strftime(TIME_FMT),
