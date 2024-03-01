@@ -23,9 +23,10 @@ class TestE2EMaintenance:
 
     @classmethod
     def setup_class(cls):
-        cls.net = NetworkTest(CONTROLLER)
+        cls.net = NetworkTest(CONTROLLER, topo_name="ring")
         cls.net.start()
         cls.net.restart_kytos_clean()
+        cls.net.wait_switches_connect()
         time.sleep(10)
 
     @classmethod
@@ -1222,3 +1223,132 @@ class TestE2EMaintenance:
         api_url = KYTOS_API + '/maintenance/v1/' + mw_id + '/extend'
         response = requests.patch(api_url, data=json.dumps(payload2), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
+
+    def test_125_multiple_payload_item_filtering(self):
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        start = datetime.utcnow() + timedelta(days=1)
+        end = start + timedelta(hours=2)
+        payload = {
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "switches": ["00:00:00:00:00:00:00:02", "00:00:00:00:00:00:00:03"],
+            "interfaces": ["00:00:00:00:00:00:00:03:3", "00:00:00:00:00:00:00:02:1"],
+            "links": [
+                "c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07",
+                "78282c4d5b579265f04ebadc4405ca1b49628eb1d684bb45e5d0607fa8b713d0",
+            ],
+        }
+        api_url = KYTOS_API + '/maintenance/v1'
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 201, data
+        assert "mw_id" in data
+        api_url = KYTOS_API + f'/maintenance/v1/{data["mw_id"]}'
+        response = requests.get(api_url, headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 200, data
+        assert data["start"] == start.strftime(TIME_FMT)
+        assert data["end"] == end.strftime(TIME_FMT)
+        assert data["switches"] == ["00:00:00:00:00:00:00:02", "00:00:00:00:00:00:00:03"]
+        assert data["interfaces"] == [
+            "00:00:00:00:00:00:00:03:3",
+            "00:00:00:00:00:00:00:02:1",
+        ]
+        assert data["links"] == [
+            "c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07",
+            "78282c4d5b579265f04ebadc4405ca1b49628eb1d684bb45e5d0607fa8b713d0",
+        ]
+
+    def test_130_switch_payload_filtering(self):
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        start = datetime.utcnow() + timedelta(days=1)
+        end = start + timedelta(hours=2)
+        payload = {
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "switches": [
+                "00:00:00:00:00:00:00:01",
+            ],
+        }
+        api_url = KYTOS_API + '/maintenance/v1'
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 201, data
+        assert "mw_id" in data
+        api_url = KYTOS_API + f'/maintenance/v1/{data["mw_id"]}'
+        response = requests.get(api_url, headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 200, data
+        assert data["start"] == start.strftime(TIME_FMT)
+        assert data["end"] == end.strftime(TIME_FMT)
+        assert data["switches"] == ["00:00:00:00:00:00:00:01"]
+        assert data["interfaces"] == []
+        assert data["links"] == []
+
+    def test_135_interface_payload_filtering(self):
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        start = datetime.utcnow() + timedelta(days=1)
+        end = start + timedelta(hours=2)
+        payload = {
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "interfaces": [
+                "00:00:00:00:00:00:00:01:1",
+            ],
+        }
+        api_url = KYTOS_API + '/maintenance/v1'
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 201, data
+        assert "mw_id" in data
+        api_url = KYTOS_API + f'/maintenance/v1/{data["mw_id"]}'
+        response = requests.get(api_url, headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 200, data
+        assert data["start"] == start.strftime(TIME_FMT)
+        assert data["end"] == end.strftime(TIME_FMT)
+        assert data["switches"] == []
+        assert data["interfaces"] == ["00:00:00:00:00:00:00:01:1"]
+        assert data["links"] == []
+
+    def test_140_link_payload_filtering(self):
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        api_url = KYTOS_API + '/topology/v3/switches'
+        response = requests.get(api_url, headers={'Content-type': 'application/json'})
+        print(response.json())
+
+        start = datetime.utcnow() + timedelta(days=1)
+        end = start + timedelta(hours=2)
+        payload = {
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "links": [
+                "c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07",
+            ],
+        }
+        api_url = KYTOS_API + '/maintenance/v1'
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 201, data
+        assert "mw_id" in data
+        api_url = KYTOS_API + f'/maintenance/v1/{data["mw_id"]}'
+        response = requests.get(api_url, headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 200, data
+        assert data["start"] == start.strftime(TIME_FMT)
+        assert data["end"] == end.strftime(TIME_FMT)
+        assert data["switches"] == []
+        assert data["interfaces"] == []
+        assert data["links"] == ["c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07"]
