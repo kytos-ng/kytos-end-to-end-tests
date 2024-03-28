@@ -343,4 +343,4 @@ class TestE2EMefEline:
         assert data["code"] == 400
         assert "The request body contains invalid API data" in data["description"]
         assert "not of type" in data["description"]
-        assert "for field uni_a/interface_id" in data["description"]
+        assert "1 is not of type 'string'" in data["description"]

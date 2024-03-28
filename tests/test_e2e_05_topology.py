@@ -657,7 +657,7 @@ class TestE2ETopology:
         switch_2 = "00:00:00:00:00:00:00:02"
 
         # Enable the switches and ports first
-        for i in [1, 2]:
+        for i in [1, 2, 3]:
             sw = "00:00:00:00:00:00:00:0%d" % i
 
             api_url = KYTOS_API + '/topology/v3/switches/%s/enable' % sw
@@ -712,6 +712,7 @@ class TestE2ETopology:
     def test_140_delete_switch(self):
         """Test api/kytos/topology/v3/switches/{switch_id} on DELETE"""
         # Enable the switches and ports first
+        self.net.net.configLinkStatus('s1', 's2', 'up')
         self.restart(_clean_config=True, _enable_all=True)
 
         # Switch is not disabled, 409
