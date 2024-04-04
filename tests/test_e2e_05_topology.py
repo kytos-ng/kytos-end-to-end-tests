@@ -755,6 +755,7 @@ class TestE2ETopology:
             assert response.status_code == 200, response.text
 
         # Delete switch, success
+        time.sleep(10)
         api_url = f'{KYTOS_API}/topology/v3/switches/{switch_1}'
         response = requests.delete(api_url)
         assert response.status_code == 200, response.text
