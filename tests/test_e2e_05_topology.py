@@ -819,6 +819,7 @@ class TestE2ETopology:
 
     def test_510_delete_interface(self):
         """Test api/kytos/topology/v3/interfaces/{interface_id} on DELETE"""
+        self.net.net.configLinkStatus('s1', 's3', 'up')
         for i in [1, 2, 3]:
             sw = "00:00:00:00:00:00:00:0%d" % i
 
