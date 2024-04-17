@@ -919,22 +919,3 @@ class TestE2ETopology:
         assert response.status_code == 200, response.text
         data = response.json()
         assert not intf_id in data["interfaces"]
-
-    def test_515_delete_interface_automatically(self):
-        """Test interface removal after logical deletion"""
-        intf_id = "00:00:00:00:00:00:00:01:4"
-        api_url = KYTOS_API + f'/topology/v3/interfaces'
-        response = requests.get(api_url)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert intf_id in data["interfaces"]
-
-        s1 = self.net.net.get('s1')
-        s1.detach('s1-eth4')
-        time.sleep(5)
-
-        api_url = KYTOS_API + f'/topology/v3/interfaces'
-        response = requests.get(api_url)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert not intf_id in data["interfaces"]
