@@ -2,7 +2,7 @@ version: '2.1'
 services:
   mongo-setup:
     container_name: mongo-test-rs-init
-    image: mongo:5.0
+    image: mongo:7.0
     restart: on-failure
     volumes:
       - ./scripts:/scripts
@@ -20,7 +20,7 @@ services:
       - mongo3LT
   mongo1LT:
     container_name: mongo1LT
-    image: mongo:5.0
+    image: mongo:7.0
     ports:
       - 27037:27037
     restart: always
@@ -30,14 +30,14 @@ services:
       - mongo3LT
   mongo2LT:
     container_name: mongo2LT
-    image: mongo:5.0
+    image: mongo:7.0
     ports:
       - 27038:27038
     restart: always
     entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0", "--port", "27038" ]
   mongo3LT:
     container_name: mongo3LT
-    image: mongo:5.0
+    image: mongo:7.0
     ports:
       - 27039:27039
     restart: always
