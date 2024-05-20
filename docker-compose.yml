@@ -1,4 +1,3 @@
-version: '2.1'
 services:
   kytos:
     image: amlight/kytos:latest
@@ -18,7 +17,7 @@ services:
       - mongo-setup
   mongo-setup:
     container_name: mongo-test-rs-init
-    image: mongo:5.0
+    image: mongo:7.0
     restart: on-failure
     volumes:
       - ./scripts:/scripts
@@ -36,7 +35,7 @@ services:
       - mongo3t
   mongo1t:
     container_name: mongo1t
-    image: mongo:5.0
+    image: mongo:7.0
     ports:
       - 27027:27027
     restart: always
@@ -46,14 +45,14 @@ services:
       - mongo3t
   mongo2t:
     container_name: mongo2t
-    image: mongo:5.0
+    image: mongo:7.0
     ports:
       - 27028:27028
     restart: always
     entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0", "--port", "27028" ]
   mongo3t:
     container_name: mongo3t
-    image: mongo:5.0
+    image: mongo:7.0
     ports:
       - 27029:27029
     restart: always

@@ -52,6 +52,11 @@ and can be done by activating the venv and installing the dependencies with the 
 You can install dependencies on an existing kytosd environment or use the same one you created both on docker and
 locally, but other unexpected surprises may arise, such as when you introduce new kytos core dependencies.
 
+For Debian 12 bookworm the packages ``orphan-sysvinit-scripts`` and ``rsyslog`` need to be installed. The following 
+command will sufice::
+
+  $ sudo apt-get update && apt-get install -y orphan-sysvinit-scripts rsyslog
+
 ---
 
 You can start running tests locally by adding the mongoLT (Local Test) hosts with the add-etc-local-hosts.sh bash script as follows::
