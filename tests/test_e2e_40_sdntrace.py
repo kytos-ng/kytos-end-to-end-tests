@@ -146,7 +146,7 @@ class TestE2ESDNTrace:
         wait_count = 0
         while wait_count < timeout:
             try:
-                api_url = KYTOS_API + '/amlight/sdntrace/trace'
+                api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
                 response = requests.get(f"{api_url}/{trace_id}")
                 data = response.json()
                 assert data["result"][-1]["reason"] == "done"
@@ -186,7 +186,7 @@ class TestE2ESDNTrace:
             }
         }
 
-        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -233,7 +233,7 @@ class TestE2ESDNTrace:
             }
         }
 
-        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
         response = requests.put(api_url, json=payload)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -332,7 +332,7 @@ class TestE2ESDNTrace:
             }
         }
 
-        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
         response = requests.put(api_url, json=payload_2)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -379,7 +379,7 @@ class TestE2ESDNTrace:
         ]
         assert expected == actual, f"Expected {expected}. Actual: {actual}"
 
-        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
         response = requests.put(api_url, json=payload_2)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -819,7 +819,7 @@ class TestE2ESDNTrace:
         assert list_results[0][0]["port"] == 1
         assert list_results[0][-1]["type"] == "last"
 
-        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
         response = requests.put(api_url, json=payload[0])
         assert response.status_code == 200, response.text
         data = response.json()
@@ -863,7 +863,7 @@ class TestE2ESDNTrace:
         assert list_results[0][0]["port"] == 1
         assert list_results[0][-1]["type"] == "last"
 
-        api_url = KYTOS_API + '/amlight/sdntrace/trace'
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
         response = requests.put(api_url, json=payload[0])
         assert response.status_code == 200, response.text
         data = response.json()
