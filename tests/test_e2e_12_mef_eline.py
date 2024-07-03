@@ -79,7 +79,7 @@ class TestE2EMefEline:
     # Disable circuit
     def _disable_circuit(self, circuit_id):
         payload = {
-            "enable": False,
+            "enabled": False,
         }
         api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
         response = requests.patch(api_url, json=payload)
