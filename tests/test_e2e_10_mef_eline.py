@@ -422,7 +422,7 @@ class TestE2EMefEline:
 
     def test_040_disable_circuit_should_remove_openflow_rules(self):
         # let's suppose that xyz is the circuit id previously created
-        # curl -X PATCH -H "Content-Type: application/json" -d '{"enable": false}' http://172.18.0.2:8181/api/kytos/mef_eline/v2/evc/xyz
+        # curl -X PATCH -H "Content-Type: application/json" -d '{"enabled": false}' http://172.18.0.2:8181/api/kytos/mef_eline/v2/evc/xyz
         payload = {
             "name": "Vlan125_Test_evc1",
             "enabled": True,
@@ -450,7 +450,7 @@ class TestE2EMefEline:
         assert data['enabled'] is True
 
         # It disables the circuit
-        payload = {"enable": False}
+        payload = {"enabled": False}
         response = requests.patch(api_url + evc1, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 200, response.text
         time.sleep(10)

@@ -1077,4 +1077,125 @@ class TestE2ESDNTrace:
             assert trace[-1]["dpid"] == last_dpid
             assert trace[-1]["type"] == "last"
             assert trace[-1]["out"]["vlan"] == vlan_list[i]
-        
+
+    def test_105_run_sdntrace_with_tcp_packet(cls):
+        """Run sdntrace between S1 (00:00:00:00:00:00:00:01) and
+         S2 (00:00:00:00:00:00:00:02) with a TCP packet"""
+        trace_payload = {"trace": {
+            "switch": {"dpid": "00:00:00:00:00:00:00:01", "in_port": 1},
+            "eth": {"dl_vlan": 2048},
+            "ip": {"nw_proto": 6},
+            "tp": {"tp_src": 1, "tp_dst": 2}
+        }}
+
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
+        response = requests.put(api_url, json=trace_payload)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        result = cls.wait_sdntrace_result(data["result"]["trace_id"])
+        assert len(result) == 2
+        assert result[1]["type"] == "last"
+
+        flow_payload = {"flows": [{
+            "priority": 38000,
+            "match": {
+                "in_port": 1,
+                "dl_type": 2048,
+                "nw_proto": 6
+            },
+            "instructions": [{
+                "instruction_type": "apply_actions",
+                "actions": [{"action_type": "output", "port": 2}]
+            }]
+        }]}
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        response = requests.post(api_url, json=flow_payload)
+        assert response.status_code == 202, response.text
+
+        flow_payload = {"flows": [{
+            "priority": 38000,
+            "match": {
+                "in_port": 2,
+                "dl_type": 2048,
+                "nw_proto": 6
+            },
+            "instructions": [{
+                "instruction_type": "apply_actions",
+                "actions": [{"action_type": "output", "port": 1}]
+            }]
+        }]}
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:02'
+        response = requests.post(api_url, json=flow_payload)
+        assert response.status_code == 202, response.text
+        time.sleep(10)
+
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
+        response = requests.put(api_url, json=trace_payload)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        result = cls.wait_sdntrace_result(data["result"]["trace_id"])
+        assert len(result) == 3
+        assert result[0]["dpid"] == "00:00:00:00:00:00:00:01"
+        assert result[1]["dpid"] == "00:00:00:00:00:00:00:02"
+        assert result[1]["type"] == "trace"
+
+    def test_110_run_sdntrace_with_udp_packet(cls):
+        """Run sdntrace between S1 (00:00:00:00:00:00:00:01) and
+         S2 (00:00:00:00:00:00:00:02) with a UDP packet"""
+        trace_payload = {"trace": {
+            "switch": {"dpid": "00:00:00:00:00:00:00:01", "in_port": 1},
+            "eth": {"dl_vlan": 2048},
+            "ip": {"nw_proto": 17},
+            "tp": {"tp_src": 1, "tp_dst": 2}
+        }}
+
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
+        response = requests.put(api_url, json=trace_payload)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        result = cls.wait_sdntrace_result(data["result"]["trace_id"])
+        assert len(result) == 2
+        assert result[1]["type"] == "last"
+
+        flow_payload = {"flows": [{
+            "priority": 38000,
+            "match": {
+                "in_port": 1,
+                "dl_type": 2048,
+                "nw_proto": 17
+            },
+            "instructions": [{
+                "instruction_type": "apply_actions",
+                "actions": [{"action_type": "output", "port": 2}]
+            }]
+        }]}
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        response = requests.post(api_url, json=flow_payload)
+        assert response.status_code == 202, response.text
+
+        flow_payload = {"flows": [{
+            "priority": 38000,
+            "match": {
+                "in_port": 2,
+                "dl_type": 2048,
+                "nw_proto": 17
+            },
+            "instructions": [{
+                "instruction_type": "apply_actions",
+                "actions": [{"action_type": "output", "port": 1}]
+            }]
+        }]}
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/flows/00:00:00:00:00:00:00:02'
+        response = requests.post(api_url, json=flow_payload)
+        assert response.status_code == 202, response.text
+        time.sleep(10)
+
+        api_url = KYTOS_API + '/amlight/sdntrace/v1/trace'
+        response = requests.put(api_url, json=trace_payload)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        result = cls.wait_sdntrace_result(data["result"]["trace_id"])
+        assert len(result) == 3
+        assert result[0]["dpid"] == "00:00:00:00:00:00:00:01"
+        assert result[1]["dpid"] == "00:00:00:00:00:00:00:02"
+        assert result[1]["type"] == "trace"
