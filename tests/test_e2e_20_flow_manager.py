@@ -158,6 +158,69 @@ class TestE2EFlowManager:
         assert data[switch_id][-1]["flow"]["idle_timeout"] == payload["flows"][0]["idle_timeout"]
         assert data[switch_id][-1]["flow"]["hard_timeout"] == payload["flows"][0]["hard_timeout"]
 
+    def test_011_install_flows_same_match_diff_cookie(self):
+        """Test install flows with same match but different cookie
+        it's expected that cookie will be overwritten."""
+
+        switch_id = '00:00:00:00:00:00:00:01'
+        cookie1, cookie2 = 100, 101
+        payload = {
+            "flows": [
+                {
+                    "priority": 10,
+                    "cookie": cookie1,
+                    "match": {
+                        "in_port": 1
+                    },
+                    "actions": [
+                        {
+                            "action_type": "output",
+                            "port": 2
+                        }
+                    ]
+                },
+                {
+                    "priority": 10,
+                    "cookie": cookie2,
+                    "match": {
+                        "in_port": 1
+                    },
+                    "actions": [
+                        {
+                            "action_type": "output",
+                            "port": 2
+                        }
+                    ]
+                }
+            ]
+        }
+
+        # It installs the flow
+        api_url = KYTOS_API + '/flow_manager/v2/flows/' + switch_id
+        requests.post(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+
+        # wait for the flow to be installed
+        time.sleep(10)
+
+        sw_name = "s1"
+        sw = self.net.net.get(sw_name)
+        flows_sw = sw.dpctl("dump-flows")
+        assert len(flows_sw.split('\r\n ')) == BASIC_FLOWS + 1, flows_sw
+        assert 'actions=output:"%s-eth2"' % sw_name in flows_sw
+        assert 'cookie=0x65' in flows_sw
+        assert 'cookie=0x64' not in flows_sw
+
+        stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?dpids={switch_id}&cookie_range={cookie1}&cookie_range={cookie2}'
+        response = requests.get(stored_flows)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert len(data[switch_id]) == 1
+        assert data[switch_id][0]["flow"]["actions"] == payload["flows"][1]["actions"]
+        assert data[switch_id][0]["flow"]["match"] == payload["flows"][1]["match"]
+        assert data[switch_id][0]["flow"]["priority"] == payload["flows"][1]["priority"]
+        assert data[switch_id][0]["flow"]["cookie"] == payload["flows"][1]["cookie"]
+
     def test_015_install_flows(self):
         """Tests if, after kytos restart, a flow installed
         to all switches will still be installed."""
