@@ -188,12 +188,27 @@ class TestE2EMefEline:
 
     def test_002_delete_evc_old_path(self):
         """Test create an EVC then disable one of its failover_path interface"""
-        self.create_evc(
+        evc_id = self.create_evc(
             uni_a="00:00:00:00:00:00:00:01:1",
             uni_z="00:00:00:00:00:00:00:02:1",
             vlan_id=100
         )
         time.sleep(10)
+        
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+        assert data["failover_path"]
+        assert (data["failover_path"][0]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:01:4")
+        assert (data["failover_path"][0]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:3")
+        assert (data["failover_path"][1]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:02:3")
+        assert (data["failover_path"][1]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:2")
+                
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -207,6 +222,11 @@ class TestE2EMefEline:
         response = requests.post(url, headers={"Content-type": "application/json"})
         assert response.status_code == 200, response.text
         time.sleep(10)
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+        assert not data["failover_path"]
 
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -225,6 +245,19 @@ class TestE2EMefEline:
         response = requests.post(url, headers={"Content-type": "application/json"})
         assert response.status_code == 201, response.text
         time.sleep(10)
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+        assert data["failover_path"]
+        assert (data["failover_path"][0]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:01:4")
+        assert (data["failover_path"][0]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:3")
+        assert (data["failover_path"][1]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:02:3")
+        assert (data["failover_path"][1]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:2")
 
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
