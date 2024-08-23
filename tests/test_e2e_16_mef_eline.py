@@ -185,3 +185,83 @@ class TestE2EMefEline:
         failover_path_ids = {link["id"] for link in data["failover_path"]}
         assert not (current_path_ids & blue_link_ids), current_path_ids
         assert not (failover_path_ids & red_link_ids), failover_path_ids
+
+    def test_002_delete_evc_old_path(self):
+        """Test create an EVC then disable one of its failover_path interface"""
+        evc_id = self.create_evc(
+            uni_a="00:00:00:00:00:00:00:01:1",
+            uni_z="00:00:00:00:00:00:00:02:1",
+            vlan_id=100
+        )
+        time.sleep(10)
+        
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+        assert data["failover_path"]
+        assert (data["failover_path"][0]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:01:4")
+        assert (data["failover_path"][0]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:3")
+        assert (data["failover_path"][1]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:02:3")
+        assert (data["failover_path"][1]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:2")
+                
+
+        s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+
+        assert len(flows_s1.split('\r\n ')) == 6, flows_s1
+        assert len(flows_s2.split('\r\n ')) == 6, flows_s2
+        assert len(flows_s3.split('\r\n ')) == 5, flows_s3
+
+        url = f"{KYTOS_API}/topology/v3/interfaces/00:00:00:00:00:00:00:03:3/disable"
+        response = requests.post(url, headers={"Content-type": "application/json"})
+        assert response.status_code == 200, response.text
+        time.sleep(10)
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+        assert not data["failover_path"]
+
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == 4, flows_s1
+        assert len(flows_s2.split('\r\n ')) == 5, flows_s2
+        assert len(flows_s3.split('\r\n ')) == 2, flows_s3
+
+
+        url = f"{KYTOS_API}/topology/v3/interfaces/00:00:00:00:00:00:00:03:3/enable"
+        response = requests.post(url, headers={"Content-type": "application/json"})
+        assert response.status_code == 200, response.text
+
+        link_id = "c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07"
+        url = f"{KYTOS_API}/topology/v3/links/{link_id}/enable"
+        response = requests.post(url, headers={"Content-type": "application/json"})
+        assert response.status_code == 201, response.text
+        time.sleep(10)
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+        assert data["failover_path"]
+        assert (data["failover_path"][0]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:01:4")
+        assert (data["failover_path"][0]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:3")
+        assert (data["failover_path"][1]["endpoint_a"]["id"] ==
+                "00:00:00:00:00:00:00:02:3")
+        assert (data["failover_path"][1]["endpoint_b"]["id"] ==
+                "00:00:00:00:00:00:00:03:2")
+
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == 6, flows_s1
+        assert len(flows_s2.split('\r\n ')) == 6, flows_s2
+        assert len(flows_s3.split('\r\n ')) == 5, flows_s3
