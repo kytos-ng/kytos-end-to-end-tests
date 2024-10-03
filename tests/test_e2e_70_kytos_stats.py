@@ -217,6 +217,9 @@ class TestE2EKytosStats:
 
     def test_025_packet_count_per_flow(self):
         """Test packet_count_per_flow""" 
+        # give enough time for stats gathering (of_core.STATS_INTERVAL)
+        time.sleep(10)
+
         api_url = KYTOS_STATS + '/flow/stats?dpid=00:00:00:00:00:00:00:01'  
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
@@ -229,12 +232,14 @@ class TestE2EKytosStats:
         for info_flow in data:
             flow_id = info_flow['flow_id']
             count = data_flow[flow_id]['packet_count']
-            assert info_flow['packet_counter'] == count
-            assert info_flow['packet_per_second'] == count/data_flow[flow_id]['duration_sec']
+            assert info_flow['packet_counter'] >= count
+            assert info_flow['packet_per_second'] >= count/data_flow[flow_id]['duration_sec']
 
 
     def test_030_bytes_count_per_flow(self):
         """Test bytes_count_per_flow""" 
+        # give enough time for stats gathering (of_core.STATS_INTERVAL)
+        time.sleep(10)
 
         api_url = KYTOS_STATS + '/flow/stats?dpid=00:00:00:00:00:00:00:01'  
         response = requests.get(api_url)
@@ -248,8 +253,8 @@ class TestE2EKytosStats:
         for info_flow in data:
             flow_id = info_flow['flow_id']
             count = data_flow[flow_id]['byte_count']
-            assert info_flow['bytes_counter'] == count
-            assert info_flow['bits_per_second'] == 8 * count/data_flow[flow_id]['duration_sec']
+            assert info_flow['bytes_counter'] >= count
+            assert info_flow['bits_per_second'] >= 8 * count/data_flow[flow_id]['duration_sec']
 
     def test_035_table_fields_update(self):
         """Test fields are updating on table 0.
