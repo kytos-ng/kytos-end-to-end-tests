@@ -1007,3 +1007,119 @@ class TestE2EFlowManager:
         assert len(data["00:00:00:00:00:00:00:01"]) == BASIC_FLOWS
         assert len(data["00:00:00:00:00:00:00:02"]) == BASIC_FLOWS
         assert len(data["00:00:00:00:00:00:00:03"]) == BASIC_FLOWS
+
+    def test_085_install_flows_by_switch_but_404(self):
+        """Install flows_by_switch but one of the switches
+         does not exist."""
+        payload = {
+            "00:00:00:00:00:00:00:01": {
+                "flows": [{"cookie": 12297829382473034410, "priority": 20000}]},
+            "00:00:00:00:00:00:00:11": {
+                "flows": [{"cookie": 12297829382473034410, "priority": 20000},]},
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows_by_switch'
+        response = requests.post(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 404, response.text
+
+    def test_090_install_flows_in_switch_list_but_404(self):
+        """Through /v2/flows install flows in a list of switches
+         but one of them does not exist."""
+        payload = {
+            "switches": ["00:00:00:00:00:00:00:01", "00:00:00:00:00:00:00:11"],
+            "flows": [{"cookie": 12297829382473034410, "priority": 20000}],
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows'
+        response = requests.post(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 404, response.text
+ 
+    def test_095_install_delete_flows_by_switch(self):
+        """Install and delete via flows_by_switch API request."""
+        payload = {
+            "00:00:00:00:00:00:00:01": {
+                "flows": [{"cookie": 12297829382473034410, "priority": 20000}]},
+            "00:00:00:00:00:00:00:02": {
+                "flows": [
+                    {"cookie": 12297829382473034410, "priority": 20000},
+                    {"cookie": 12297829382473034410, "priority": 2000}
+                ]},
+            "00:00:00:00:00:00:00:03": {
+                "flows": [
+                    {"cookie": 12297829382473034410, "priority": 20000},
+                    {"cookie": 12297829382473034410, "priority": 2000},
+                    {"cookie": 12297829382473034410, "priority": 200}
+                ]},
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows_by_switch'
+        response = requests.post(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+
+        s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS + 3, flows_s3
+
+        payload = {
+            "00:00:00:00:00:00:00:03": {
+                "flows": [{"cookie": 12297829382473034410, "cookie_mask": 18446744073709551615}]
+            },
+            "00:00:00:00:00:00:00:02": {
+                "flows": [{"cookie": 12297829382473034410, "cookie_mask": 18446744073709551615}]
+            },
+            "00:00:00:00:00:00:00:01": {
+                "flows": [{"cookie": 12297829382473034410, "cookie_mask": 18446744073709551615}]
+            }
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows_by_switch'
+        response = requests.delete(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
+        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
+
+    def test_100_install_delete_flows_in_switch_list(self):
+        """Install and delete through /v2/flows and a list of
+         switches."""
+        payload = {
+            "switches": ["00:00:00:00:00:00:00:01", "00:00:00:00:00:00:00:02"],
+            "flows": [
+                    {"cookie": 12297829382473034410, "priority": 20000},
+                    {"cookie": 12297829382473034410, "priority": 2000}
+            ]
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows'
+        response = requests.post(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+
+        s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
+        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
+
+        payload = {
+            "switches": ["00:00:00:00:00:00:00:01", "00:00:00:00:00:00:00:02"],
+            "flows": [{"cookie": 12297829382473034410, "cookie_mask": 18446744073709551615}]
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows'
+        response = requests.delete(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
+        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
