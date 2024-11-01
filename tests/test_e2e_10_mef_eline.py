@@ -1097,7 +1097,11 @@ class TestE2EMefEline:
         response = requests.get(api_url + evc1)
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data["primary_path"] == payload2["primary_path"]
+        paths = []
+        for _path in data['primary_path']:
+            paths.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
+                          "endpoint_b": {"id": _path['endpoint_b']['id']}})
+        assert paths == payload2["primary_path"]
 
     def test_135_patch_backup_path(self):
 
