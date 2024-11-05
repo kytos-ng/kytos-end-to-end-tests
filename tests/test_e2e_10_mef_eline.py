@@ -1042,23 +1042,24 @@ class TestE2EMefEline:
         data = response.json()
         assert expected_err in data["description"]
 
-    """The EVC is returning active=False"""
-    @pytest.mark.xfail
     def test_130_patch_primary_path(self):
+        """Patch EVC with primary_path and verify that it is applied to
+         current_path."""
 
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
             "name": "my evc1",
             "enabled": True,
+            "dynamic_backup_path": False,
             "uni_a": {
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
-                "interface_id": "00:00:00:00:00:00:00:03:1"
+                "interface_id": "00:00:00:00:00:00:00:02:1"
             },
             "primary_path": [
-                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:4"},
-                 "endpoint_b": {"id": "00:00:00:00:00:00:00:03:2"}}
+                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
+                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"}}
             ]
         }
         response = requests.post(api_url, data=json.dumps(payload1),
@@ -1068,8 +1069,8 @@ class TestE2EMefEline:
         time.sleep(10)
         payload2 = {
             "primary_path": [
-                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
-                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"}},
+                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:4"},
+                 "endpoint_b": {"id": "00:00:00:00:00:00:00:03:3"}},
                 {"endpoint_a": {"id": "00:00:00:00:00:00:00:02:3"},
                  "endpoint_b": {"id": "00:00:00:00:00:00:00:03:2"}}
             ]
@@ -1086,12 +1087,21 @@ class TestE2EMefEline:
         data = response.json()
 
         paths = []
-        for _path in data['primary_path']:
+        for _path in data['current_path']:
             paths.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
                           "endpoint_b": {"id": _path['endpoint_b']['id']}})
 
         assert paths == payload2["primary_path"]
         assert data['active'] is True
+
+        response = requests.get(api_url + evc1)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        paths = []
+        for _path in data['primary_path']:
+            paths.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
+                          "endpoint_b": {"id": _path['endpoint_b']['id']}})
+        assert paths == payload2["primary_path"]
 
     def test_135_patch_backup_path(self):
 
