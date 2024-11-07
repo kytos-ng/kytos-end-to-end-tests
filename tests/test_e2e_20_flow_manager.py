@@ -1056,6 +1056,21 @@ class TestE2EFlowManager:
                       headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
 
+        stored_url = KYTOS_API + '/flow_manager/v2/stored_flows'
+        response = requests.get(stored_url)
+        data_flows = response.json()
+        sw1_flows = data_flows["00:00:00:00:00:00:00:01"]
+        sw2_flows = data_flows["00:00:00:00:00:00:00:02"]
+        sw3_flows = data_flows["00:00:00:00:00:00:00:03"]
+        
+        assert len(sw1_flows) == BASIC_FLOWS + 1, sw1_flows
+        assert len(sw2_flows) == BASIC_FLOWS + 2, sw2_flows
+        assert len(sw3_flows) == BASIC_FLOWS + 3, sw3_flows
+        test_list = [(sw1_flows, 1), (sw2_flows, 2), (sw3_flows, 3)]
+        for sw_flows, length in test_list:
+            for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
+                assert flow["state"] in {"installed", "pending"}
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -1079,6 +1094,22 @@ class TestE2EFlowManager:
         response = requests.delete(api_url, data=json.dumps(payload),
                       headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
+
+        stored_url = KYTOS_API + '/flow_manager/v2/stored_flows'
+        response = requests.get(stored_url)
+        data_flows = response.json()
+        sw1_flows = data_flows["00:00:00:00:00:00:00:01"]
+        sw2_flows = data_flows["00:00:00:00:00:00:00:02"]
+        sw3_flows = data_flows["00:00:00:00:00:00:00:03"]
+        
+        assert len(sw1_flows) == BASIC_FLOWS + 1, sw1_flows
+        assert len(sw2_flows) == BASIC_FLOWS + 2, sw2_flows
+        assert len(sw3_flows) == BASIC_FLOWS + 3, sw3_flows
+        test_list = [(sw1_flows, 1), (sw2_flows, 2), (sw3_flows, 3)]
+        for sw_flows, length in test_list:
+            for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
+                assert flow["state"] == "deleted"
+
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
