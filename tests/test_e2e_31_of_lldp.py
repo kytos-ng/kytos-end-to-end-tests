@@ -228,6 +228,8 @@ class TestE2EOfLLDP:
         assert data["links"]
         metadata = data["links"][link_id]["metadata"]
         assert metadata["liveness_status"] == "down", metadata
+        assert data["links"][link_id]["status"] == "DOWN"
+        assert data["links"][link_id]["status_reason"] == ["liveness"]
 
         s2 = self.net.net.get("s2")
         flow_entry = "cookie=0xdd00000000000000/-1"
