@@ -2119,7 +2119,7 @@ class TestE2EMefEline:
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         r = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert r.status_code == 201, r.text
-        data = response.json()
+        data = r.json()
         evc1 = data["circuit_id"]
 
         time.sleep(10)
@@ -2142,8 +2142,8 @@ class TestE2EMefEline:
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert not data[evc1]["current_path"]
+        assert not data["active"]
+        assert not data["current_path"]
 
         # bring up UNI a, it shouldn't activate yet, since NNI is down
         self.net.net.configLinkStatus('s1', 'h11', 'up')
@@ -2167,8 +2167,8 @@ class TestE2EMefEline:
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert not data[evc1]["current_path"]
+        assert not data["active"]
+        assert not data["current_path"]
 
         # bring up NNI, it shouldn't activate since UNI is still down
         self.net.net.configLinkStatus('s3', 's1', 'up')
