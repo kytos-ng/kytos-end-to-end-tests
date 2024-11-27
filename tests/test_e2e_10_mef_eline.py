@@ -2017,8 +2017,8 @@ class TestE2EMefEline:
 
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert data["active"]
+        assert data["current_path"]
 
         # shutdown NNIs and UNI a
         self.net.net.configLinkStatus("s1", "s2", "down")
@@ -2028,17 +2028,17 @@ class TestE2EMefEline:
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert not data[evc1]["current_path"]
+        assert not data["active"]
+        assert not data["current_path"]
 
         # bring up only UNI, EVC should still remain not active
         self.net.net.configLinkStatus("s1", "h11", "up")
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
+        assert not data["active"]
         # pathfinder won't find a new path since UNI is part of the graph
-        assert not data[evc1]["current_path"]
+        assert not data["current_path"]
 
         # bring up the rest of NNIs, now it should be activated
         self.net.net.configLinkStatus("s1", "s2", "up")
@@ -2046,24 +2046,24 @@ class TestE2EMefEline:
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert data["active"]
+        assert data["current_path"]
 
         # shutdown UNI a, now it should deactivate again
         self.net.net.configLinkStatus("s1", "h11", "down")
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert not data["active"]
+        assert data["current_path"]
 
         # bring up UNI a, now it should activate
         self.net.net.configLinkStatus("s1", "h11", "up")
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert data["active"]
+        assert data["current_path"]
 
         # shutdown NNIs and UNI a
         self.net.net.configLinkStatus("s1", "s2", "down")
@@ -2073,30 +2073,28 @@ class TestE2EMefEline:
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert not data[evc1]["current_path"]
+        assert not data["active"]
+        assert not data["current_path"]
 
         # bring up a NNI, it shouldn't activate yet since UNI is still down
         self.net.net.configLinkStatus("s1", "s2", "up")
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert not data[evc1]["current_path"]
+        assert not data["active"]
+        assert not data["current_path"]
 
         # bring up UNI a, now it should activate, and result in new deployment
         self.net.net.configLinkStatus("s1", "h11", "up")
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert data["active"]
+        assert data["current_path"]
 
     def test_301_inter_evc_static_uni_status(self):
         """Test UNI status for a dynamic inter EVC."""
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
-        evc1 = self.create_evc(100)
-
         payload = {
             "name": "my evc1",
             "enabled": True,
@@ -2104,11 +2102,17 @@ class TestE2EMefEline:
                 "interface_id": "00:00:00:00:00:00:00:01:1",
             },
             "uni_z": {
-                "interface_id": "00:00:00:00:00:00:00:02:1"
+                "interface_id": "00:00:00:00:00:00:00:03:1"
             },
             "primary_path": [
-                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
-                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:3"}}
+                {
+                    "endpoint_a": {
+                        "id": "00:00:00:00:00:00:00:01:4"
+                    },
+                    "endpoint_b": {
+                        "id": "00:00:00:00:00:00:00:03:3"
+                    }
+                }
             ]
         }
 
@@ -2122,19 +2126,19 @@ class TestE2EMefEline:
 
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert data["active"]
+        assert data["current_path"]
 
         # shutdown UNI a, it should deactivate
         self.net.net.configLinkStatus('s1', 'h11', 'down')
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert not data["active"]
+        assert data["current_path"]
 
         # shutdown NNI too, current_path should be gone too
-        self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.net.configLinkStatus('s3', 's1', 'down')
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
@@ -2146,20 +2150,20 @@ class TestE2EMefEline:
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert not data[evc1]["current_path"]
+        assert not data["active"]
+        assert not data["current_path"]
 
         # bring up NNI, it should activate
-        self.net.net.configLinkStatus('s1', 's2', 'up')
+        self.net.net.configLinkStatus('s3', 's1', 'up')
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert data["active"]
+        assert data["current_path"]
 
         # shutdown again both
         self.net.net.configLinkStatus('s1', 'h11', 'down')
-        self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.net.configLinkStatus('s3', 's1', 'down')
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
@@ -2167,17 +2171,17 @@ class TestE2EMefEline:
         assert not data[evc1]["current_path"]
 
         # bring up NNI, it shouldn't activate since UNI is still down
-        self.net.net.configLinkStatus('s1', 's2', 'up')
+        self.net.net.configLinkStatus('s3', 's1', 'up')
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert not data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert not data["active"]
+        assert data["current_path"]
 
         # bring up UNI a, it should activate
         self.net.net.configLinkStatus('s1', 'h11', 'up')
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
-        assert data[evc1]["active"]
-        assert data[evc1]["current_path"]
+        assert data["active"]
+        assert data["current_path"]
