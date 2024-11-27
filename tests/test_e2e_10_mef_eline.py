@@ -2008,3 +2008,180 @@ class TestE2EMefEline:
         data = response.json()
         assert "test" in data[evc_1_id]["metadata"]
         assert "test" in data[evc_2_id]["metadata"]
+
+    def test_300_inter_evc_dynamic_uni_status(self):
+        """Test UNI status for a dynamic inter EVC."""
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        evc1 = self.create_evc(100)
+        time.sleep(10)
+
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert data["active"]
+        assert data["current_path"]
+
+        # shutdown NNIs and UNI a
+        self.net.net.configLinkStatus("s1", "s2", "down")
+        self.net.net.configLinkStatus("s3", "s1", "down")
+        self.net.net.configLinkStatus("s1", "h11", "down")
+
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert not data["current_path"]
+
+        # bring up only UNI, EVC should still remain not active
+        self.net.net.configLinkStatus("s1", "h11", "up")
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        # pathfinder won't find a new path since UNI is part of the graph
+        assert not data["current_path"]
+
+        # bring up the rest of NNIs, now it should be activated
+        self.net.net.configLinkStatus("s1", "s2", "up")
+        self.net.net.configLinkStatus("s3", "s1", "up")
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert data["active"]
+        assert data["current_path"]
+
+        # shutdown UNI a, now it should deactivate again
+        self.net.net.configLinkStatus("s1", "h11", "down")
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert data["current_path"]
+
+        # bring up UNI a, now it should activate
+        self.net.net.configLinkStatus("s1", "h11", "up")
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert data["active"]
+        assert data["current_path"]
+
+        # shutdown NNIs and UNI a
+        self.net.net.configLinkStatus("s1", "s2", "down")
+        self.net.net.configLinkStatus("s3", "s1", "down")
+        self.net.net.configLinkStatus("s1", "h11", "down")
+
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert not data["current_path"]
+
+        # bring up a NNI, it shouldn't activate yet since UNI is still down
+        self.net.net.configLinkStatus("s1", "s2", "up")
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert not data["current_path"]
+
+        # bring up UNI a, now it should activate, and result in new deployment
+        self.net.net.configLinkStatus("s1", "h11", "up")
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert data["active"]
+        assert data["current_path"]
+
+    def test_301_inter_evc_static_uni_status(self):
+        """Test UNI status for a dynamic inter EVC."""
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        payload = {
+            "name": "my evc1",
+            "enabled": True,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:03:1"
+            },
+            "primary_path": [
+                {
+                    "endpoint_a": {
+                        "id": "00:00:00:00:00:00:00:01:4"
+                    },
+                    "endpoint_b": {
+                        "id": "00:00:00:00:00:00:00:03:3"
+                    }
+                }
+            ]
+        }
+
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        r = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert r.status_code == 201, r.text
+        data = r.json()
+        evc1 = data["circuit_id"]
+
+        time.sleep(10)
+
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert data["active"]
+        assert data["current_path"]
+
+        # shutdown UNI a, it should deactivate
+        self.net.net.configLinkStatus('s1', 'h11', 'down')
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert data["current_path"]
+
+        # shutdown NNI too, current_path should be gone too
+        self.net.net.configLinkStatus('s3', 's1', 'down')
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert not data["current_path"]
+
+        # bring up UNI a, it shouldn't activate yet, since NNI is down
+        self.net.net.configLinkStatus('s1', 'h11', 'up')
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert not data["current_path"]
+
+        # bring up NNI, it should activate
+        self.net.net.configLinkStatus('s3', 's1', 'up')
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert data["active"]
+        assert data["current_path"]
+
+        # shutdown again both
+        self.net.net.configLinkStatus('s1', 'h11', 'down')
+        self.net.net.configLinkStatus('s3', 's1', 'down')
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert not data["current_path"]
+
+        # bring up NNI, it shouldn't activate since UNI is still down
+        self.net.net.configLinkStatus('s3', 's1', 'up')
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert not data["active"]
+        assert data["current_path"]
+
+        # bring up UNI a, it should activate
+        self.net.net.configLinkStatus('s1', 'h11', 'up')
+        time.sleep(10)
+        response = requests.get(api_url + evc1)
+        data = response.json()
+        assert data["active"]
+        assert data["current_path"]
