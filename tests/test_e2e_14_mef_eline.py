@@ -45,7 +45,14 @@ class TestE2EMefEline:
         # Wait a few seconds to kytos execute LLDP
         time.sleep(10)
 
-    def create_evc(self, uni_a="00:00:00:00:00:00:00:01:1", uni_z="00:00:00:00:00:00:00:02:1", vlan_id=100):
+    def create_evc(
+        self,
+        uni_a="00:00:00:00:00:00:00:01:1",
+        uni_z="00:00:00:00:00:00:00:02:1",
+        vlan_id=100,
+        primary_path=None,
+        backup_path=None,    
+    ):
         payload = {
             "name": "Vlan_%s" % vlan_id,
             "enabled": True,
@@ -59,10 +66,37 @@ class TestE2EMefEline:
                 "tag": {"tag_type": 1, "value": vlan_id}
             }
         }
+        if primary_path:
+            payload["primary_path"] = primary_path
+            payload["dynamic_backup_path"] = False
+        if backup_path:
+            payload["backup_path"] = backup_path
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         data = response.json()
+        assert response.status_code == 201, response.text
         return data['circuit_id']
+
+    def get_evc_data(self, evc_id:str) -> dict:
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + evc_id
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        return response.json()
+    
+    def redeploy_evc(self, evc_id, try_avoid_same_s_vlan=True):
+        str_avoid_vlan = "false"
+        if try_avoid_same_s_vlan:
+            str_avoid_vlan = "true"
+        api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc_id}/redeploy?try_avoid_same_s_vlan={str_avoid_vlan}"
+        response = requests.patch(api_url)
+        assert response.status_code == 202, response.text
+        time.sleep(10)
+
+    def get_link_vlan_dict_from_path(self, path: dict) -> dict[str, int]:
+        link_vlan_dict = {}
+        for link in path:
+            link_vlan_dict[link["id"]] = link["metadata"]["s_vlan"]["value"]
+        return link_vlan_dict
 
     #
     # Issue: https://github.com/kytos-ng/mef_eline/issues/72
@@ -99,3 +133,117 @@ class TestE2EMefEline:
         # clean up
         h6.cmd('ip link del vlan100')
         h1.cmd('ip link del vlan100')
+
+    def test_010_redeploy_avoid_vlan(self):
+        """Test if dynamic EVC takes different VLAN when redeploying."""
+        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
+                               uni_z='00:00:00:00:00:00:00:17:56',
+                               vlan_id=100)
+        
+        time.sleep(10)
+
+        evc_data = self.get_evc_data(evc1)
+        old_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+
+        self.redeploy_evc(evc1, False)
+
+        evc_data = self.get_evc_data(evc1)
+        new_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+        assert new_path_dict == old_path_dict
+
+        self.redeploy_evc(evc1, True)
+
+        evc_data = self.get_evc_data(evc1)
+        new_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+        assert new_path_dict != old_path_dict
+
+    def test_015_redeploy_avoid_primary_path(self):
+        """Test redeploying avoiding VLAN with primary_path"""
+        primary_path = [
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:16"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:16"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:11"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:11"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:9"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:9"}
+            }
+        ]
+        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
+                               uni_z='00:00:00:00:00:00:00:17:56',
+                               vlan_id=100,
+                               primary_path=primary_path)
+        
+        time.sleep(10)
+
+        evc_data = self.get_evc_data(evc1)
+        old_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+
+        self.redeploy_evc(evc1, False)
+
+        evc_data = self.get_evc_data(evc1)
+        new_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+        assert new_path_dict == old_path_dict
+
+        self.redeploy_evc(evc1, True)
+
+        evc_data = self.get_evc_data(evc1)
+        new_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+        assert new_path_dict != old_path_dict
+
+    def test_020_redeploy_avoid_vlan_static_path(self):
+        """Test avoiding VLAN with static EVC"""
+        primary_path = [
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:16"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:16"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:11"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:11"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:9"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:9"}
+            }
+        ]
+        backup_path = [
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:17"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:13:17"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:13:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:2"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:9"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:9"}
+            }
+        ]
+        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
+                               uni_z='00:00:00:00:00:00:00:17:56',
+                               vlan_id=100,
+                               primary_path=primary_path,
+                               backup_path=backup_path)
+        
+        time.sleep(10)
+
+        evc_data = self.get_evc_data(evc1)
+        old_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+
+        self.redeploy_evc(evc1, False)
+
+        evc_data = self.get_evc_data(evc1)
+        new_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+        assert new_path_dict == old_path_dict
+
+        self.redeploy_evc(evc1, True)
+
+        evc_data = self.get_evc_data(evc1)
+        new_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
+        assert new_path_dict != old_path_dict
