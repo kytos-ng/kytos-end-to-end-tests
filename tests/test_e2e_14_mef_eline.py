@@ -74,11 +74,13 @@ class TestE2EMefEline:
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         data = response.json()
+        assert response.status_code == 201, response.text
         return data['circuit_id']
 
     def get_evc_data(self, evc_id:str) -> dict:
         api_url = KYTOS_API + '/mef_eline/v2/evc/' + evc_id
         response = requests.get(api_url)
+        assert response.status_code == 200, response.text
         return response.json()
     
     def redeploy_evc(self, evc_id, try_avoid_same_s_vlan=True):
@@ -86,7 +88,8 @@ class TestE2EMefEline:
         if try_avoid_same_s_vlan:
             str_avoid_vlan = "true"
         api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc_id}/redeploy?try_avoid_same_s_vlan={str_avoid_vlan}"
-        requests.patch(api_url)
+        response = requests.patch(api_url)
+        assert response.status_code == 202, response.text
         time.sleep(10)
 
     def get_link_vlan_dict_from_path(self, path: dict) -> dict[str, int]:
