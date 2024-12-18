@@ -396,5 +396,91 @@ class TestE2EMefEline:
                     for (range_start, range_end) in available_tags[reserved_tag["tag_type"]]
                 ), f"Vlan tag {reserved_tag} on interface {interface}, not released. Available tags: {available_tags}"
 
+    def test_004_link_down(self):
+        """Test multiple simultaneous link down behaviour."""
 
+        self.net.net.configLinkStatus("s1", "s6", "down")
+        self.net.net.configLinkStatus("s3", "s6", "down")
+        self.net.net.configLinkStatus("s5", "s6", "down")
+
+        payload = {
+            "name": "Link Down Test",
+            "uni_a": {"interface_id": "00:00:00:00:00:00:00:01:1", "tag": {"tag_type": "vlan", "value": 100}},
+            "uni_z": {"interface_id": "00:00:00:00:00:00:00:05:1", "tag": {"tag_type": "vlan", "value": 100}},
+            "enabled": True,
+            "primary_constraints": {
+                "mandatory_metrics": {
+                    "not_ownership": ["forbidden_link"],
+                },
+            },
+            "dynamic_backup_path": True,
+        }
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.post(api_url, json=payload)
+
+        assert response.status_code == 201, response.text
+
+        data = response.json()
+        evc_id =  data["circuit_id"]
+
+        time.sleep(10)
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+
+        assert data["current_path"]
+        assert data["failover_path"]
+
+        # Collect service vlans
+
+        vlan_allocations = defaultdict[str, list[int]](list)
+
+        for link in data["current_path"]:
+            s_vlan = link["metadata"]["s_vlan"]
+            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
+                vlan_allocations[endpoint["id"]].append(s_vlan)
+
+        for link in data["failover_path"]:
+            s_vlan = link["metadata"]["s_vlan"]
+            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
+                vlan_allocations[endpoint["id"]].append(s_vlan)
+
+
+        # Close a link that both the current and failover path depend on
+
+        self.net.net.configLinkStatus("s2", "s3", "down")
+        self.net.net.configLinkStatus("s2", "s6", "down")
+
+        time.sleep(10)
+
+        # EVC should be enabled but not active
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+
+        assert data["enabled"]
+        assert not data["active"]
+
+        assert not data["current_path"]
+        assert not data["failover_path"]
+
+        # Check that all the s_vlans have been freed
+
+        api_url = f"{KYTOS_API}/topology/v3/interfaces/tag_ranges"
+
+        response = requests.get(api_url)
+
+        assert response.ok, response.text
+
+        data = response.json()
+
+        for interface, reserved_tags in vlan_allocations.items():
+            available_tags = data[interface]["available_tags"]
+            for reserved_tag in reserved_tags:
+                assert any(
+                    reserved_tag["value"] >= range_start and reserved_tag["value"] <= range_end
+                    for (range_start, range_end) in available_tags[reserved_tag["tag_type"]]
+                ), f"Vlan tag {reserved_tag} on interface {interface}, not released. Available tags: {available_tags}"
 
