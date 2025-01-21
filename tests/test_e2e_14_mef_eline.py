@@ -247,3 +247,80 @@ class TestE2EMefEline:
         evc_data = self.get_evc_data(evc1)
         new_path_dict = self.get_link_vlan_dict_from_path(evc_data["current_path"])
         assert new_path_dict != old_path_dict
+
+    def test_025_uni_link_up_static_path(self):
+        """Test link_up in EVC UNI when the EVC is static and it does not have a
+         current_path"""
+        primary_path = [
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:16"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:16"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:11"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:11"}
+            },
+        ]
+        backup_path = [
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:17"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:13:17"}
+            },
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:13:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:2"}
+            },
+        ]
+        # UNI_Z is an NNI link with Ampath3: 00:17
+        evc = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
+                               uni_z='00:00:00:00:00:00:00:11:9',
+                               vlan_id=100,
+                               primary_path=primary_path,
+                               backup_path=backup_path)
+
+        Ampath1 = None
+        switches:list = self.net.net.switches
+        for switch in switches:
+            if switch.name == "Ampath1":
+                Ampath1 = switch
+                break
+
+        Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6654")
+        api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc}/redeploy"
+        response = requests.patch(api_url)
+        assert response.status_code == 409, response.text
+        evc_content = self.get_evc_data(evc)
+        assert not evc_content["current_path"]
+        self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'down')
+        Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
+        time.sleep(5)
+        self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
+        time.sleep(5)
+        evc_content = self.get_evc_data(evc)
+        current_path = evc_content['current_path' ]
+        primary_path = evc_content['primary_path']
+        assert len(current_path) == len(primary_path)
+        for current, primary in zip(current_path, primary_path):
+            assert current["endpoint_a"]["id"] == primary["endpoint_a"]["id"]
+            assert current["endpoint_b"]["id"] == primary["endpoint_b"]["id"]
+
+        Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6654")
+        api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc}/redeploy"
+        response = requests.patch(api_url)
+        assert response.status_code == 409, response.text
+        # Disable primary_path middle switch
+        evc_content = self.get_evc_data(evc)
+        assert not evc_content["current_path"]
+        self.net.net.configLinkStatus('Ampath1', 'Ampath4', 'down')
+        self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'down')
+        Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
+        time.sleep(5)
+        self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
+        time.sleep(5)
+        evc_content = self.get_evc_data(evc)
+        current_path = evc_content['current_path' ]
+        backup_path = evc_content['backup_path']
+        assert len(current_path) == len(backup_path)
+        for current, backup in zip(current_path, backup_path):
+            assert current["endpoint_a"]["id"] == backup["endpoint_a"]["id"]
+            assert current["endpoint_b"]["id"] == backup["endpoint_b"]["id"]
