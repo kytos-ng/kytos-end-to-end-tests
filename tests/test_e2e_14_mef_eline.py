@@ -250,7 +250,10 @@ class TestE2EMefEline:
 
     def test_025_uni_link_up_static_path(self):
         """Test link_up in EVC UNI when the EVC is static and it does not have a
-         current_path"""
+         current_path.
+         - primary_path: Ampath7 - Ampath4 - Ampath1
+         - backup_path: Ampath7 - SoL2 - Ampath1
+         """
         primary_path = [
             {
                 "endpoint_a": {"id": "00:00:00:00:00:00:00:20:16"},
@@ -277,6 +280,10 @@ class TestE2EMefEline:
                                vlan_id=100,
                                primary_path=primary_path,
                                backup_path=backup_path)
+        evc_content = self.get_evc_data(evc)
+        assert evc_content["current_path"]
+        assert evc_content["enabled"]
+        assert evc_content["active"]
 
         Ampath1 = None
         switches:list = self.net.net.switches
@@ -285,6 +292,7 @@ class TestE2EMefEline:
                 Ampath1 = switch
                 break
 
+        # Deployment to primary_path
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6654")
         api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc}/redeploy"
         response = requests.patch(api_url)
@@ -304,13 +312,14 @@ class TestE2EMefEline:
             assert current["endpoint_a"]["id"] == primary["endpoint_a"]["id"]
             assert current["endpoint_b"]["id"] == primary["endpoint_b"]["id"]
 
+        # Deployment to backup_path
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6654")
         api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc}/redeploy"
         response = requests.patch(api_url)
         assert response.status_code == 409, response.text
-        # Disable primary_path middle switch
         evc_content = self.get_evc_data(evc)
         assert not evc_content["current_path"]
+        # Disable primary_path middle switch
         self.net.net.configLinkStatus('Ampath1', 'Ampath4', 'down')
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'down')
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
