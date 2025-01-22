@@ -307,6 +307,7 @@ class TestE2EMefEline:
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         primary_path = evc_content['primary_path']
+        assert current_path and primary_path
         assert len(current_path) == len(primary_path)
         for current, primary in zip(current_path, primary_path):
             assert current["endpoint_a"]["id"] == primary["endpoint_a"]["id"]
@@ -329,6 +330,7 @@ class TestE2EMefEline:
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         backup_path = evc_content['backup_path']
+        assert current_path and backup_path
         assert len(current_path) == len(backup_path)
         for current, backup in zip(current_path, backup_path):
             assert current["endpoint_a"]["id"] == backup["endpoint_a"]["id"]
