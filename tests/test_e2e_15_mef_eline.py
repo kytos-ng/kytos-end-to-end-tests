@@ -543,3 +543,69 @@ class TestE2EMefEline:
         h2.cmd(f'ip addr add {vlan}.0.0.2/24 dev vlan20')
         result = h11.cmd(f'ping -c1 {vlan}.0.0.2')
         assert ', 0% packet loss,' in result
+
+    def test_006_evc_vlan_allocation_not_available(self):
+        """Test trying to allocate an EVC over a link that doesn't have available vlans"""
+
+        # only of_lldp to simulate no tags available
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[3799, 3799]]
+        }
+        for intf_id in (
+            "00:00:00:00:00:00:00:03:2",
+            "00:00:00:00:00:00:00:03:3"
+        ):
+            api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+            response = requests.post(api_url, json=payload)
+            assert response.status_code == 200, response.text
+
+        evc_1 = {
+            "name": "epl_static",
+            "dynamic_backup_path": False,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1"
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:03:1"
+            },
+            "primary_path": [
+                {
+                    "endpoint_a": {
+                        "id": "00:00:00:00:00:00:00:01:3"
+                    },
+                    "endpoint_b": {
+                        "id": "00:00:00:00:00:00:00:02:2"
+                    }
+                },
+                {
+                    "endpoint_a": {
+                        "id": "00:00:00:00:00:00:00:02:3"
+                    },
+                    "endpoint_b": {
+                        "id": "00:00:00:00:00:00:00:03:2"
+                    }
+                }
+            ]
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=evc_1)
+        assert response.status_code == 201, response.text
+        data = response.json()
+        assert 'circuit_id' in data
+        assert not data['deployed']
+
+        # Verify that tags haven't been allocated
+        topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+        response = requests.get(topo_url)
+        data = response.json()
+        expected = [[1, 3798], [3800, 4095]]
+        for intf_id in (
+            "00:00:00:00:00:00:00:01:1",
+            "00:00:00:00:00:00:00:01:3",
+            "00:00:00:00:00:00:00:02:2",
+            "00:00:00:00:00:00:00:03:1",
+        ):
+            actual = data[intf_id]["available_tags"]["vlan"]
+            actual_tr = data[intf_id]["tag_ranges"]["vlan"]
+            assert actual == expected, actual
