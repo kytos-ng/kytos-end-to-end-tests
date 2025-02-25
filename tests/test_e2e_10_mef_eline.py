@@ -1316,12 +1316,44 @@ class TestE2EMefEline:
         response = requests.get(api_url + evc1)
         data = response.json()
 
+        assert data['active'] is False
+        assert data['enabled'] is True
+        assert not data['current_path']
+
+        current_path = []
+        for _path in data['current_path']:
+            current_path.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
+                          "endpoint_b": {"id": _path['endpoint_b']['id']}})
+    
+        expected_path = []
+
+        assert current_path == expected_path
+
         # Command to up/down links to test if back-up path is taken
         self.net.net.configLinkStatus('s1', 's2', 'up')
 
-        assert data['active'] is False
+        time.sleep(10)
+
+        response = requests.get(api_url + evc1)
+        data = response.json()
+
+        assert data['active'] is True
         assert data['enabled'] is True
-        assert data['current_path'] == []
+        assert data['current_path']
+
+        expected_path = [
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
+                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"}
+            }
+        ]
+
+        current_path = []
+        for _path in data['current_path']:
+            current_path.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
+                          "endpoint_b": {"id": _path['endpoint_b']['id']}})
+
+        assert current_path == expected_path
 
     def test_155_removing_evc_metadata_persistent(self):
         """
