@@ -248,8 +248,8 @@ class TestE2EMefEline:
         data = response.json()
         actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
         actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
-        expected = [[1, 99], [101, 3798], [3800, 4095]]
-        expected_tr = [[1, 4095]]
+        expected = [[1, 99], [101, 3798], [3800, 4094]]
+        expected_tr = [[1, 4094]]
         assert actual == expected
         assert actual_tr == expected_tr
         actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
@@ -281,20 +281,20 @@ class TestE2EMefEline:
         response = requests.get(topo_url)
         data = response.json()
         actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4095]]
+        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
-        expected_tr = [[1, 4095]]
+        expected_tr = [[1, 4094]]
         assert actual == expected
         assert actual_tr == expected_tr
 
         actual = data["00:00:00:00:00:00:00:01:1"]["available_tags"]["vlan"]
-        expected = [[1, 199], [201, 3798], [3800, 4095]]
+        expected = [[1, 199], [201, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:01:1"]["tag_ranges"]["vlan"]
         assert actual == expected
         assert actual_tr == expected_tr
 
         actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 3798], [3800, 4095]]
+        expected = [[1, 99], [101, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
         assert actual == expected
         assert actual_tr == expected_tr
@@ -316,13 +316,13 @@ class TestE2EMefEline:
         response = requests.get(topo_url)
         data = response.json()
         actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 3798], [3800, 4095]]
+        expected = [[1, 99], [101, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
         assert actual == expected
         assert actual_tr == expected_tr
 
         actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4095]]
+        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
         assert actual == expected
         assert actual_tr == expected_tr
@@ -352,7 +352,7 @@ class TestE2EMefEline:
         data = response.json()
         assert response.status_code == 200, response.text
 
-        expected = [[1, 199], [201, 3798], [3800, 4095]]
+        expected = [[1, 199], [201, 3798], [3800, 4094]]
         assert expected == data[intf_id]["available_tags"]["vlan"]
 
         # Ignoring EVC tag
@@ -446,7 +446,7 @@ class TestE2EMefEline:
         assert response.status_code == 201, response.text
         circuit_id = response.json()["circuit_id"]
 
-        expected = [[1, 9], [16, 3798], [3800, 4095]]
+        expected = [[1, 9], [16, 3798], [3800, 4094]]
         intf_id = '00:00:00:00:00:00:00:01:1'
         api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
         response = requests.get(api_url)
@@ -480,7 +480,7 @@ class TestE2EMefEline:
         response = requests.patch(api_url, json=payload)
         assert response.status_code == 200, response.text
 
-        expected = [[1, 11], [22, 3798], [3800, 4095]]
+        expected = [[1, 11], [22, 3798], [3800, 4094]]
         intf_id = '00:00:00:00:00:00:00:01:1'
         api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
         response = requests.get(api_url)
@@ -599,7 +599,7 @@ class TestE2EMefEline:
         topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
         response = requests.get(topo_url)
         data = response.json()
-        expected = [[1, 3798], [3800, 4095]]
+        expected = [[1, 3798], [3800, 4094]]
         for intf_id in (
             "00:00:00:00:00:00:00:01:1",
             "00:00:00:00:00:00:00:01:3",
