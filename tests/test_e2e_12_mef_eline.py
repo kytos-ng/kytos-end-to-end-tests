@@ -358,8 +358,8 @@ class TestE2EMefEline:
         data = response.json()
         assert data['start_date'] == start.strftime(TIME_FMT)
 
-    def test_delete_circuit_id(self, circuit_id):
-        """ Test circuit removal action. """
+    def test_delete_circuit_id_and_patch(self, circuit_id):
+        """ Test circuit removal action and try to patch it. """
 
         # Delete the circuit
         api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
@@ -382,3 +382,8 @@ class TestE2EMefEline:
         # Each switch had BASIC_FLOWS flows + 02 for the EVC (ingress + egress)
         # at this point the flow number should be reduced to BASIC_FLOWS
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
+
+        payload = {"enabled": False}
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
+        response = requests.patch(api_url, json=payload)
+        assert response.status_code == 404, response.text
