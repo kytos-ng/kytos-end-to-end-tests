@@ -1154,3 +1154,42 @@ class TestE2EFlowManager:
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
         assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
         assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
+
+    def test_105_mismatch_miss_flow(self):
+        """Install miss flow and try to delete it with a mismatched
+        flow."""
+        payload = {"00:00:00:00:00:00:00:01": {
+            "flows": [{
+                "priority": 0,
+                "instructions": [{
+                    "instruction_type": "goto_table",
+                    "table_id": 2
+                }]
+            }]
+        }}
+        api_url = KYTOS_API + '/flow_manager/v2/flows_by_switch/?force=true'
+        response = requests.post(api_url, data=json.dumps(payload),
+                                 headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+
+        s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+
+        payload = {"00:00:00:00:00:00:00:01": {
+            "flows": [{
+                "table_id": 0,
+                "match": {"dl_src": "ee:ee:ee:ee:ee:01"}
+            }],
+        }}
+        response = requests.delete(api_url, data=json.dumps(payload),
+                                   headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+
+        # Restart kytos
+        self.net.start_controller(enable_all=True)
+        self.net.wait_switches_connect()
+
+        # Previously installed flow should not be deleted
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1

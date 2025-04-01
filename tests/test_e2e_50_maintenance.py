@@ -1325,10 +1325,6 @@ class TestE2EMaintenance:
         self.net.wait_switches_connect()
         time.sleep(10)
 
-        api_url = KYTOS_API + '/topology/v3/switches'
-        response = requests.get(api_url, headers={'Content-type': 'application/json'})
-        print(response.json())
-
         start = datetime.utcnow() + timedelta(days=1)
         end = start + timedelta(hours=2)
         payload = {
