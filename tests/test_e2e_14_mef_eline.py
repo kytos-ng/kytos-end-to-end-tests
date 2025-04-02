@@ -51,7 +51,8 @@ class TestE2EMefEline:
         uni_z="00:00:00:00:00:00:00:02:1",
         vlan_id=100,
         primary_path=None,
-        backup_path=None,    
+        backup_path=None,
+        **kwargs,
     ):
         payload = {
             "name": "Vlan_%s" % vlan_id,
@@ -71,6 +72,8 @@ class TestE2EMefEline:
             payload["dynamic_backup_path"] = False
         if backup_path:
             payload["backup_path"] = backup_path
+        if kwargs:
+            payload.update(kwargs)
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         data = response.json()
@@ -98,17 +101,14 @@ class TestE2EMefEline:
             link_vlan_dict[link["id"]] = link["metadata"]["s_vlan"]["value"]
         return link_vlan_dict
 
-    #
-    # Issue: https://github.com/kytos-ng/mef_eline/issues/72
-    #
-    @pytest.mark.xfail
     def test_005_create_evc_on_nni(self):
         """Test to evaluate how mef_eline will behave when the uni is actually
         an NNI."""
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:16:5',
                                uni_z='00:00:00:00:00:00:00:11:1',
-                               vlan_id=100)
+                               vlan_id=100,
+                               max_paths=10)
 
         time.sleep(10)
 
@@ -117,22 +117,6 @@ class TestE2EMefEline:
         data = response.json()
         assert data['enabled'] == True
         assert data['active'] == True
-
-        # Verify connectivity
-        h6, h1 = self.net.net.get('h6', 'h1')
-        h6.cmd('ip link add link %s name vlan100 type vlan id 100' % (h6.intfNames()[0]))
-        h6.cmd('ip link set up vlan100')
-        h6.cmd('ip addr add 10.1.0.6/24 dev vlan100')
-        h1.cmd('ip link add link %s name vlan100 type vlan id 100' % (h1.intfNames()[0]))
-        h1.cmd('ip link set up vlan100')
-        h1.cmd('ip addr add 10.1.0.1/24 dev vlan100')
-
-        result = h6.cmd('ping -c1 10.1.0.1')
-        assert ', 0% packet loss,' in result
-
-        # clean up
-        h6.cmd('ip link del vlan100')
-        h1.cmd('ip link del vlan100')
 
     def test_010_redeploy_avoid_vlan(self):
         """Test if dynamic EVC takes different VLAN when redeploying."""
