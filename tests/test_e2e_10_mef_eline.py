@@ -1274,9 +1274,23 @@ class TestE2EMefEline:
         for _path in data['current_path']:
             paths.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
                           "endpoint_b": {"id": _path['endpoint_b']['id']}})
+            
+        assert paths == current_path
 
         # Command to up/down links to test if back-up path is taken
+        # EVC should not redeploy
         self.net.net.configLinkStatus('s1', 's2', 'up')
+
+        # Wait just a few seconds to give time to the controller receive and process the linkUp event
+        time.sleep(10)
+
+        response = requests.get(api_url + evc1)
+        data = response.json()
+
+        paths = []
+        for _path in data['current_path']:
+            paths.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
+                          "endpoint_b": {"id": _path['endpoint_b']['id']}})
 
         assert paths == current_path
 
