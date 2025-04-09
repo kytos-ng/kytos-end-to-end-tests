@@ -363,3 +363,36 @@ class TestE2EMefEline:
         for current, backup in zip(current_path, backup_path):
             assert current["endpoint_a"]["id"] == backup["endpoint_a"]["id"]
             assert current["endpoint_b"]["id"] == backup["endpoint_b"]["id"]
+
+    def test_030_EVC_path_disjointness(self):
+        """Testing disjointness by expecting a specific failover_path."""
+        self.net.net.configLinkStatus('Ampath1', 'SoL2', 'down')
+        time.sleep(5)
+
+        evc = self.create_evc(uni_a='00:00:00:00:00:00:00:15:54',
+                       uni_z='00:00:00:00:00:00:00:11:50',
+                       vlan_id=100)
+        time.sleep(10)
+        evc_content = self.get_evc_data(evc)
+
+        failover_path = []
+        for _path in evc_content["failover_path"]:
+            failover_path.append({
+                "endpoint_a": {"id": _path["endpoint_a"]["id"]},
+                "endpoint_b": {"id": _path["endpoint_b"]["id"]}
+            })
+
+        expected_failover_path = [
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:15:6"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:16:6"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:13:5"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:16:5"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:13:17"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:20:17"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:18:16"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:20:16"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:11:11"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:18:11"}},
+        ]
+        assert len(failover_path) == len(expected_failover_path)
+        assert failover_path == expected_failover_path
