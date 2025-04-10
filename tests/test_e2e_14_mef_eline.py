@@ -363,6 +363,7 @@ class TestE2EMefEline:
         for current, backup in zip(current_path, backup_path):
             assert current["endpoint_a"]["id"] == backup["endpoint_a"]["id"]
             assert current["endpoint_b"]["id"] == backup["endpoint_b"]["id"]
+        self.net.reconnect_switches()
 
     def test_030_EVC_path_disjointness(self):
         """Testing disjointness by expecting a specific failover_path."""
@@ -396,3 +397,4 @@ class TestE2EMefEline:
         ]
         assert len(failover_path) == len(expected_failover_path)
         assert failover_path == expected_failover_path
+        self.net.net.configLinkStatus('Ampath1', 'SoL2', 'up')
