@@ -333,6 +333,9 @@ class NetworkTest:
 
         self.wait_controller_start()
 
+        # make sure switches will reconnect
+        self.reconnect_switches(wait=False)
+
     def wait_controller_start(self):
         """Wait until controller starts according to core/status API."""
         wait_count = 0
@@ -362,7 +365,7 @@ class NetworkTest:
         self.wait_switches_connect()
 
     def reconnect_switches(self, target="tcp:127.0.0.1:6653",
-                           temp_target="tcp:127.0.0.1:6654"):
+                           temp_target="tcp:127.0.0.1:6654", wait=True):
         """Restart switches connections.
         This method can also be used to trigger a consistency check initial run.
 
@@ -375,7 +378,8 @@ class NetworkTest:
         for sw in self.net.switches:
             sw.vsctl(f"set-controller {sw.name} {target}")
             sw.controllerUUIDs(update=True)
-        self.wait_switches_connect()
+        if wait:
+            self.wait_switches_connect()
 
     def config_all_links_up(self):
         for link in self.net.links:
