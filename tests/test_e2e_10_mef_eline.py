@@ -994,8 +994,9 @@ class TestE2EMefEline:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
 
-        assert 'set_queue:3' in flows_s1
-        assert 'set_queue:3' in flows_s2
+        # also asserts set_queue comes before output
+        assert 'set_queue:3,output' in flows_s1
+        assert 'set_queue:3,output' in flows_s2
 
     def test_125_patch_dynamic_backup_path(self):
         """Test patching an EVC to be non dynamic with primary_path."""

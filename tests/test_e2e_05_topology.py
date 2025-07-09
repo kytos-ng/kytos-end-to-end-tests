@@ -651,6 +651,115 @@ class TestE2ETopology:
         keys = data['metadata'].keys()
         assert key not in keys
 
+    def test_130_mismatched_links(self):
+        """Test mismatched links.
+         The link ("01:3" - "02:2") will be mismatched by
+         another link ("01:3" - "03:4") and then the link
+         ("01:3" - "02:2") will be recovered.
+        """
+        self.net.config_all_links_up()
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
+        endpoint_1 = '00:00:00:00:00:00:00:01:3'
+        endpoint_2 = '00:00:00:00:00:00:00:02:2'
+        endpoint_3 = '00:00:00:00:00:00:00:03:4'
+        s1_eht3, s2_eth2 = None, None
+        link_1_2, link_1_3 = None, None
+
+        api_url = KYTOS_API + '/topology/v3/links'
+        response = requests.get(api_url)
+        data = response.json()
+        assert len(data['links']) == 3
+
+        for k, v in data['links'].items():
+            link_a, link_b = v['endpoint_a']['id'], v['endpoint_b']['id']
+            if {link_a, link_b} == {endpoint_1, endpoint_2}:
+                link_1_2 = k
+            assert v['enabled'] is True
+            assert v['active'] is True
+            assert v['status'] == 'UP'
+            assert not v['status_reason']
+        
+        # Stop kytos so it does not get the link_down event
+        self.net.stop_kytosd()
+        time.sleep(5)
+
+        # Add new link ("01:3" - "03:4") through Mininet
+        for intf in s1.intfList():
+            if intf.name == "s1-eth3":
+                s1_eht3 = intf
+                break
+        assert s1_eht3 is not None
+        s1_eht3.delete()
+        self.net.net.addLink(s1, s3, port1=3, port2=4)
+        s1.attach('s1-eth3')
+        s3.attach('s3-eth4')
+
+        # Start Kytos with the new link
+        self.net.start_controller(clean_config=False, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        api_url = KYTOS_API + '/topology/v3/links'
+        response = requests.get(api_url)
+        data = response.json()
+        assert len(data['links']) == 4
+
+        for k, v in data['links'].items():
+            link_a, link_b = v['endpoint_a']['id'], v['endpoint_b']['id']
+            # Old link ("01:3" - "02:2")
+            if {link_a, link_b} == {endpoint_1, endpoint_2}:
+                assert v['status'] == 'DOWN'
+                assert "mismatched_link" in v['status_reason']
+            else:
+                assert v['status'] == 'UP'
+                assert not v['status_reason']
+
+        # Stop kytos so it does not get the link_down event
+        self.net.stop_kytosd()
+        time.sleep(5)
+
+        # Add link ("01:3" - "02:2") again so new link ("01:3" - "03:4") 
+        # is mismatched
+        for intf in s1.intfList():
+            if intf.name == "s1-eth3":
+                s1_eht3 = intf
+                break
+        assert s1_eht3 is not None
+        for intf in s2.intfList():
+            if intf.name == "s2-eth2":
+                s2_eth2 = intf
+                break
+        assert s2_eth2 is not None
+        s1_eht3.delete()
+        s2_eth2.delete()
+        self.net.net.addLink(s1, s2, port1=3, port2=2)
+        s1.attach('s1-eth3')
+        s2.attach('s2-eth2')
+
+        # Start Kytos with the new link
+        self.net.start_controller(clean_config=False, enable_all=True)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        api_url = KYTOS_API + '/topology/v3/links'
+        response = requests.get(api_url)
+        data = response.json()
+        assert len(data['links']) == 4
+
+        for k, v in data['links'].items():
+            link_a, link_b = v['endpoint_a']['id'], v['endpoint_b']['id']
+            # New link ("01:3" - "03:4")
+            if {link_a, link_b} == {endpoint_1, endpoint_3}:
+                assert v['status'] == 'DOWN'
+                assert "mismatched_link" in v['status_reason']
+            else:
+                assert v['status'] == 'UP'
+                assert not v['status_reason']
+
     def test_200_switch_disabled_on_clean_start(self):
 
         switch_id = "00:00:00:00:00:00:00:01"

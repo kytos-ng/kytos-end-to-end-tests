@@ -278,6 +278,19 @@ class NetworkTest:
         """Drop database."""
         self.db_client.drop_database(self.db_name)
 
+    def stop_kytosd(self):
+        """Stop kytosd process."""
+        try:
+            os.system('pkill kytosd')
+            time.sleep(5)
+            pid_path = os.path.join(BASE_ENV, 'var/run/kytos/kytosd.pid')
+            if os.path.exists(pid_path):
+                raise Exception("kytos pid still exists.")
+        except Exception as e:
+            print(f"FAIL to stop kytos after 5 seconds -- {e}. Force stop!")
+            os.system('pkill -9 kytosd')
+            os.system(f"rm -f {pid_path}")
+
     def start_controller(self, clean_config=False, enable_all=False,
                          del_flows=False, port=None, database='mongodb',
                          extra_args=os.environ.get("KYTOSD_EXTRA_ARGS", "")):
