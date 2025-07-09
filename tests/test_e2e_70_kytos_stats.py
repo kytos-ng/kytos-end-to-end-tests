@@ -333,7 +333,7 @@ class TestE2EKytosStats:
                 {
                     "match": {"in_port": 1},
                     "actions": [{"action_type": "output", "port": 2}],
-                }
+                },
                 {
                     "match": {"in_port": 2},
                     "actions": [{"action_type": "output", "port": 1}],
