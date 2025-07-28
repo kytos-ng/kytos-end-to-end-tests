@@ -30,6 +30,77 @@ class TestE2ETopology:
     def teardown_class(cls):
         cls.net.stop()
 
+    def test_010_delete_interface_automatically(self):
+        """Test interface removal after logical deletion.
+        Deleted:
+            - Interface: S1-eth1
+        """
+        intf_id = "00:00:00:00:00:00:00:01:1"
+        api_url = f'{KYTOS_API}/topology/v3/interfaces'
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert intf_id in data["interfaces"]
+        api_url = f'{KYTOS_API}/topology/v3/interfaces/{intf_id}/disable'
+        response = requests.post(api_url)
+        assert response.status_code == 200, response.text
+
+        S1 = self.net.net.get('s1')
+        S1.detach('s1-eth1')
+        time.sleep(5)
+
+        api_url = f'{KYTOS_API}/topology/v3/interfaces'
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert not intf_id in data["interfaces"]
+
+    def test_015_delete_link(self):
+        """Test api/kytos/topology/v3/links/{link_id} on DELETE.
+        Deleted:
+            - Link: s1 - s6
+        """
+        switch_1 = "00:00:00:00:00:00:00:01"
+        switch_6 = "00:00:00:00:00:00:00:06"
+
+        # Get the link_id
+        api_url = f'{KYTOS_API}/topology/v3/links'
+        response = requests.get(api_url)
+        assert response.status_code == 200
+        data = response.json()
+        link_id = None
+        for key, value in data['links'].items():
+            endpoint_a = value["endpoint_a"]["switch"]
+            endpoint_b = value["endpoint_b"]["switch"]
+            if ((endpoint_a == switch_1 and endpoint_b == switch_6) or 
+                (endpoint_a == switch_6 and endpoint_b == switch_1)):
+                link_id = key
+                break
+        assert link_id
+
+        # Not disabled
+        api_url = f'{KYTOS_API}/topology/v3/links/{link_id}'
+        response = requests.delete(api_url)
+        assert response.status_code == 409, response.text
+        
+        # Disabling link
+        self.net.net.configLinkStatus('s1', 's6', 'down')
+        api_url = f'{KYTOS_API}/topology/v3/links/{link_id}/disable'
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
+    
+        # Deleting link
+        api_url = f'{KYTOS_API}/topology/v3/links/{link_id}'
+        response = requests.delete(api_url)
+        assert response.status_code == 200, response.text
+
+        # Verify absence of link
+        api_url = f'{KYTOS_API}/topology/v3/links'
+        response = requests.get(api_url)
+        assert response.status_code == 200
+        data = response.json()
+        assert link_id not in data["links"]
+
     def test_020_delete_switch(self):
         """Test api/kytos/topology/v3/switches/{switch_id} on DELETE
         Deleted:
@@ -62,7 +133,7 @@ class TestE2ETopology:
                 value["endpoint_b"]["switch"] == switch_1):
                 links_id.append(key)
         assert links_id
-        print("LINKS LEN -> ", len(links_id))
+        print("LINKS LEN Multi -> ", len(links_id))
 
         self.net.net.configLinkStatus('s1', 's2', 'down')
         for link in links_id:
@@ -86,6 +157,6 @@ class TestE2ETopology:
             response = requests.delete(api_url)
             #assert response.status_code == 200, response.text
             status_code = response.status_code
-        print("TIME SLEEPING -> ", sleeping)
+        print("TIME SLEEPING Multi -> ", sleeping)
         assert 1 == 2
     
