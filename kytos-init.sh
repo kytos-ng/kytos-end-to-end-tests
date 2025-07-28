@@ -30,7 +30,7 @@ kytosd --help >/dev/null 2>&1  ## create configs at /etc/kytos from templates
 sed -i 's/WARNING/INFO/g' $NAPPS_PATH/etc/kytos/logging.ini
 
 test -z "$TESTS" && TESTS=tests/test_e2e_50_amlight.py
-test -z "$RERUNS" && RERUNS=2
+test -z "$RERUNS" && RERUNS=5
 
 python3 scripts/wait_for_mongo.py 2>/dev/null
 #python3 -m pytest tests/test_e2e_20_flow_manager.py tests/test_e2e_21_flow_manager.py tests/test_e2e_22_flow_manager.py tests/test_e2e_23_flow_manager.py --reruns $RERUNS -r fEr
