@@ -131,7 +131,7 @@ class TestE2ETopology:
                 time.sleep(5)
             api_url = f'{KYTOS_API}/topology/v3/links'
             response = requests.get(api_url)
-            assert response.status_code == 200
+            assert response.status_code == 200, response.text
             data = response.json()
             for key, value in data['links'].items():
                 # It only needs 1 link to find
