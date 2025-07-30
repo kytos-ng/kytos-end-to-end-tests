@@ -17,14 +17,14 @@ class TestE2ETopology:
         # which all elements are disabled in a clean setting
         self.net.start_controller(clean_config=True, enable_all=True)
         self.net.wait_switches_connect()
-        time.sleep(10)
+        time.sleep(5)
 
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name="multi")
         cls.net.start()
         cls.net.wait_switches_connect()
-        time.sleep(10)
+        time.sleep(5)
 
     @classmethod
     def teardown_class(cls):
@@ -122,18 +122,24 @@ class TestE2ETopology:
         response = requests.delete(api_url)
         assert response.status_code == 409
 
-        # Get the link_id
         api_url = f'{KYTOS_API}/topology/v3/links'
-        response = requests.get(api_url)
-        assert response.status_code == 200
-        data = response.json()
-        links_id = list()
-        for key, value in data['links'].items():
-            if (value["endpoint_a"]["switch"] == switch_1 or 
-                value["endpoint_b"]["switch"] == switch_1):
-                links_id.append(key)
-        assert links_id
-        print("LINKS LEN Multi -> ", len(links_id))
+        links_id = set()
+        searches = 0
+        prev_count = 0
+        while len(links_id) == 0 or prev_count < len(links_id):
+            # Get the link_id
+            searches += 1
+            prev_count = len(links_id)
+            response = requests.get(api_url)
+            assert response.status_code == 200
+            data = response.json()
+            for key, value in data['links'].items():
+                if (value["endpoint_a"]["switch"] == switch_1 or 
+                    value["endpoint_b"]["switch"] == switch_1):
+                    links_id.add(key)
+            assert links_id
+        print("LINKS -> MULTI ", len(links_id))
+        print("SEARCHES -> ", searches)
 
         self.net.net.configLinkStatus('s1', 's2', 'down')
         for link in links_id:
