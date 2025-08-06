@@ -12,6 +12,8 @@ from tests.helpers import NetworkTest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
+KAFKA_TOPIC = "event_logs"
+TIMEOUT = 1000
 
 class TestE2EKafkaEvents:
     net = None
@@ -25,6 +27,7 @@ class TestE2EKafkaEvents:
         self.net.config_all_links_up()
         self.net.start_controller(clean_config=True, enable_all=False)
         self.net.wait_switches_connect()
+        self.admin: AIOKafkaAdminClient = None
         time.sleep(5)
 
     @classmethod
@@ -37,26 +40,58 @@ class TestE2EKafkaEvents:
     def teardown_class(cls):
         cls.net.stop()
 
-    @pytest.mark.asyncio
-    async def test_napp_starts_correctly(self):
+    @pytest.fixture(autouse=True)
+    async def setup_kafka(self):
+        """
+        Pytest fixture that runs every time
+        """
+        await self.create_kafka_topic()
+        yield
+        await self.teardown_kafka_topic()
+
+    @pytest.fixture(scope="class", autouse=True)
+    async def setup_kafka_admin_client(self):
+        """
+        Class-level fixture that creates and manages the admin client. Runs at the start of the
+        class.
+        """
+        self.admin = AIOKafkaAdminClient(
+            bootstrap_servers=os.environ.get("KAFKA_HOST_ADDR")
+        )
+        await self.admin.start()
+
+        yield  # Let all tests in the class run
+
+        # Cleanup: close the admin client after all tests are done
+        await self.admin.close()
+
+    async def create_kafka_topic(self):
+        """
+        Creates the Kafka topic
+        """
+        await self.admin.create_topics(
+            [NewTopic(KAFKA_TOPIC, num_partitions=1, replication_factor=1)]
+        )
+        # Let the topic creation propagate
+        await asyncio.sleep(1)
+
+    async def teardown_kafka_topic(self):
+        """
+        Tears down the Kafka topic to be rebuilt
+        """
+        await self.admin.delete_topics([KAFKA_TOPIC], TIMEOUT)
+        # Let the topic deletion propagate
+        await asyncio.sleep(1)
+
+    async def test_01_napp_sends_data_correctly(self):
         """
         Test that kafka_events correctly runs the 'setup' method. This would require
         that the AIOKafkaProducer has been properly initialized
         """
-        # Create the topic so the consumer can subscribe
-        admin = AIOKafkaAdminClient(
-            bootstrap_servers=os.environ.get("KAFKA_HOST_ADDR")
-        )
-
-        await admin.start()
-        await admin.create_topics(
-            [NewTopic("event_logs", num_partitions=1, replication_factor=1)]
-        )
-
         # Create a consumer before the message is propagated to reduce the amount of messages
 
         consumer = AIOKafkaConsumer(
-            ("event_logs"),
+            (KAFKA_TOPIC),
             bootstrap_servers=os.environ.get("KAFKA_HOST_ADDR"),
         )
 
@@ -115,4 +150,3 @@ class TestE2EKafkaEvents:
 
         finally:
             await consumer.stop()
-            await admin.close()
