@@ -33,9 +33,9 @@ test -z "$TESTS" && TESTS=tests/
 test -z "$RERUNS" && RERUNS=2
 
 python3 scripts/wait_for_mongo.py 2>/dev/null
-python3 -m pytest $TESTS --reruns $RERUNS -r fEr
+#python3 -m pytest $TESTS --reruns $RERUNS -r fEr
 
 #tail -f
 
 # only run specific test
-# python3 -m pytest --timeout=60 tests/test_e2e_10_mef_eline.py::TestE2EMefEline::test_on_primary_path_fail_should_migrate_to_backup
+python3 -m pytest --timeout=60 tests/test_e2e_90_kafka_events.py::TestE2EKafkaEvents

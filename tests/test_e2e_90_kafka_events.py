@@ -14,9 +14,11 @@ CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
 KAFKA_TOPIC = "event_logs"
 TIMEOUT = 1000
+KAFKA_ADDRESSES = os.environ.get("KAFKA_HOST_ADDR").split(',')
 
 class TestE2EKafkaEvents:
     net = None
+    admin = None
 
     def setup_method(self, method):
         """
@@ -27,7 +29,6 @@ class TestE2EKafkaEvents:
         self.net.config_all_links_up()
         self.net.start_controller(clean_config=True, enable_all=False)
         self.net.wait_switches_connect()
-        self.admin: AIOKafkaAdminClient = None
         time.sleep(5)
 
     @classmethod
@@ -45,25 +46,31 @@ class TestE2EKafkaEvents:
         """
         Pytest fixture that runs every time
         """
-        await self.create_kafka_topic()
-        yield
-        await self.teardown_kafka_topic()
-
-    @pytest.fixture(scope="class", autouse=True)
-    async def setup_kafka_admin_client(self):
-        """
-        Class-level fixture that creates and manages the admin client. Runs at the start of the
-        class.
-        """
+        # Create & setup the admin client
         self.admin = AIOKafkaAdminClient(
-            bootstrap_servers=os.environ.get("KAFKA_HOST_ADDR")
+            bootstrap_servers=KAFKA_ADDRESSES
         )
         await self.admin.start()
 
-        yield  # Let all tests in the class run
+        # Create the kafka topic
+        await self.create_kafka_topic()
 
-        # Cleanup: close the admin client after all tests are done
+        # Run the test
+        yield
+
+        # Tear down
+        await self.teardown_kafka_topic()
+
+        # Close the admin client
         await self.admin.close()
+
+    async def teardown_kafka_topic(self):
+        """
+        Tears down the Kafka topic to be rebuilt
+        """
+        await self.admin.delete_topics([KAFKA_TOPIC], TIMEOUT)
+        # Let the topic deletion propagate
+        await asyncio.sleep(1)
 
     async def create_kafka_topic(self):
         """
@@ -75,14 +82,6 @@ class TestE2EKafkaEvents:
         # Let the topic creation propagate
         await asyncio.sleep(1)
 
-    async def teardown_kafka_topic(self):
-        """
-        Tears down the Kafka topic to be rebuilt
-        """
-        await self.admin.delete_topics([KAFKA_TOPIC], TIMEOUT)
-        # Let the topic deletion propagate
-        await asyncio.sleep(1)
-
     async def test_01_napp_sends_data_correctly(self):
         """
         Test that kafka_events correctly runs the 'setup' method. This would require
@@ -92,7 +91,7 @@ class TestE2EKafkaEvents:
 
         consumer = AIOKafkaConsumer(
             (KAFKA_TOPIC),
-            bootstrap_servers=os.environ.get("KAFKA_HOST_ADDR"),
+            bootstrap_servers=KAFKA_ADDRESSES,
         )
 
         await consumer.start()
