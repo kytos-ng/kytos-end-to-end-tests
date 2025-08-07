@@ -246,7 +246,9 @@ class TestE2EMefEline:
 
         # make sure it should be dl_vlan instead of vlan_vid
         assert 'in_port="s1-eth1",dl_vlan=102' in flows_s1
+        assert 'push_vlan:0x88a8' not in flows_s1
         assert 'in_port="s2-eth1",dl_vlan=103' in flows_s2
+        assert 'push_vlan:0x88a8' not in flows_s2
 
         # Make the final and most important test: connectivity
         # 1. create the vlans and setup the ip addresses
@@ -1636,8 +1638,6 @@ class TestE2EMefEline:
         expected = [
             {"match": {"in_port": 1, "dl_vlan": 100},
             "actions": [
-                {"action_type": "pop_vlan"},
-                {"action_type": "push_vlan", "tag_type": "s"},
                 {"action_type": "set_vlan", "vlan_id": 1},
                 {"action_type": "output", "port": 3}
             ],
@@ -1645,8 +1645,6 @@ class TestE2EMefEline:
             {"match": {"in_port": 1, "dl_vlan": 0},
             "actions": [
                 {"action_type": "push_vlan", "tag_type": "c"},
-                {"action_type": "set_vlan", "vlan_id": 100},
-                {"action_type": "push_vlan", "tag_type": "s"},
                 {"action_type": "set_vlan", "vlan_id": 1},
                 {"action_type": "output", "port": 2}
             ],
