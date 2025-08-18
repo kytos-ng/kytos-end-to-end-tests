@@ -1,6 +1,6 @@
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 import requests
 
@@ -1351,38 +1351,82 @@ class TestE2EMaintenance:
 
     def test_145_component_time_conflict(self):
         """Test time conflict for a component in different MWs with force option enabled."""
-        now = datetime.utcnow()
-        start1 = (now + timedelta(seconds=40)).strftime(TIME_FMT)
-        end1 = (now + timedelta(seconds=100)).strftime(TIME_FMT)
-
-        # Time conflict with first request
-        start2 = (now + timedelta(seconds=30)).strftime(TIME_FMT)
-        end2 = (now + timedelta(seconds=80)).strftime(TIME_FMT)
-
-        # No time confict
-        start3 = (now + timedelta(seconds=110)).strftime(TIME_FMT)
-        end3 = (now + timedelta(seconds=200)).strftime(TIME_FMT)
-
+        now = datetime.now(UTC)
         switch_id = "00:00:00:00:00:00:00:01"
         api_url = KYTOS_API + '/maintenance/v1'
         payload = {
-            "start": start1,
-            "end": end1,
+            "start": (now + timedelta(seconds=40)).strftime(TIME_FMT),
+            "end": (now + timedelta(seconds=100)).strftime(TIME_FMT),
             "switches": [switch_id],
             "force": True,
         }
-        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        response = requests.post(api_url, data=json.dumps(payload))
         data = response.json()
         assert response.status_code == 201, data
-
-        payload["start"] = start2
-        payload["end"] = end2
-        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        
+        # Time conflict with first request
+        payload["start"] = (now + timedelta(seconds=30)).strftime(TIME_FMT)
+        payload["end"] = (now + timedelta(seconds=80)).strftime(TIME_FMT)
+        response = requests.post(api_url, data=json.dumps(payload))
         data = response.json()
         assert response.status_code == 400, data
 
-        payload["start"] = start3
-        payload['end'] = end3
-        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        # No time confict
+        payload["start"] = (now + timedelta(seconds=110)).strftime(TIME_FMT)
+        payload['end'] = (now + timedelta(seconds=200)).strftime(TIME_FMT)
+        response = requests.post(api_url, data=json.dumps(payload))
         data = response.json()
         assert response.status_code == 201, data
+
+    def test_150_no_time_conflicts(self):
+        """Test MWs with no end time and possible conflicts."""
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        now = datetime.now(UTC)
+        api_url = KYTOS_API + '/maintenance/v1'
+
+        # Base line with end time, MW1
+        payload = {
+            "start": (now + timedelta(seconds=40)).strftime(TIME_FMT),
+            "end": (now + timedelta(seconds=100)).strftime(TIME_FMT),
+            "switches": ["00:00:00:00:00:00:00:01"],
+            "force": True,
+        }
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 201, data
+
+        # Fail, interferes with MW1, start is after
+        payload["start"] = (now + timedelta(seconds=50)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # Fail, interferes with MW1, start is before but no end time
+        payload["start"] = (now + timedelta(seconds=10)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # Base line with no end time, MW2
+        payload["start"] = (now + timedelta(seconds=200)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 201, data
+
+        # Fail, interferes with MW2, start is after
+        payload["start"] = (now + timedelta(seconds=400)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # Fail, interferes with MW2, start is before but has end time
+        payload["start"] = (now + timedelta(seconds=150)).strftime(TIME_FMT)
+        payload["end"] = (now + timedelta(hours=2)).strftime(TIME_FMT)
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
