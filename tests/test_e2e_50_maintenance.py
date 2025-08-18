@@ -1348,3 +1348,41 @@ class TestE2EMaintenance:
         assert data["switches"] == []
         assert data["interfaces"] == []
         assert data["links"] == ["c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07"]
+
+    def test_145_component_time_conflict(self):
+        """Test time conflict for a component in different MWs with force option enabled."""
+        now = datetime.utcnow()
+        start1 = (now + timedelta(seconds=40)).strftime(TIME_FMT)
+        end1 = (now + timedelta(seconds=100)).strftime(TIME_FMT)
+
+        # Time conflict with first request
+        start2 = (now + timedelta(seconds=30)).strftime(TIME_FMT)
+        end2 = (now + timedelta(seconds=80)).strftime(TIME_FMT)
+
+        # No time confict
+        start3 = (now + timedelta(seconds=110)).strftime(TIME_FMT)
+        end3 = (now + timedelta(seconds=200)).strftime(TIME_FMT)
+
+        switch_id = "00:00:00:00:00:00:00:01"
+        api_url = KYTOS_API + '/maintenance/v1'
+        payload = {
+            "start": start1,
+            "end": end1,
+            "switches": [switch_id],
+            "force": True,
+        }
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 201, data
+
+        payload["start"] = start2
+        payload["end"] = end2
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 400, data
+
+        payload["start"] = start3
+        payload['end'] = end3
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        data = response.json()
+        assert response.status_code == 201, data
