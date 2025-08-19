@@ -1,6 +1,6 @@
 import json
 import time
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, UTC, timezone
 
 import requests
 
@@ -1416,6 +1416,7 @@ class TestE2EMaintenance:
         response = requests.post(api_url, data=json.dumps(payload))
         data = response.json()
         assert response.status_code == 201, data
+        MW_id = data["mw_id"]
 
         # Fail, interferes with MW2, start is after
         payload["start"] = (now + timedelta(seconds=400)).strftime(TIME_FMT)
@@ -1430,3 +1431,10 @@ class TestE2EMaintenance:
         response = requests.post(api_url, data=json.dumps(payload))
         data = response.json()
         assert response.status_code == 400, data
+
+        # Assert unreachable time stamp
+        response = requests.get(api_url+f"/{MW_id}")
+        assert response.status_code == 200, response.text
+        data = response.json()
+        unreachable = datetime.max.replace(tzinfo=timezone.utc, microsecond=0)
+        assert data["end"] == unreachable.strftime(TIME_FMT)
