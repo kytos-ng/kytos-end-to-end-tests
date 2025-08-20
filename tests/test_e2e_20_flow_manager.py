@@ -1193,3 +1193,88 @@ class TestE2EFlowManager:
         # Previously installed flow should not be deleted
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+
+    def test_110_install_delete_flows_by_switch_diff_cookie(self):
+        """Install and delete via flows_by_switch API request.
+         But with different cookies."""
+        payload = {
+            "00:00:00:00:00:00:00:01": {
+                "flows": [{"cookie": 11111111111111111, "priority": 20000}]},
+                                     
+            "00:00:00:00:00:00:00:02": {
+                "flows": [
+                    {"cookie": 22222222222222222, "priority": 20000},
+                    {"cookie": 22222222222222222, "priority": 2000}
+                ]},
+            "00:00:00:00:00:00:00:03": {
+                "flows": [
+                    {"cookie": 33333333333333333, "priority": 20000},
+                    {"cookie": 33333333333333333, "priority": 2000},
+                    {"cookie": 33333333333333333, "priority": 200}
+                ]},
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows_by_switch'
+        response = requests.post(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+
+        stored_url = KYTOS_API + '/flow_manager/v2/stored_flows'
+        response = requests.get(stored_url)
+        data_flows = response.json()
+        sw1_flows = data_flows["00:00:00:00:00:00:00:01"]
+        sw2_flows = data_flows["00:00:00:00:00:00:00:02"]
+        sw3_flows = data_flows["00:00:00:00:00:00:00:03"]
+        
+        assert len(sw1_flows) == BASIC_FLOWS + 1, sw1_flows
+        assert len(sw2_flows) == BASIC_FLOWS + 2, sw2_flows
+        assert len(sw3_flows) == BASIC_FLOWS + 3, sw3_flows
+        test_list = [(sw1_flows, 1), (sw2_flows, 2), (sw3_flows, 3)]
+        for sw_flows, length in test_list:
+            for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
+                assert flow["state"] in {"installed", "pending"}
+
+        s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS + 3, flows_s3
+
+        payload = {
+            "00:00:00:00:00:00:00:03": {
+                "flows": [{"cookie": 33333333333333333, "cookie_mask": 18446744073709551615}]
+            },
+            "00:00:00:00:00:00:00:02": {
+                "flows": [{"cookie": 22222222222222222, "cookie_mask": 18446744073709551615}]
+            },
+            "00:00:00:00:00:00:00:01": {
+                "flows": [{"cookie": 11111111111111111, "cookie_mask": 18446744073709551615}]
+            }
+        }
+        api_url = KYTOS_API + '/flow_manager/v2/flows_by_switch'
+        response = requests.delete(api_url, data=json.dumps(payload),
+                      headers={'Content-type': 'application/json'})
+        assert response.status_code == 202, response.text
+
+        stored_url = KYTOS_API + '/flow_manager/v2/stored_flows'
+        response = requests.get(stored_url)
+        data_flows = response.json()
+        sw1_flows = data_flows["00:00:00:00:00:00:00:01"]
+        sw2_flows = data_flows["00:00:00:00:00:00:00:02"]
+        sw3_flows = data_flows["00:00:00:00:00:00:00:03"]
+        
+        assert len(sw1_flows) == BASIC_FLOWS + 1, sw1_flows
+        assert len(sw2_flows) == BASIC_FLOWS + 2, sw2_flows
+        assert len(sw3_flows) == BASIC_FLOWS + 3, sw3_flows
+        test_list = [(sw1_flows, 1), (sw2_flows, 2), (sw3_flows, 3)]
+        for sw_flows, length in test_list:
+            for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
+                assert flow["state"] == "deleted", flow
+
+        flows_s1 = s1.dpctl('dump-flows')
+        flows_s2 = s2.dpctl('dump-flows')
+        flows_s3 = s3.dpctl('dump-flows')
+        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
+        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3

@@ -257,3 +257,42 @@ class TestE2EOfLLDP:
         assert data["links"]
         metadata = data["links"][link_id]["metadata"]
         assert metadata["liveness_status"] == "up", metadata
+
+    def test_010_liveness_intf_deletion(self) -> None:
+        """Test liveness not loaded after intf deletion."""
+        polling_interval = 1
+        self.set_polling_time(polling_interval)
+        intf_id = "00:00:00:00:00:00:00:01:1"
+        interface_ids = [intf_id]
+        self.enable_link_liveness(interface_ids)
+
+        time.sleep(polling_interval * 5)
+
+        # Assert GET liveness/ entries are in init state
+        api_url = f"{KYTOS_API}/of_lldp/v1/liveness/"
+        response = requests.get(api_url)
+        data = response.json()
+        for entry in data["interfaces"]:
+            assert entry["id"] in interface_ids, entry
+            assert entry["status"] == "init", entry
+
+        # Disable the intf for deletion
+        api_url = f'{KYTOS_API}/topology/v3/interfaces/{intf_id}/disable/'
+        response = requests.post(api_url)
+        assert response.status_code == 200, response.text
+
+        # Deactivate the interface for deletion
+        self.net.net.configLinkStatus('s1', 'h11', 'down')
+
+        api_url = f'{KYTOS_API}/topology/v3/interfaces/{intf_id}'
+        response = requests.delete(api_url)
+        assert response.status_code == 200, response.text
+
+        # Restart the controller maintaining config
+        self.restart(wait_for=15)
+
+        # Assert GET liveness/ don't have any enabled interfaces
+        api_url = f"{KYTOS_API}/of_lldp/v1/liveness/"
+        response = requests.get(api_url)
+        data = response.json()
+        assert not data["interfaces"]
