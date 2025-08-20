@@ -29,11 +29,12 @@ sed -i 's/LIVENESS_DEAD_MULTIPLIER =.*/LIVENESS_DEAD_MULTIPLIER = 3/g' $NAPPS_PA
 kytosd --help >/dev/null 2>&1  ## create configs at /etc/kytos from templates
 sed -i 's/WARNING/INFO/g' $NAPPS_PATH/etc/kytos/logging.ini
 
-test -z "$TESTS" && TESTS=tests/
+test -z "$TESTS" && TESTS=tests/test_e2e_90_kafka_events.py
 test -z "$RERUNS" && RERUNS=2
 
 python3 scripts/wait_for_mongo.py 2>/dev/null
-python3 -m pytest $TESTS --reruns $RERUNS -r fEr
+#python3 -m pytest $TESTS --reruns $RERUNS -r fEr
+python3 -m pytest --timeout=60 tests/
 
 #tail -f
 
