@@ -14,7 +14,7 @@ services:
       MONGO_PASSWORD: napp_pw
       MONGO_DBNAME: napps
       MONGO_HOST_SEEDS: "mongo1t:27027,mongo2t:27028,mongo3t:27029"
-      KAFKA_HOST_ADDR: "broker1:19092,broker2:19092,broker3:19092"  
+      KAFKA_HOST_ADDR: "broker1:19092,broker2:19092,broker3:19092"
     depends_on:
       - mongo-setup
       - broker1
