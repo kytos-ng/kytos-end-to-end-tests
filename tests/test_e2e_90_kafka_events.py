@@ -77,7 +77,8 @@ class TestE2EKafkaEvents:
         Creates the Kafka topic
         """
         await self.admin.create_topics(
-            [NewTopic(KAFKA_TOPIC, num_partitions=1, replication_factor=1)]
+            [NewTopic(KAFKA_TOPIC, num_partitions=3, replication_factor=3)],
+            timeout_ms=5000
         )
         # Let the topic creation propagate
         await asyncio.sleep(1)
