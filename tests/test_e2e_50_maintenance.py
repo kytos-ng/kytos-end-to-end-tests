@@ -1,6 +1,6 @@
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC, timezone
 
 import requests
 
@@ -1348,3 +1348,93 @@ class TestE2EMaintenance:
         assert data["switches"] == []
         assert data["interfaces"] == []
         assert data["links"] == ["c8b55359990f89a5849813dc348d30e9e1f991bad1dcb7f82112bd35429d9b07"]
+
+    def test_145_component_time_conflict(self):
+        """Test time conflict for a component in different MWs with force option enabled."""
+        now = datetime.now(UTC)
+        switch_id = "00:00:00:00:00:00:00:01"
+        api_url = KYTOS_API + '/maintenance/v1'
+        payload = {
+            "start": (now + timedelta(seconds=40)).strftime(TIME_FMT),
+            "end": (now + timedelta(seconds=100)).strftime(TIME_FMT),
+            "switches": [switch_id],
+            "force": True,
+        }
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 201, data
+        
+        # Time conflict with first request
+        payload["start"] = (now + timedelta(seconds=30)).strftime(TIME_FMT)
+        payload["end"] = (now + timedelta(seconds=80)).strftime(TIME_FMT)
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # No time confict
+        payload["start"] = (now + timedelta(seconds=110)).strftime(TIME_FMT)
+        payload['end'] = (now + timedelta(seconds=200)).strftime(TIME_FMT)
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 201, data
+
+    def test_150_no_time_conflicts(self):
+        """Test MWs with no end time and possible conflicts."""
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
+        now = datetime.now(UTC)
+        api_url = KYTOS_API + '/maintenance/v1'
+
+        # Base line with end time, MW1
+        payload = {
+            "start": (now + timedelta(seconds=40)).strftime(TIME_FMT),
+            "end": (now + timedelta(seconds=100)).strftime(TIME_FMT),
+            "switches": ["00:00:00:00:00:00:00:01"],
+            "force": True,
+        }
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 201, data
+
+        # Fail, interferes with MW1, start is after
+        payload["start"] = (now + timedelta(seconds=50)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # Fail, interferes with MW1, start is before but no end time
+        payload["start"] = (now + timedelta(seconds=10)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # Base line with no end time, MW2
+        payload["start"] = (now + timedelta(seconds=200)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 201, data
+        MW_id = data["mw_id"]
+
+        # Fail, interferes with MW2, start is after
+        payload["start"] = (now + timedelta(seconds=400)).strftime(TIME_FMT)
+        payload["end"] = None
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # Fail, interferes with MW2, start is before but has end time
+        payload["start"] = (now + timedelta(seconds=150)).strftime(TIME_FMT)
+        payload["end"] = (now + timedelta(hours=2)).strftime(TIME_FMT)
+        response = requests.post(api_url, data=json.dumps(payload))
+        data = response.json()
+        assert response.status_code == 400, data
+
+        # Assert unreachable time stamp
+        response = requests.get(api_url+f"/{MW_id}")
+        assert response.status_code == 200, response.text
+        data = response.json()
+        unreachable = datetime.max.replace(tzinfo=timezone.utc, microsecond=0)
+        assert data["end"] == unreachable.strftime(TIME_FMT)

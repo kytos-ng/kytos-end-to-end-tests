@@ -324,3 +324,57 @@ class TestE2EKytosStats:
 
         assert data[sw]['1']['active_count'] < data_1[sw]['1']['active_count']
 
+    def test_040_port_stats_tx_rx_packets(self):
+        """Test port stats tx and rx stats."""
+        sw = "00:00:00:00:00:00:00:01"
+        # bidir flow between port 1 and 2 for data plane test
+        payload = {
+            "flows": [
+                {
+                    "match": {"in_port": 1},
+                    "actions": [{"action_type": "output", "port": 2}],
+                },
+                {
+                    "match": {"in_port": 2},
+                    "actions": [{"action_type": "output", "port": 1}],
+                }
+            ]
+        }
+
+        api_url_flow_manager = KYTOS_API + f"/kytos/flow_manager/v2/flows/{sw}"
+        response = requests.post(
+            api_url_flow_manager,
+            data=json.dumps(payload),
+            headers={"Content-type": "application/json"},
+        )
+        assert response.status_code == 202, response.text
+        data_flow = response.json()
+        assert "FlowMod Messages Sent" in data_flow["response"]
+
+        # wait the flow to be installed
+        time.sleep(10)
+
+        # set hosts IP and perform a ping
+        h11, h12 = self.net.net.get('h11', 'h12')
+        h11.cmd('ip link add link %s name vlan101 type vlan id 101' % (h11.intfNames()[0]))
+        h11.cmd('ip link set up vlan101')
+        h11.cmd('ip addr add 10.1.1.11/24 dev vlan101')
+        h12.cmd('ip link add link %s name vlan101 type vlan id 101' % (h12.intfNames()[0]))
+        h12.cmd('ip link set up vlan101')
+        h12.cmd('ip addr add 10.1.1.12/24 dev vlan101')
+
+        result = h11.cmd('ping -c1 10.1.1.12')
+        assert ', 0% packet loss,' in result
+
+        # give enough time for stats gathering
+        time.sleep(20)
+        port = "1"
+        api_url = f"{KYTOS_STATS}/port/stats?dpid={sw}&port={port}"
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+
+        assert sw in data, data
+        assert port in data[sw], data[sw]
+        assert data[sw][port]["tx_packets"]
+        assert data[sw][port]["rx_packets"]
