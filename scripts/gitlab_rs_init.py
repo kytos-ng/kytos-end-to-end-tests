@@ -90,7 +90,7 @@ def main() -> None:
     # host_seeds = os.environ["MONGO_HOSTS_PORTS"]
     # host_entries = host_to_ip_address_dict()
     # seeds = host_seeds_dict(host_seeds)
-    # output_host_seeds_file = "/tmp/host_seeds.txt"
+    output_host_seeds_file = "/tmp/host_seeds.txt"
 
     #hosts = host_seeds_ip_dict(seeds, host_entries)
     hosts = {'mongo1': {'host': 'mongo1', 'port': '27017', 'ip': 'mongo1', 'ip_port': 'mongo1:27017', 'host_port': 'mongo1:27017'}, 'mongo2': {'host': 'mongo2', 'port': '27018', 'ip': 'mongo2', 'ip_port': 'mongo2:27018', 'host_port': 'mongo2:27018'}, 'mongo3': {'host': 'mongo3', 'port': '27019', 'ip': 'mongo3', 'ip_port': 'mongo3:27019', 'host_port': 'mongo3:27019'}}
