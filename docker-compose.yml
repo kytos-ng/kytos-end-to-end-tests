@@ -6,6 +6,7 @@ services:
       - "./kytos-init.sh:/kytos-init.sh"
       - "./tests:/tests"
       - "./scripts/wait_for_mongo.py:/scripts/wait_for_mongo.py"
+      - "./scripts/setup_kafka.py:/scripts/setup_kafka.py"
       - "./pytest.ini:/pytest.ini"
     command:
       - /kytos-init.sh
