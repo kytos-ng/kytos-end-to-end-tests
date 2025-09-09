@@ -1438,3 +1438,56 @@ class TestE2EMaintenance:
         data = response.json()
         unreachable = datetime.max.replace(tzinfo=timezone.utc, microsecond=0)
         assert data["end"] == unreachable.strftime(TIME_FMT)
+
+    def test_155_extend_mw_except_minutes(self):
+        mw_start_delay = 10
+        mw_duration_hrs = 1
+        mw_extension_sec = 10
+        mw_extension_mns = 20
+        mw_extension_hrs = 2
+        mw_extension_days = 1
+        start = datetime.now(timezone.utc) + timedelta(seconds=mw_start_delay)
+        end = start + timedelta(hours=mw_duration_hrs)
+
+        payload = {
+            "description": "mw for test 155",
+            "start": start.strftime(TIME_FMT),
+            "end": end.strftime(TIME_FMT),
+            "switches": ["00:00:00:00:00:00:00:01"],
+            "force": True,
+        }
+        api_URL = f'{KYTOS_API}/maintenance/v1/'
+        response = requests.post(api_URL, data=json.dumps(payload))
+        assert response.status_code == 201, response.text
+        data = response.json()
+        mw_id = data["mw_id"]
+
+        api_URL = f'{KYTOS_API}/maintenance/v1/{mw_id}'
+        response = requests.get(api_URL)
+        assert response.status_code == 200, response.text
+        mw_data_before = response.json()
+        time.sleep(mw_start_delay + 5)
+
+        payload = {
+            "seconds": mw_extension_sec,
+            "minutes": mw_extension_mns,
+            "hours": mw_extension_hrs,
+            "days": mw_extension_days,
+        }
+        api_URL = f'{KYTOS_API}/maintenance/v1/{mw_id}/extend'
+        response = requests.patch(api_URL, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert response.status_code == 200, response.text
+
+        api_URL = f'{KYTOS_API}/maintenance/v1/{mw_id}'
+        response = requests.get(api_URL)
+        assert response.status_code == 200, response.text
+        mw_data_after = response.json()
+    
+        end_before = datetime.strptime(mw_data_before["end"], TIME_FMT)
+        end_after = datetime.strptime(mw_data_after["end"], TIME_FMT)
+        expected = timedelta(days=mw_extension_days,
+                             hours=mw_extension_hrs,
+                             minutes=mw_extension_mns,
+                             seconds=mw_extension_sec)
+        actual = end_after - end_before
+        assert actual == expected
