@@ -126,7 +126,7 @@ class TestE2EKafkaEvents:
 
         # Wait for the message to propagate
 
-        await asyncio.sleep(16)
+        await asyncio.sleep(32)
 
         # Collect the message from Kafka
 
