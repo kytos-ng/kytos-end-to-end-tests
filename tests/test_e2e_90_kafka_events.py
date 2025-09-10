@@ -129,7 +129,7 @@ class TestE2EKafkaEvents:
         await asyncio.sleep(4)
 
         # Try pulling from Kafka multiple times
-        
+
         found = False
 
         for _ in range(4):
