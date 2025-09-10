@@ -81,7 +81,7 @@ class TestE2EKafkaEvents:
             timeout_ms=5000
         )
         # Let the topic creation propagate
-        await asyncio.sleep(1)
+        await asyncio.sleep(2)
 
     async def test_01_napp_sends_data_correctly(self):
         """
@@ -126,27 +126,34 @@ class TestE2EKafkaEvents:
 
         # Wait for the message to propagate
 
-        await asyncio.sleep(3)
+        await asyncio.sleep(4)
 
-        # Collect the message from Kafka
+        # Try pulling from Kafka multiple times
 
-        try:
-            # Wait up to 1 second for messages
-            results = await consumer.getmany(timeout_ms=1000)
+        found = False
 
-            # Ensure values exist
-            assert results.values()
+        for _ in range(4):
 
-            found = False
+            if found:
+                break
 
-            for messages in results.values():
-                for msg in messages:
-                    event = json.loads(msg.value.decode())
-                    if event["event"] == 'kytos/mef_eline.created':
-                        found = True
-                        break
+            try:
+                # Wait up to 2 seconds for messages
+                results = await consumer.getmany(timeout_ms=2000)
 
-            assert found
+                # Ensure values exist
+                assert results.values()
 
-        finally:
-            await consumer.stop()
+                for messages in results.values():
+                    for msg in messages:
+                        event = json.loads(msg.value.decode())
+                        if event["event"] == 'kytos/mef_eline.created':
+                            found = True
+                            break
+
+            except Exception as exc:
+                print(f"An exception occurred: {exc}")
+
+        assert found
+
+        await consumer.stop()
