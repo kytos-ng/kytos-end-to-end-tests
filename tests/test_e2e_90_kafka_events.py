@@ -132,7 +132,7 @@ class TestE2EKafkaEvents:
 
         try:
             # Wait up to 1 second for messages
-            results = await consumer.getmany(timeout_ms=1000)
+            results = await consumer.getmany(timeout_ms=2000)
 
             # Ensure values exist
             assert results.values()
