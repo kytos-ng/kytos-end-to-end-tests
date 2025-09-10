@@ -81,7 +81,7 @@ class TestE2EKafkaEvents:
             timeout_ms=5000
         )
         # Let the topic creation propagate
-        await asyncio.sleep(1)
+        await asyncio.sleep(2)
 
     async def test_01_napp_sends_data_correctly(self):
         """
@@ -126,13 +126,13 @@ class TestE2EKafkaEvents:
 
         # Wait for the message to propagate
 
-        await asyncio.sleep(3)
+        await asyncio.sleep(8)
 
         # Collect the message from Kafka
 
         try:
             # Wait up to 1 second for messages
-            results = await consumer.getmany(timeout_ms=2000)
+            results = await consumer.getmany(timeout_ms=1000)
 
             # Ensure values exist
             assert results.values()
