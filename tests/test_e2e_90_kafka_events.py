@@ -138,7 +138,7 @@ class TestE2EKafkaEvents:
                 break
 
             try:
-                # Wait up to 1 second for messages
+                # Wait up to 2 seconds for messages
                 results = await consumer.getmany(timeout_ms=2000)
 
                 # Ensure values exist
