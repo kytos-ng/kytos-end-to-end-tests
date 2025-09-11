@@ -3,6 +3,8 @@ from tests.helpers import NetworkTest
 import time
 import random
 
+from kytos.core.id import LinkID
+
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api' % CONTROLLER
 
@@ -398,6 +400,32 @@ class TestE2ESDNTrace:
 
     def test_030_run_sdntrace_for_stored_flows(cls):
         """Run SDNTrace to get traces from flow_manager stored_flow"""
+
+        # Transfer tag from NNI to UNI
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[1, 100], [102, 199], [201, 3798], [3800, 4095]]
+        }
+
+        link_id = LinkID(
+            "00:00:00:00:00:00:00:03:2",
+            "00:00:00:00:00:00:00:02:3"
+        )
+        api_url = KYTOS_API + f'/kytos/topology/v3/links/{link_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[101, 101], [3799, 3799]]
+        }
+
+        intf_id = "00:00:00:00:00:00:00:03:2"
+        api_url = KYTOS_API + f'/kytos/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
         cls.create_evc(100, "00:00:00:00:00:00:00:01:1", "00:00:00:00:00:00:00:0a:1")
         cls.create_evc(101, "00:00:00:00:00:00:00:03:2", "00:00:00:00:00:00:00:0a:1")
         cls.create_evc(102, "00:00:00:00:00:00:00:01:1", "00:00:00:00:00:00:00:0a:1")
