@@ -85,7 +85,7 @@ async def main() -> None:
     print("Admin client was successful! Attempting to validate cluster...")
 
     await validate_cluster(admin)
-    print(f"Cluster was successfully validated! Attempting to creat topic '{KAFKA_TOPIC}'...")
+    print(f"Cluster was successfully validated! Attempting to create topic '{KAFKA_TOPIC}'...")
 
     await create_topic(admin)
     print(f"Topic '{KAFKA_TOPIC} was created! Attempting to close the admin client...")
