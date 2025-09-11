@@ -1,5 +1,4 @@
 import os
-import re
 import time
 
 from pymongo import MongoClient
@@ -10,7 +9,7 @@ def set_replicaset(client: MongoClient, host_seeds_ip: dict, rs="rs0") -> None:
     """Set replica set."""
     members = []
     for i, v in zip(range(1, len(host_seeds_ip) + 1), host_seeds_ip.values()):
-        members.append({"_id": i, "host": v["ip_port"], "priority": i * 10})
+        members.append({"_id": i, "host": v["host_port"], "priority": i * 10})
     config = {
         "_id": rs,
         "protocolVersion": 1,
@@ -18,19 +17,6 @@ def set_replicaset(client: MongoClient, host_seeds_ip: dict, rs="rs0") -> None:
         "members": members,
     }
     return client.admin.command("replSetInitiate", config)
-
-
-def host_to_ip_address_dict(file_path="/etc/hosts") -> dict:
-    """Build host to IP address dict for GitLab CI."""
-    hosts = {}
-    with open(file_path, "r") as f:
-        for line in f:
-            values = re.split(r"\s+", line.strip())
-            if len(values) < 1:
-                continue
-            for name in values[1:]:
-                hosts[name] = values[0]
-    return hosts
 
 
 def host_seeds_dict(host_seeds: str, port="27017") -> dict:
@@ -45,13 +31,11 @@ def host_seeds_dict(host_seeds: str, port="27017") -> dict:
     return hosts
 
 
-def host_seeds_ip_dict(host_seeds_dict: dict, host_entries: dict) -> None:
+def host_seeds_ip_dict(seeds_dict: dict) -> None:
     """Build host_seeds dict with IP."""
     hosts = {}
-    for k, v in host_seeds_dict.items():
+    for k, v in seeds_dict.items():
         entry = dict(v)
-        entry["ip"] = host_entries[k]
-        entry["ip_port"] = f"{host_entries[k]}:{entry['port']}"
         entry["host_port"] = f"{k}:{entry['port']}"
         hosts[k] = entry
     return hosts
@@ -79,7 +63,7 @@ def write_host_seeds_file(
     hosts: dict, output_host_seeds_file="/tmp/host_seeds.txt"
 ) -> str:
     """Write host seeds file to export it as an env var on GitLab."""
-    file_content = ",".join([value["ip_port"] for value in hosts.values()])
+    file_content = ",".join([value["host_port"] for value in hosts.values()])
     with open(output_host_seeds_file, "w") as f:
         f.write(file_content)
     return file_content
@@ -87,12 +71,11 @@ def write_host_seeds_file(
 
 def main() -> None:
     """Main."""
-    host_seeds = os.environ["MONGO_HOSTS_PORTS"]
-    host_entries = host_to_ip_address_dict()
-    seeds = host_seeds_dict(host_seeds)
+    seeds = os.environ["MONGO_HOSTS_PORTS"]
+    seeds_dict = host_seeds_dict(seeds)
+    hosts = host_seeds_ip_dict(seeds_dict)
     output_host_seeds_file = "/tmp/host_seeds.txt"
 
-    hosts = host_seeds_ip_dict(seeds, host_entries)
     print(f"Mapped hosts dict: {hosts}")
 
     first_node = next(iter(hosts.keys()))
