@@ -69,17 +69,29 @@ class TestE2EKafkaEvents:
         Tears down the Kafka topic to be rebuilt
         """
         await self.admin.delete_topics([KAFKA_TOPIC], TIMEOUT)
+
         # Let the topic deletion propagate
-        await asyncio.sleep(1)
+        await asyncio.sleep(2)
+
+    async def topic_exists(self):
+        """
+        Checks if a topic exists
+        """
+        return KAFKA_TOPIC in await self.admin.list_topics()
 
     async def create_kafka_topic(self):
         """
         Creates the Kafka topic
         """
+        # In case it exists, delete it.
+        if self.topic_exists():
+            await self.teardown_kafka_topic()
+
         await self.admin.create_topics(
             [NewTopic(KAFKA_TOPIC, num_partitions=3, replication_factor=3)],
             timeout_ms=5000
         )
+
         # Let the topic creation propagate
         await asyncio.sleep(2)
 
