@@ -88,7 +88,7 @@ async def main() -> None:
     print(f"Cluster was successfully validated! Attempting to create topic '{KAFKA_TOPIC}'...")
 
     await create_topic(admin)
-    print(f"Topic '{KAFKA_TOPIC} was created! Attempting to close the admin client...")
+    print(f"Topic '{KAFKA_TOPIC}' was created! Attempting to close the admin client...")
 
     await shutdown(admin)
     print("Kafka admin client closed.")
