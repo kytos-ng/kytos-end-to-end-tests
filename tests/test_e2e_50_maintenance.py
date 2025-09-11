@@ -1439,7 +1439,10 @@ class TestE2EMaintenance:
         unreachable = datetime.max.replace(tzinfo=timezone.utc, microsecond=0)
         assert data["end"] == unreachable.strftime(TIME_FMT)
 
-    def test_155_extend_mw_except_minutes(self):
+    def test_155_extend_mw_every_time_unit(self):
+        """Test extending MW with seconds, minutes, hours and days."""
+        self.net.start_controller(clean_config=True, enable_all=True)
+        self.net.wait_switches_connect()
         mw_start_delay = 10
         mw_duration_hrs = 1
         mw_extension_sec = 10
