@@ -25,7 +25,7 @@ sed -i 's/LLDP_IGNORED_LOOPS = {}/LLDP_IGNORED_LOOPS = {"00:00:00:00:00:00:00:01
 sed -i 's/CONSISTENCY_COOKIE_IGNORED_RANGE =.*/CONSISTENCY_COOKIE_IGNORED_RANGE = [(0xdd00000000000000, 0xdd00000000000009)]/g' $NAPPS_PATH/var/lib/kytos/napps/kytos/flow_manager/settings.py
 sed -i 's/LIVENESS_DEAD_MULTIPLIER =.*/LIVENESS_DEAD_MULTIPLIER = 3/g' $NAPPS_PATH/var/lib/kytos/napps/kytos/of_lldp/settings.py
 sed -i 's/keys: root,kytos,api_server,socket/keys: root,kytos,api_server,socket,aiokafka/' $NAPPS_PATH/etc/kytos/logging.ini
-echo -e "\n\n[logger_aiokafka]\nlevel: INFO\nhandler:\nqualname: aiokafka" >> $NAPPS_PATH/etc/kytos/logging.ini
+echo -e "\n\n[logger_aiokafka]\nlevel: INFO\nhandlers:\nqualname: aiokafka" >> $NAPPS_PATH/etc/kytos/logging.ini
 
 # increase logging to facilitate troubleshooting
 kytosd --help >/dev/null 2>&1  ## create configs at /etc/kytos from templates
