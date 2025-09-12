@@ -6,7 +6,7 @@ import asyncio
 
 from typing import Any
 
-from aiokafka.admin import AIOKafkaAdminClient
+from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import KafkaConnectionError
 
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_HOST_ADDR", "localhost:29092")
@@ -58,9 +58,26 @@ async def shutdown(admin: AIOKafkaAdminClient) -> None:
         print("An unknown issue occurred while shutting down.")
         raise exc
 
+async def create_topic(admin: AIOKafkaAdminClient) -> None:
+    """Attempt to create 'event_logs'"""
+    try:
+        await admin.create_topics(
+            [NewTopic(KAFKA_TOPIC, num_partitions=3, replication_factor=3)],
+            timeout_ms=5000
+        )
+        await asyncio.sleep(2) # Let the topic propagate
+    except KafkaConnectionError as exc:
+        print("Unable to create topic.")
+        raise exc
+    except Exception as exc:
+        print(f"An unknown issue occurred while creating {KAFKA_TOPIC}")
+        raise exc
+
 
 async def main() -> None:
     """ Setup event_logs if it does not exist """
+    print("Starting setup_kafka.py...")
+
     bootstrap_servers: list[str] = bootstrap_servers_list(KAFKA_BOOTSTRAP_SERVERS)
     print(f"Attempting to create an admin client at {bootstrap_servers}...")
 
@@ -68,9 +85,12 @@ async def main() -> None:
     print("Admin client was successful! Attempting to validate cluster...")
 
     await validate_cluster(admin)
-    print("Cluster was successfully validated! Attempting shutdown...")
+    print(f"Cluster was successfully validated! Attempting to create topic '{KAFKA_TOPIC}'...")
 
-    await admin.close()
+    await create_topic(admin)
+    print(f"Topic '{KAFKA_TOPIC}' was created! Attempting to close the admin client...")
+
+    await shutdown(admin)
     print("Kafka admin client closed.")
 
 if __name__ == "__main__":
