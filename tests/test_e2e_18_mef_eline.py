@@ -146,6 +146,12 @@ class TestE2EMefEline:
             100
         )
 
+        self.assert_tag_used_by_interface(
+            "00:00:00:00:00:00:00:01:2",
+            "vlan",
+            100
+        )
+
         api_url = KYTOS_API + f"/kytos/mef_eline/v2/evc/{evc_id}"
         response = requests.get(api_url)
 
@@ -207,6 +213,12 @@ class TestE2EMefEline:
         # Check old uni_z
         self.assert_tag_not_used_by_interface(
             "00:00:00:00:00:00:00:02:1",
+            "vlan",
+            100
+        )
+
+        self.assert_tag_used_by_interface(
+            "00:00:00:00:00:00:00:01:2",
             "vlan",
             100
         )
