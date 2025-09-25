@@ -69,6 +69,7 @@ class TestE2EMefEline:
                 break
         else:
             assert True, available_tags
+            return
         assert False, available_tags
 
     def assert_tag_not_used_by_interface(self, interface_id, tag_type, value):
