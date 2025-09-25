@@ -35,24 +35,6 @@ class TestE2EMefEline:
                 "up"
             )
 
-    def is_tag_used_by_interface(self, interface_id, tag_type, value):
-        api_url = KYTOS_API + "/kytos/topology/v3/interfaces/tag_ranges"
-        response = requests.get(api_url)
-        assert response.status_code == 200, response.text
-
-        data = response.json()
-
-        interface_tags = data[interface_id]
-        available_tags = interface_tags["available_tags"][tag_type]
-        # tag_ranges = interface_tags["tag_ranges"][tag_type]
-
-        for range_start, range_end in available_tags:
-            if range_start <= value <= range_end:
-                break
-        else:
-            return True
-        return False
-    
     def assert_tag_used_by_interface(self, interface_id, tag_type, value):
         api_url = KYTOS_API + "/kytos/topology/v3/interfaces/tag_ranges"
         response = requests.get(api_url)
