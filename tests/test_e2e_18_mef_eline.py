@@ -351,7 +351,7 @@ class TestE2EMefEline:
 
         evc_id = data["circuit_id"]
 
-        mw_start_delay = 10
+        mw_start_delay = 2
         start = datetime.now(timezone.utc) + timedelta(seconds=mw_start_delay)
         payload = {
             "description": "mw for test 050",
@@ -364,7 +364,7 @@ class TestE2EMefEline:
         response = requests.post(api_URL, json=payload)
         assert response.status_code == 201, response.text
 
-        time.sleep(5)
+        time.sleep(7)
 
         # Check that evc is deactivated.
         api_url = f"{KYTOS_API}/kytos/mef_eline/v2/evc/{evc_id}"
