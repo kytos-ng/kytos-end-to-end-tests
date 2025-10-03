@@ -1,11 +1,14 @@
 import requests
 import time
+from datetime import datetime, timedelta, UTC, timezone
 
 
 from .helpers import NetworkTest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api' % CONTROLLER
+
+TIME_FMT = "%Y-%m-%dT%H:%M:%S+0000"
 
 class TestE2EMefEline:
     net = None
@@ -212,3 +215,146 @@ class TestE2EMefEline:
 
         data = response.json()
         assert data["uni_z"]["interface_id"] != "00:00:00:00:00:00:00:02:1"
+
+    def test_030_interface_disabled(self):
+        payload = {
+            "name": "Test EVC",
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "enabled": True,
+            "dynamic_backup_path": True,
+        }
+        api_url = KYTOS_API + "/kytos/mef_eline/v2/evc/"
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+        data = response.json()
+
+        evc_id = data["circuit_id"]
+
+        # Disable current uni_a
+        api_url = KYTOS_API + "/kytos/topology/v3/interfaces/00:00:00:00:00:00:00:01:1/disable"
+        response = requests.post(api_url)
+        assert response.status_code == 200, response.text
+
+        # Wait for events to be sent out
+        time.sleep(5)
+
+        # Check that evc is deactivated.
+        api_url = KYTOS_API + f"/kytos/mef_eline/v2/evc/{evc_id}"
+        response = requests.get(api_url)
+        
+        assert response.status_code == 200, response.text
+
+        # Check that EVC has been deactivated.
+        data = response.json()
+        assert not data["active"]
+        assert data['current_path']
+
+    def test_040_interface_down(self):
+        payload = {
+            "name": "Test EVC",
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "enabled": True,
+            "dynamic_backup_path": True,
+        }
+        api_url = KYTOS_API + "/kytos/mef_eline/v2/evc/"
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+        data = response.json()
+
+        evc_id = data["circuit_id"]
+
+        # Disable current uni_a
+        self.net.net.configLinkStatus("s1", "h11", "down")
+
+        # Wait for events to be sent out
+        time.sleep(5)
+
+        # Check that evc is deactivated.
+        api_url = KYTOS_API + f"/kytos/mef_eline/v2/evc/{evc_id}"
+        response = requests.get(api_url)
+        
+        assert response.status_code == 200, response.text
+
+        # Check that EVC has been deactivated.
+        data = response.json()
+        assert not data["active"]
+        assert data['current_path']
+
+    def test_050_interface_maintenance(self):
+        payload = {
+            "name": "Test EVC",
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "enabled": True,
+            "dynamic_backup_path": True,
+        }
+        api_url = f"{KYTOS_API}/kytos/mef_eline/v2/evc/"
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+        data = response.json()
+
+        evc_id = data["circuit_id"]
+
+        mw_start_delay = 2
+        start = datetime.now(timezone.utc) + timedelta(seconds=mw_start_delay)
+        payload = {
+            "description": "mw for test 050",
+            "start": start.strftime(TIME_FMT),
+            "end": None,
+            "interfaces": ["00:00:00:00:00:00:00:01:1"],
+            "force": True,
+        }
+        api_URL = f'{KYTOS_API}/kytos/maintenance/v1/'
+        response = requests.post(api_URL, json=payload)
+        assert response.status_code == 201, response.text
+
+        time.sleep(7)
+
+        # Check that evc is deactivated.
+        api_url = f"{KYTOS_API}/kytos/mef_eline/v2/evc/{evc_id}"
+        response = requests.get(api_url)
+        
+        assert response.status_code == 200, response.text
+
+        # Check that EVC has been deactivated.
+        data = response.json()
+        assert not data["active"]
+        assert data['current_path']
