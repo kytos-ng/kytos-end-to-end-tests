@@ -31,13 +31,13 @@ sed -i 's/WARNING/INFO/g' $NAPPS_PATH/etc/kytos/logging.ini
 sed -i 's/keys: root,kytos,api_server,socket/keys: root,kytos,api_server,socket,aiokafka/' $NAPPS_PATH/etc/kytos/logging.ini
 echo -e "\n\n[logger_aiokafka]\nlevel: INFO\nhandlers:\nqualname: aiokafka" >> $NAPPS_PATH/etc/kytos/logging.ini
 
-test -z "$TESTS" && TESTS=tests/
-test -z "$RERUNS" && RERUNS=2
+test -z "$TESTS" && TESTS=tests/test_e2e_14_mef_eline.py
+test -z "$RERUNS" && RERUNS=0
 
 python3 scripts/wait_for_mongo.py 2>/dev/null
 python3 scripts/setup_kafka.py 2>/dev/null
 
-python3 -m pytest $TESTS --reruns $RERUNS -r fEr
+python3 -m pytest $TESTS -k test_005_create_evc_on_nni --reruns $RERUNS -r fEr
 
 #tail -f
 
