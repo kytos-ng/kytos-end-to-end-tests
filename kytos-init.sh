@@ -28,6 +28,8 @@ sed -i 's/LIVENESS_DEAD_MULTIPLIER =.*/LIVENESS_DEAD_MULTIPLIER = 3/g' $NAPPS_PA
 # increase logging to facilitate troubleshooting
 kytosd --help >/dev/null 2>&1  ## create configs at /etc/kytos from templates
 sed -i 's/WARNING/INFO/g' $NAPPS_PATH/etc/kytos/logging.ini
+sed -i 's/keys: root,kytos,api_server,socket/keys: root,kytos,api_server,socket,aiokafka/' $NAPPS_PATH/etc/kytos/logging.ini
+echo -e "\n\n[logger_aiokafka]\nlevel: INFO\nhandlers:\nqualname: aiokafka" >> $NAPPS_PATH/etc/kytos/logging.ini
 
 test -z "$TESTS" && TESTS=tests/
 test -z "$RERUNS" && RERUNS=2

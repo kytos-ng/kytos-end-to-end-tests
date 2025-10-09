@@ -8,8 +8,18 @@ from pymongo.errors import OperationFailure
 def set_replicaset(client: MongoClient, host_seeds_ip: dict, rs="rs0") -> None:
     """Set replica set."""
     members = []
-    for i, v in zip(range(1, len(host_seeds_ip) + 1), host_seeds_ip.values()):
-        members.append({"_id": i, "host": v["host_port"], "priority": i * 10})
+    for i, (host_name, host_info) in enumerate(host_seeds_ip.items()):
+        if host_name == "mongo1":
+            priority = 10  # Much higher priority
+        else:
+            priority = 1   # Lower priority for others
+
+        members.append({
+            "_id": i,
+            "host": host_info["host_port"],
+            "priority": priority
+        })
+
     config = {
         "_id": rs,
         "protocolVersion": 1,
@@ -31,7 +41,7 @@ def host_seeds_dict(host_seeds: str, port="27017") -> dict:
     return hosts
 
 
-def host_seeds_ip_dict(seeds_dict: dict) -> None:
+def host_seeds_ip_dict(seeds_dict: dict) -> dict:
     """Build host_seeds dict with IP."""
     hosts = {}
     for k, v in seeds_dict.items():
