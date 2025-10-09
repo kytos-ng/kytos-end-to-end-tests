@@ -77,6 +77,14 @@ class TestE2EMefEline:
         data = response.json()
         return data["result"]["trace_id"]
 
+    def delete_evc(self, circuit_id) -> dict:
+        """Delete an EVC."""
+        api_url = f"{KYTOS_API}/kytos/mef_eline/v2/evc/{circuit_id}"
+        response = requests.delete(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        return data
+
     def create_evc(
         self,
         uni_a="00:00:00:00:00:00:00:01:1",
@@ -84,6 +92,8 @@ class TestE2EMefEline:
         vlan_id=100,
         primary_path=None,
         backup_path=None,
+        max_retries=5,
+        wait_time=1,
         **kwargs,
     ):
         payload = {
@@ -106,10 +116,22 @@ class TestE2EMefEline:
             payload["backup_path"] = backup_path
         if kwargs:
             payload.update(kwargs)
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
-        response = requests.post(api_url, json=payload)
-        data = response.json()
-        assert response.status_code == 201, response.text
+        times = 0
+        while times < max_retries:
+            api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+            response = requests.post(api_url, json=payload)
+            data = response.json()
+            assert response.status_code == 201, response.text
+            if data["deployed"] is True:
+                break
+            time.sleep(wait_time)
+            self.delete_evc(data["circuit_id"])
+            time.sleep(wait_time)
+            times += 1
+        else:
+            msg = "Time out to create EVC which deploys"
+            raise Exception(msg)
+
         return data['circuit_id']
 
     def get_evc_data(self, evc_id:str) -> dict:
