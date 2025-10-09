@@ -92,7 +92,8 @@ class TestE2EMefEline:
         vlan_id=100,
         primary_path=None,
         backup_path=None,
-        timeout=5,
+        max_retries=5,
+        wait_time=1,
         **kwargs,
     ):
         payload = {
@@ -116,16 +117,16 @@ class TestE2EMefEline:
         if kwargs:
             payload.update(kwargs)
         times = 0
-        while times < timeout:
+        while times < max_retries:
             api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
             response = requests.post(api_url, json=payload)
             data = response.json()
             assert response.status_code == 201, response.text
             if data["deployed"] is True:
                 break
-            time.sleep(1)
+            time.sleep(wait_time)
             self.delete_evc(data["circuit_id"])
-            time.sleep(1)
+            time.sleep(wait_time)
             times += 1
         else:
             msg = "Time out to create EVC which deploys"
