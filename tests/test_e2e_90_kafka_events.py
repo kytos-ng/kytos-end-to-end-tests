@@ -84,7 +84,7 @@ class TestE2EKafkaEvents:
         Creates the Kafka topic
         """
         # In case it exists, delete it.
-        if self.topic_exists():
+        if await self.topic_exists():
             await self.teardown_kafka_topic()
 
         await self.admin.create_topics(
