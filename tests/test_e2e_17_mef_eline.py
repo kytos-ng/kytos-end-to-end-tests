@@ -484,3 +484,79 @@ class TestE2EMefEline:
                     for (range_start, range_end) in available_tags[reserved_tag["tag_type"]]
                 ), f"Vlan tag {reserved_tag} on interface {interface}, not released. Available tags: {available_tags}"
 
+
+    def test_005_link_down_current_path_failover_path(self):
+        """Test a link_down affecting both current_path and failover_path."""
+
+        # Initially, set down links to force that EVC paths
+        # will end up with shared links
+        self.net.net.configLinkStatus("s3", "s6", "down")
+        self.net.net.configLinkStatus("s4", "s6", "down")
+        self.net.net.configLinkStatus("s5", "s6", "down")
+
+        time.sleep(5)
+
+        payload = {
+            "name": "Link Down Test",
+            "uni_a": {"interface_id": "00:00:00:00:00:00:00:05:1", "tag": {"tag_type": "vlan", "value": 100}},
+            "uni_z": {"interface_id": "00:00:00:00:00:00:00:06:1", "tag": {"tag_type": "vlan", "value": 100}},
+            "enabled": True,
+            "dynamic_backup_path": True,
+        }
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.post(api_url, json=payload)
+
+        assert response.status_code == 201, response.text
+
+        data = response.json()
+        evc_id =  data["circuit_id"]
+
+        time.sleep(10)
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+
+        assert data["current_path"]
+        assert data["failover_path"]
+
+        # s4-eth3 and s5-eth2
+        shared_link = "0b814adbd3b05669482ca479280787e55be5c155780f8a780423fa9e67e3a848"
+
+        # assert that indeed the shared_link is being used by both current and failover paths
+        link_ids = {link["id"] for link in data["current_path"]}
+        assert shared_link in link_ids
+        link_ids = {link["id"] for link in data["failover_path"]}
+        assert shared_link in link_ids
+
+        cookie = int(f"0xaa{evc_id}", 16)
+
+        stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}'
+        response = requests.get(stored_flows)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data
+
+        # Shut down a shared link that is expected to cause an EVC undeploy
+        self.net.net.configLinkStatus("s4", "s5", "down")
+
+        time.sleep(10)
+
+        # EVC should be enabled but not active
+
+        api_url = KYTOS_API + "/mef_eline/v2/evc/"
+        response = requests.get(api_url + evc_id)
+        data = response.json()
+
+        assert data["enabled"]
+        assert not data["active"]
+        assert not data["current_path"]
+        assert not data["failover_path"]
+
+        # Check that all related flows have been removed
+
+        stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}'
+        response = requests.get(stored_flows)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert not data
