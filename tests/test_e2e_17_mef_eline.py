@@ -531,7 +531,7 @@ class TestE2EMefEline:
 
         cookie = int(f"0xaa{evc_id}", 16)
 
-        stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}'
+        stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}&state=installed'
         response = requests.get(stored_flows)
         assert response.status_code == 200, response.text
         data = response.json()
@@ -555,7 +555,7 @@ class TestE2EMefEline:
 
         # Check that all related flows have been removed
 
-        stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}'
+        stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}&state=installed'
         response = requests.get(stored_flows)
         assert response.status_code == 200, response.text
         data = response.json()
