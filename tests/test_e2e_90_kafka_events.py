@@ -71,7 +71,7 @@ class TestE2EKafkaEvents:
         await self.admin.delete_topics([KAFKA_TOPIC], TIMEOUT)
 
         # Let the topic deletion propagate
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
 
     async def topic_exists(self):
         """
@@ -84,7 +84,7 @@ class TestE2EKafkaEvents:
         Creates the Kafka topic
         """
         # In case it exists, delete it.
-        if self.topic_exists():
+        if await self.topic_exists():
             await self.teardown_kafka_topic()
 
         await self.admin.create_topics(
@@ -93,7 +93,7 @@ class TestE2EKafkaEvents:
         )
 
         # Let the topic creation propagate
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
 
     async def test_01_napp_sends_data_correctly(self):
         """
