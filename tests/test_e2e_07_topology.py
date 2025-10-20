@@ -145,6 +145,16 @@ class TestE2EMefEline:
                 ],
             )
 
+            api_url = KYTOS_API + f"/kytos/topology/v3/switches"
+
+            response = await client.get(api_url)
+
+            assert response.status_code == 200, response.text
+
+            data = response.json()
+
+            assert not data["switches"]
+
         self.net.stop_kytosd()
 
         remaining_switches = list(self.net.db["switches"].find({}))
