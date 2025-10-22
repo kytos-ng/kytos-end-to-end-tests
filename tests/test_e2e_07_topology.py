@@ -12,7 +12,7 @@ KYTOS_API = 'http://%s:8181/api' % CONTROLLER
 
 TIME_FMT = "%Y-%m-%dT%H:%M:%S+0000"
 
-class TestE2EMefEline:
+class TestE2ETopology:
     net = None
 
     @classmethod
@@ -32,11 +32,19 @@ class TestE2EMefEline:
     def teardown_method(self, method):
         pass
 
-    async def test_010_topology_race_condition(self):
+    async def test_010_switch_delete_interface_disable_race_condition(self):
+        """
+        This test injects an entry for a switch into the database,
+        then attempts to delete the switch while updating the switch interfaces.
+
+        It is then expected that the switch will have been deleted from the database.
+        If the switch remains in the database, while the delete operation has successfully executed,
+        then a race condition occured.
+        """
 
         self.net.stop_kytosd()
 
-        link_count = 1000
+        interface_count = 1000
 
         # fake db entries
         switch_entry = {
@@ -87,7 +95,7 @@ class TestE2EMefEline:
                         'metadata': {},
                         'updated_at': None
                     }
-                    for i in range(1, link_count + 1)
+                    for i in range(1, interface_count + 1)
                 ]
             ],
             'manufacturer': 'Nicira, Inc.',
@@ -120,6 +128,7 @@ class TestE2EMefEline:
         data = response.json()
 
         assert "00:00:00:00:00:00:00:01" in data["topology"]["switches"]
+        assert len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"]) == interface_count + 1
 
         async def update_interface(client: httpx.AsyncClient, interface_id):
             api_url = KYTOS_API + f"/kytos/topology/v3/interfaces/{interface_id}/disable"
@@ -136,12 +145,12 @@ class TestE2EMefEline:
                 update_interface(client, '00:00:00:00:00:00:00:01:4294967294'),
                 *[
                     update_interface(client, f'00:00:00:00:00:00:00:01:{i}')
-                    for i in range(1, link_count // 2)
+                    for i in range(1, interface_count // 2)
                 ],
                 delete_switch(client, '00:00:00:00:00:00:00:01'),
                 *[
                     update_interface(client, f'00:00:00:00:00:00:00:01:{i}')
-                    for i in range(link_count // 2, link_count + 1)
+                    for i in range(interface_count // 2, interface_count + 1)
                 ],
             )
 
@@ -161,11 +170,19 @@ class TestE2EMefEline:
 
         assert not remaining_switches
 
-    async def test_020_topology_race_condition(self):
+    async def test_020_switch_delete_interfaces_disable_race_condition(self):
+        """
+        This test injects an entry for a switch into the database,
+        then attempts to delete the switch while updating the switch interfaces.
+
+        It is then expected that the switch will have been deleted from the database.
+        If the switch remains in the database, while the delete operation has successfully executed,
+        then a race condition occured.
+        """
 
         self.net.stop_kytosd()
 
-        link_count = 1000
+        interface_count = 1000
         attempt_count = 100
 
         # fake db entries
@@ -217,7 +234,7 @@ class TestE2EMefEline:
                         'metadata': {},
                         'updated_at': None
                     }
-                    for i in range(1, link_count + 1)
+                    for i in range(1, interface_count + 1)
                 ]
             ],
             'manufacturer': 'Nicira, Inc.',
@@ -250,6 +267,7 @@ class TestE2EMefEline:
         data = response.json()
 
         assert "00:00:00:00:00:00:00:01" in data["topology"]["switches"]
+        assert len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"]) == interface_count + 1
 
         async def update_interfaces(client: httpx.AsyncClient, switch_id):
             api_url = KYTOS_API + f"/kytos/topology/v3/interfaces/switch/{switch_id}/disable"
