@@ -35,17 +35,13 @@ class TestE2EMefEline:
         """
         It is called at the beginning of every class method execution
         """
+        # Since some tests may set a link to down state, we should reset
+        # the link state to up (for all links)
+        self.net.config_all_links_up()
+        # Start the controller with all elements enabled and clean database
         self.net.start_controller(clean_config=True, enable_all=True)
         self.net.wait_switches_connect()
         time.sleep(10)
-
-    def teardown_method(self, method):
-        for link in self.net.net.links:
-            self.net.net.configLinkStatus(
-                link.intf1.node.name,
-                link.intf2.node.name,
-                "up"
-            )
 
     @classmethod
     def setup_class(cls):
@@ -59,102 +55,18 @@ class TestE2EMefEline:
     def teardown_class(cls):
         cls.net.stop()
 
-    def restart(self, _clean_config=False, _enable_all=True):
-        self.net.start_controller(clean_config=_clean_config, enable_all=_enable_all)
-        self.net.wait_switches_connect()
-        # Wait a few seconds to kytos execute LLDP
-        time.sleep(10)
-
-    def add_topology_metadata(self):
-        """Add topology metadata."""
-        desired_failover_path = [
-            {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:06:3"},
-            },
-            {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:05:3"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:06:2"},
-            },
-        ]
-        link_ids = [
-            LinkID(link["endpoint_a"]["id"], link["endpoint_b"]["id"])
-            for link in desired_failover_path
-        ]
-        links_metadata = {
-            str(link_id): {
-                "ownership": "forbidden_link"
-            }
-            for link_id in link_ids
-        }
-
-        for link_id, metadata in links_metadata.items():
-            api_url = f"{KYTOS_API}/topology/v3/links/{link_id}/metadata"
-            response = requests.post(
-                api_url,
-                data=json.dumps(metadata),
-                headers={"Content-type": "application/json"},
-            )
-            assert response.status_code == 201, response.text
-        return links_metadata
-
-    def create_evc(
-        self,
-        uni_a="00:00:00:00:00:00:00:01:1",
-        uni_z="00:00:00:00:00:00:00:03:1",
-        vlan_id=100,
-        primary_constraints=None,
-        secondary_constraints=None,
-    ):
-        payload = {
-            "name": "Vlan_%s" % vlan_id,
-            "enabled": True,
-            "dynamic_backup_path": True,
-            "uni_a": {"interface_id": uni_a, "tag": {"tag_type": 1, "value": vlan_id}},
-            "uni_z": {"interface_id": uni_z, "tag": {"tag_type": "vlan", "value": vlan_id}},
-        }
-        if primary_constraints:
-            payload.update({"primary_constraints": primary_constraints})
-        if secondary_constraints:
-            payload.update({"secondary_constraints": secondary_constraints})
-        api_url = KYTOS_API + "/mef_eline/v2/evc/"
-        response = requests.post(api_url, json=payload)
-        assert response.status_code == 201, response.text
-        data = response.json()
-        return data["circuit_id"]
-
-    def update_evc(self, circuit_id: str, **kwargs) -> dict:
-        """Update an EVC."""
-        api_url = f"{KYTOS_API}/mef_eline/v2/evc/{circuit_id}"
-        response = requests.patch(api_url, json=kwargs)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        return data
-
-    def delete_evc(self, circuit_id) -> dict:
-        """Delete an EVC."""
-        api_url = f"{KYTOS_API}/mef_eline/v2/evc/{circuit_id}"
-        response = requests.delete(api_url)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        return data
-
     def test_001_link_down(self):
         """Test link down behaviour."""
 
         self.net.net.configLinkStatus("s1", "s6", "down")
         self.net.net.configLinkStatus("s5", "s6", "down")
 
+        time.sleep(5)
+
         payload = {
-            "name": "Link Down Test",
+            "name": "Link Down Test 001",
             "uni_a": {"interface_id": "00:00:00:00:00:00:00:01:1", "tag": {"tag_type": "vlan", "value": 100}},
             "uni_z": {"interface_id": "00:00:00:00:00:00:00:05:1", "tag": {"tag_type": "vlan", "value": 100}},
-            "enabled": True,
-            "primary_constraints": {
-                "mandatory_metrics": {
-                    "not_ownership": ["forbidden_link"],
-                },
-            },
             "dynamic_backup_path": True,
         }
         api_url = KYTOS_API + "/mef_eline/v2/evc/"
@@ -233,16 +145,12 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus("s3", "s6", "down")
         self.net.net.configLinkStatus("s5", "s6", "down")
 
+        time.sleep(5)
+
         payload = {
-            "name": "Link Down Test",
+            "name": "Link Down Test 002",
             "uni_a": {"interface_id": "00:00:00:00:00:00:00:01:1", "tag": {"tag_type": "vlan", "value": 100}},
             "uni_z": {"interface_id": "00:00:00:00:00:00:00:05:1", "tag": {"tag_type": "vlan", "value": 100}},
-            "enabled": True,
-            "primary_constraints": {
-                "mandatory_metrics": {
-                    "not_ownership": ["forbidden_link"],
-                },
-            },
             "dynamic_backup_path": True,
         }
         api_url = KYTOS_API + "/mef_eline/v2/evc/"
@@ -318,16 +226,12 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus("s3", "s6", "down")
         self.net.net.configLinkStatus("s5", "s6", "down")
 
+        time.sleep(5)
+
         payload = {
-            "name": "Link Down Test",
+            "name": "Link Down Test 003",
             "uni_a": {"interface_id": "00:00:00:00:00:00:00:01:1", "tag": {"tag_type": "vlan", "value": 100}},
             "uni_z": {"interface_id": "00:00:00:00:00:00:00:05:1", "tag": {"tag_type": "vlan", "value": 100}},
-            "enabled": True,
-            "primary_constraints": {
-                "mandatory_metrics": {
-                    "not_ownership": ["forbidden_link"],
-                },
-            },
             "dynamic_backup_path": True,
         }
         api_url = KYTOS_API + "/mef_eline/v2/evc/"
@@ -403,16 +307,12 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus("s3", "s6", "down")
         self.net.net.configLinkStatus("s5", "s6", "down")
 
+        time.sleep(5)
+
         payload = {
-            "name": "Link Down Test",
+            "name": "Link Down Test 004",
             "uni_a": {"interface_id": "00:00:00:00:00:00:00:01:1", "tag": {"tag_type": "vlan", "value": 100}},
             "uni_z": {"interface_id": "00:00:00:00:00:00:00:05:1", "tag": {"tag_type": "vlan", "value": 100}},
-            "enabled": True,
-            "primary_constraints": {
-                "mandatory_metrics": {
-                    "not_ownership": ["forbidden_link"],
-                },
-            },
             "dynamic_backup_path": True,
         }
         api_url = KYTOS_API + "/mef_eline/v2/evc/"

@@ -10,24 +10,47 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+from tests.noviswitch import NoviSwitch
+
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
+
+def dpctl_wrapper(obj, *args):
+    if args[0] == "dump-flows":
+        return obj.orig_dpctl(*args, "--no-names", "--protocols=OpenFlow13", "|grep -v OFPST_FLOW")
+    return obj.orig_dpctl(*args)
+
+NoviSwitch.orig_dpctl = NoviSwitch.dpctl
+NoviSwitch.dpctl = dpctl_wrapper
+OVSSwitch.orig_dpctl = OVSSwitch.dpctl
+OVSSwitch.dpctl = dpctl_wrapper
+
+def get_switch_class():
+    switch_class_map = {
+        'OVSSwitch': OVSSwitch,
+        'NoviSwitch': NoviSwitch,
+    }
+    cls_name = os.environ.get('SWITCH_CLASS', 'OVSSwitch')
+    if not NoviSwitch.is_available():
+        cls_name = 'OVSSwitch'
+    return switch_class_map[cls_name]
+
 
 class AmlightTopo(Topo):
     """Amlight Topology."""
     def build(self):
         # Add switches
-        self.Ampath1 = self.addSwitch('Ampath1', listenPort=6601, dpid='0000000000000011')
-        self.Ampath2 = self.addSwitch('Ampath2', listenPort=6602, dpid='0000000000000012')
-        SouthernLight2 = self.addSwitch('SoL2', listenPort=6603, dpid='0000000000000013')
-        SanJuan = self.addSwitch('SanJuan', listenPort=6604, dpid='0000000000000014')
-        AndesLight2 = self.addSwitch('AL2', listenPort=6605, dpid='0000000000000015')
-        AndesLight3 = self.addSwitch('AL3', listenPort=6606, dpid='0000000000000016')
-        self.Ampath3 = self.addSwitch('Ampath3', listenPort=6608, dpid='0000000000000017')
-        self.Ampath4 = self.addSwitch('Ampath4', listenPort=6609, dpid='0000000000000018')
-        self.Ampath5 = self.addSwitch('Ampath5', listenPort=6610, dpid='0000000000000019')
-        self.Ampath7 = self.addSwitch('Ampath7', listenPort=6611, dpid='0000000000000020')
-        JAX1 = self.addSwitch('JAX1', listenPort=6612, dpid='0000000000000021')
-        JAX2 = self.addSwitch('JAX2', listenPort=6613, dpid='0000000000000022')
+        self.Ampath1 = self.addSwitch('Ampath1', listenPort=6601, dpid='0000000000000011', cls=get_switch_class())
+        self.Ampath2 = self.addSwitch('Ampath2', listenPort=6602, dpid='0000000000000012', cls=get_switch_class())
+        SouthernLight2 = self.addSwitch('SoL2', listenPort=6603, dpid='0000000000000013', cls=get_switch_class())
+        SanJuan = self.addSwitch('SanJuan', listenPort=6604, dpid='0000000000000014', cls=get_switch_class())
+        AndesLight2 = self.addSwitch('AL2', listenPort=6605, dpid='0000000000000015', cls=get_switch_class())
+        AndesLight3 = self.addSwitch('AL3', listenPort=6606, dpid='0000000000000016', cls=get_switch_class())
+        self.Ampath3 = self.addSwitch('Ampath3', listenPort=6608, dpid='0000000000000017', cls=get_switch_class())
+        self.Ampath4 = self.addSwitch('Ampath4', listenPort=6609, dpid='0000000000000018', cls=get_switch_class())
+        self.Ampath5 = self.addSwitch('Ampath5', listenPort=6610, dpid='0000000000000019', cls=get_switch_class())
+        self.Ampath7 = self.addSwitch('Ampath7', listenPort=6611, dpid='0000000000000020', cls=get_switch_class())
+        JAX1 = self.addSwitch('JAX1', listenPort=6612, dpid='0000000000000021', cls=get_switch_class())
+        JAX2 = self.addSwitch('JAX2', listenPort=6613, dpid='0000000000000022', cls=get_switch_class())
         # add hosts
         h1 = self.addHost('h1', mac='00:00:00:00:00:01')
         h2 = self.addHost('h2', mac='00:00:00:00:00:02')
@@ -102,9 +125,9 @@ class RingTopo(Topo):
         h3 = self.addHost('h3', ip='0.0.0.0')
 
         # Create the switches
-        s1 = self.addSwitch('s1')
-        s2 = self.addSwitch('s2')
-        s3 = self.addSwitch('s3')
+        s1 = self.addSwitch('s1', cls=get_switch_class())
+        s2 = self.addSwitch('s2', cls=get_switch_class())
+        s3 = self.addSwitch('s3', cls=get_switch_class())
 
         # Add links between the switch and each host
         self.addLink(s1, h11)
@@ -123,10 +146,10 @@ class Ring4Topo(Topo):
 
     def build(self):
         # ("*** Creating switches\n")
-        s1 = self.addSwitch('s1', listenPort=6601, dpid="1")
-        s2 = self.addSwitch('s2', listenPort=6602, dpid="2")
-        s3 = self.addSwitch('s3', listenPort=6603, dpid="3")
-        s4 = self.addSwitch('s4', listenPort=6604, dpid="4")
+        s1 = self.addSwitch('s1', listenPort=6601, dpid="1", cls=get_switch_class())
+        s2 = self.addSwitch('s2', listenPort=6602, dpid="2", cls=get_switch_class())
+        s3 = self.addSwitch('s3', listenPort=6603, dpid="3", cls=get_switch_class())
+        s4 = self.addSwitch('s4', listenPort=6604, dpid="4", cls=get_switch_class())
 
         # ("*** Creating hosts\n")
         hosts1 = [self.addHost('h%d' % n) for n in (1, 2)]
@@ -158,8 +181,8 @@ class Looped(Topo):
     def build(self):
         "Create custom topo."
 
-        s1 = self.addSwitch("s1")
-        s2 = self.addSwitch("s2")
+        s1 = self.addSwitch("s1", cls=get_switch_class())
+        s2 = self.addSwitch("s2", cls=get_switch_class())
 
         self.addLink(s1, s1, port1=1, port2=2)
         self.addLink(s1, s1, port1=4, port2=5)
@@ -177,12 +200,12 @@ class MultiConnectedTopo(Topo):
         h5 = self.addHost('h5', ip='0.0.0.0')
         h6 = self.addHost('h6', ip='0.0.0.0')
         # Create the switches
-        s1 = self.addSwitch('s1')
-        s2 = self.addSwitch('s2')
-        s3 = self.addSwitch('s3')
-        s4 = self.addSwitch('s4')
-        s5 = self.addSwitch('s5')
-        s6 = self.addSwitch('s6')
+        s1 = self.addSwitch('s1', cls=get_switch_class())
+        s2 = self.addSwitch('s2', cls=get_switch_class())
+        s3 = self.addSwitch('s3', cls=get_switch_class())
+        s4 = self.addSwitch('s4', cls=get_switch_class())
+        s5 = self.addSwitch('s5', cls=get_switch_class())
+        s6 = self.addSwitch('s6', cls=get_switch_class())
         # Add links between the switch and each host
         self.addLink(s1, h1)
         self.addLink(s2, h2)
@@ -269,10 +292,13 @@ class NetworkTest:
         self.db_client = db_client(**db_client_kwargs)
         self.db_name = db_name
         self.db = self.db_client[self.db_name]
+        # setup a wrapper for configLinkStatus
+        self.net.orig_configLinkStatus = self.net.configLinkStatus
+        self.net.configLinkStatus = self.configLinkStatus
 
-    def start(self):
+    def start(self, clean_config=True, **kwargs):
         self.net.start()
-        self.start_controller(clean_config=True)
+        self.start_controller(clean_config=clean_config, **kwargs)
 
     def drop_database(self):
         """Drop database."""
@@ -333,19 +359,24 @@ class NetworkTest:
 
         self.wait_controller_start()
 
+        # make sure switches will reconnect
+        self.reconnect_switches(wait=False)
+
     def wait_controller_start(self):
         """Wait until controller starts according to core/status API."""
         wait_count = 0
+        last_error = ""
         while wait_count < 60:
             try:
-                response = requests.get('http://127.0.0.1:8181/api/kytos/core/status/', timeout=1)
-                assert response.json()['response'] == 'running'
+                response = requests.get('http://127.0.0.1:8181/api/kytos/core/status/', timeout=3)
+                assert response.json()['response'] == 'running', response.text
                 break
-            except:
+            except Exception as exc:
+                last_error = str(exc)
                 time.sleep(0.5)
                 wait_count += 0.5
         else:
-            msg = 'Timeout while starting Kytos controller.'
+            msg = f"Timeout while starting Kytos controller. Last error: {last_error}"
             raise Exception(msg)
 
     def wait_switches_connect(self):
@@ -362,7 +393,7 @@ class NetworkTest:
         self.wait_switches_connect()
 
     def reconnect_switches(self, target="tcp:127.0.0.1:6653",
-                           temp_target="tcp:127.0.0.1:6654"):
+                           temp_target="tcp:127.0.0.1:6654", wait=True):
         """Restart switches connections.
         This method can also be used to trigger a consistency check initial run.
 
@@ -370,16 +401,29 @@ class NetworkTest:
         if the controller config were to be deleted.
         """
         for sw in self.net.switches:
+            if hasattr(sw, "reset_controller") and callable(sw.reset_controller):
+                sw.reset_controller()
+                continue
             sw.vsctl(f"set-controller {sw.name} {temp_target}")
             sw.controllerUUIDs(update=True)
-        for sw in self.net.switches:
             sw.vsctl(f"set-controller {sw.name} {target}")
             sw.controllerUUIDs(update=True)
-        self.wait_switches_connect()
+        if wait:
+            self.wait_switches_connect()
+
+    def configLinkStatus(self, a, b, status):
+        node_a = self.net.get(a)
+        node_b = self.net.get(b)
+        connections = node_a.connectionsTo(node_b)
+        if isinstance(node_a, NoviSwitch):
+            node_a.configLinkStatus([c[0] for c in connections], status)
+        if isinstance(node_b, NoviSwitch):
+            node_b.configLinkStatus([c[1] for c in connections], status)
+        self.net.orig_configLinkStatus(a, b, status)
 
     def config_all_links_up(self):
         for link in self.net.links:
-            self.net.configLinkStatus(
+            self.configLinkStatus(
                 link.intf1.node.name,
                 link.intf2.node.name,
                 "up"

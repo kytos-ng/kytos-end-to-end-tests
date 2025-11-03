@@ -99,8 +99,8 @@ class TestE2EFlowManager:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        assert 'actions=output:"s1-eth2"' in flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        assert 'actions=output:2' in flows_s1
 
     def test_010_install_flow_and_retrieve_it_back(self):
         """Tests the flow status through the
@@ -141,11 +141,10 @@ class TestE2EFlowManager:
 
         time.sleep(10)
 
-        sw_name = "s1"
-        sw = self.net.net.get(sw_name)
+        sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
-        assert len(flows_sw.split('\r\n ')) == BASIC_FLOWS + 1, flows_sw
-        assert 'actions=output:"%s-eth2"' % sw_name in flows_sw
+        assert len(flows_sw.splitlines()) == BASIC_FLOWS + 1, flows_sw
+        assert 'actions=output:2' in flows_sw
 
         stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?dpids={switch_id}'
         response = requests.get(stored_flows)
@@ -203,11 +202,10 @@ class TestE2EFlowManager:
         # wait for the flow to be installed
         time.sleep(10)
 
-        sw_name = "s1"
-        sw = self.net.net.get(sw_name)
+        sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
-        assert len(flows_sw.split('\r\n ')) == BASIC_FLOWS + 1, flows_sw
-        assert 'actions=output:"%s-eth2"' % sw_name in flows_sw
+        assert len(flows_sw.splitlines()) == BASIC_FLOWS + 1, flows_sw
+        assert 'actions=output:2' in flows_sw
         assert 'cookie=0x65' in flows_sw
         assert 'cookie=0x64' not in flows_sw
 
@@ -263,8 +261,8 @@ class TestE2EFlowManager:
         for sw_name in ['s1', 's2', 's3']:
             sw = self.net.net.get(sw_name)
             flows_sw = sw.dpctl('dump-flows')
-            assert len(flows_sw.split('\r\n ')) == BASIC_FLOWS + 1, flows_sw
-            assert 'actions=output:"%s-eth2"' % sw_name in flows_sw
+            assert len(flows_sw.splitlines()) == BASIC_FLOWS + 1, flows_sw
+            assert 'actions=output:2' in flows_sw, f"sw={sw_name} flows={flows_sw}"
 
     def test_016_install_invalid_flow_cookie_overflowed(self):
         """Test try to install an overflowed cookie value."""
@@ -412,8 +410,8 @@ class TestE2EFlowManager:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
-        assert 'actions=output:"s1-eth2"' not in flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
+        assert 'actions=output:2' not in flows_s1
 
     def test_025_delete_flows(self):
         """Tests if, after kytos restart, a flow deleted
@@ -489,8 +487,8 @@ class TestE2EFlowManager:
         for sw_name in ['s1', 's2', 's3']:
             sw = self.net.net.get(sw_name)
             flows_sw = sw.dpctl('dump-flows')
-            assert len(flows_sw.split('\r\n ')) == BASIC_FLOWS, flows_sw
-            assert 'actions=output:"%s-eth2"' % sw_name not in flows_sw
+            assert len(flows_sw.splitlines()) == BASIC_FLOWS, flows_sw
+            assert 'actions=output:2' not in flows_sw, f"sw={sw_name} flows={flows_sw}"
 
     def test_026_delete_flows_cookie_mask_range(self):
         """Test deleting flows with cookie range mask and persistence."""""
@@ -586,7 +584,7 @@ class TestE2EFlowManager:
 
         sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
-        assert len(flows_sw.split('\r\n ')) == BASIC_FLOWS, flows_sw
+        assert len(flows_sw.splitlines()) == BASIC_FLOWS, flows_sw
 
     def test_027_delete_flows_cookie_mask_range_any(self):
         """Test deleting flows with cookie range mask any."""""
@@ -683,7 +681,7 @@ class TestE2EFlowManager:
 
         sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
-        assert flows_sw.split('\r\n ') == [''], flows_sw
+        assert flows_sw.splitlines() == [], flows_sw
 
     def test_028_delete_flows_cookie_mask_range_partial(self):
         """Test deleting flows with cookie range mask partial match."""""
@@ -772,7 +770,7 @@ class TestE2EFlowManager:
         # Make sure that only one flow got deleted
         sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
-        assert len(flows_sw.split('\r\n ')) == BASIC_FLOWS + 1, flows_sw
+        assert len(flows_sw.splitlines()) == BASIC_FLOWS + 1, flows_sw
         assert 'dl_vlan=101' in flows_sw
 
     def modify_match(self, restart_kytos=False):
@@ -820,8 +818,8 @@ class TestE2EFlowManager:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        assert 'in_port=1' in flows_s1
 
     def test_030_modify_match(self):
         self.modify_match()
@@ -860,14 +858,14 @@ class TestE2EFlowManager:
         # Verify the flow
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        assert 'in_port=1' in flows_s1
 
         # Modify the actions and verify its modification
         s1.dpctl('mod-flows', 'actions=output:3')
         flows_s1 = s1.dpctl('dump-flows')
-        assert 'actions=output:"s1-eth2"' not in flows_s1
-        assert 'actions=output:"s1-eth3"' in flows_s1
+        assert 'actions=output:2' not in flows_s1
+        assert 'actions=output:3' in flows_s1
 
         if restart_kytos:
             # restart controller keeping configuration
@@ -881,9 +879,9 @@ class TestE2EFlowManager:
         # Check that the flow keeps the original setting
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        assert 'actions=output:"s1-eth3"' not in flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        assert 'actions=output:3' not in flows_s1
+        assert 'in_port=1' in flows_s1
 
     def test_040_replace_action_flow(self):
         self.replace_action_flow()
@@ -919,8 +917,8 @@ class TestE2EFlowManager:
         # Verify the flow
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        assert 'in_port=1' in flows_s1
 
         s1.dpctl('add-flow', 'in_port=1,idle_timeout=360,hard_timeout=1200,priority=10,actions=strip_vlan,output:2')
 
@@ -934,9 +932,9 @@ class TestE2EFlowManager:
         time.sleep(10)
 
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
         assert 'actions=strip_vlan,' not in flows_s1
-        assert 'actions=output:"s1-eth2' in flows_s1
+        assert 'actions=output:2' in flows_s1
 
     def test_050_add_action_flow(self):
         self.add_action_flow()
@@ -961,7 +959,7 @@ class TestE2EFlowManager:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
 
     def test_060_flow_another_table(self):
         self.flow_another_table()
@@ -987,7 +985,7 @@ class TestE2EFlowManager:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
 
     def test_070_flow_table_0(self):
         self.flow_table_0()
@@ -1075,9 +1073,9 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS + 3, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 3, flows_s3
 
         payload = {
             "00:00:00:00:00:00:00:03": {
@@ -1113,9 +1111,9 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS, flows_s3
 
     def test_100_install_delete_flows_in_switch_list(self):
         """Install and delete through /v2/flows and a list of
@@ -1136,9 +1134,9 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS, flows_s3
 
         payload = {
             "switches": ["00:00:00:00:00:00:00:01", "00:00:00:00:00:00:00:02"],
@@ -1151,9 +1149,9 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS, flows_s3
 
     def test_105_mismatch_miss_flow(self):
         """Install miss flow and try to delete it with a mismatched
@@ -1174,7 +1172,7 @@ class TestE2EFlowManager:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
 
         payload = {"00:00:00:00:00:00:00:01": {
             "flows": [{
@@ -1192,7 +1190,7 @@ class TestE2EFlowManager:
 
         # Previously installed flow should not be deleted
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
 
     def test_110_install_delete_flows_by_switch_diff_cookie(self):
         """Install and delete via flows_by_switch API request.
@@ -1237,9 +1235,9 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS + 3, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 3, flows_s3
 
         payload = {
             "00:00:00:00:00:00:00:03": {
@@ -1275,6 +1273,6 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS, flows_s3
