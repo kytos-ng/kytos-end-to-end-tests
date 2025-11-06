@@ -102,6 +102,7 @@ class TestE2EOfLLDP:
         data = response.json()
         assert data["pairs"], data
         for entry in data["pairs"]:
+            assert entry["link_id"] == entry["interface_a"]["id"], entry
             assert entry["status"] == "up", entry
             intfa_id = entry["interface_a"]["id"]
             intfb_id = entry["interface_b"]["id"]
