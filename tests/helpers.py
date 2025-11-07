@@ -24,33 +24,30 @@ NoviSwitch.dpctl = dpctl_wrapper
 OVSSwitch.orig_dpctl = OVSSwitch.dpctl
 OVSSwitch.dpctl = dpctl_wrapper
 
-def get_switch_class():
-    switch_class_map = {
-        'OVSSwitch': OVSSwitch,
-        'NoviSwitch': NoviSwitch,
-    }
-    cls_name = os.environ.get('SWITCH_CLASS', 'OVSSwitch')
-    if not NoviSwitch.is_available():
-        cls_name = 'OVSSwitch'
-    return switch_class_map[cls_name]
+class SwitchFactory:
+    def __new__(cls, *args, **kwargs):
+        cls_name = os.environ.get('SWITCH_CLASS')
+        if cls_name == "NoviSwitch" and NoviSwitch.is_available():
+            return NoviSwitch(*args, **kwargs)
+        return OVSSwitch(*args, **kwargs)
 
 
 class AmlightTopo(Topo):
     """Amlight Topology."""
     def build(self):
         # Add switches
-        self.Ampath1 = self.addSwitch('Ampath1', listenPort=6601, dpid='0000000000000011', cls=get_switch_class())
-        self.Ampath2 = self.addSwitch('Ampath2', listenPort=6602, dpid='0000000000000012', cls=get_switch_class())
-        SouthernLight2 = self.addSwitch('SoL2', listenPort=6603, dpid='0000000000000013', cls=get_switch_class())
-        SanJuan = self.addSwitch('SanJuan', listenPort=6604, dpid='0000000000000014', cls=get_switch_class())
-        AndesLight2 = self.addSwitch('AL2', listenPort=6605, dpid='0000000000000015', cls=get_switch_class())
-        AndesLight3 = self.addSwitch('AL3', listenPort=6606, dpid='0000000000000016', cls=get_switch_class())
-        self.Ampath3 = self.addSwitch('Ampath3', listenPort=6608, dpid='0000000000000017', cls=get_switch_class())
-        self.Ampath4 = self.addSwitch('Ampath4', listenPort=6609, dpid='0000000000000018', cls=get_switch_class())
-        self.Ampath5 = self.addSwitch('Ampath5', listenPort=6610, dpid='0000000000000019', cls=get_switch_class())
-        self.Ampath7 = self.addSwitch('Ampath7', listenPort=6611, dpid='0000000000000020', cls=get_switch_class())
-        JAX1 = self.addSwitch('JAX1', listenPort=6612, dpid='0000000000000021', cls=get_switch_class())
-        JAX2 = self.addSwitch('JAX2', listenPort=6613, dpid='0000000000000022', cls=get_switch_class())
+        self.Ampath1 = self.addSwitch('Ampath1', listenPort=6601, dpid='0000000000000011')
+        self.Ampath2 = self.addSwitch('Ampath2', listenPort=6602, dpid='0000000000000012')
+        SouthernLight2 = self.addSwitch('SoL2', listenPort=6603, dpid='0000000000000013')
+        SanJuan = self.addSwitch('SanJuan', listenPort=6604, dpid='0000000000000014')
+        AndesLight2 = self.addSwitch('AL2', listenPort=6605, dpid='0000000000000015')
+        AndesLight3 = self.addSwitch('AL3', listenPort=6606, dpid='0000000000000016')
+        self.Ampath3 = self.addSwitch('Ampath3', listenPort=6608, dpid='0000000000000017')
+        self.Ampath4 = self.addSwitch('Ampath4', listenPort=6609, dpid='0000000000000018')
+        self.Ampath5 = self.addSwitch('Ampath5', listenPort=6610, dpid='0000000000000019')
+        self.Ampath7 = self.addSwitch('Ampath7', listenPort=6611, dpid='0000000000000020')
+        JAX1 = self.addSwitch('JAX1', listenPort=6612, dpid='0000000000000021')
+        JAX2 = self.addSwitch('JAX2', listenPort=6613, dpid='0000000000000022')
         # add hosts
         h1 = self.addHost('h1', mac='00:00:00:00:00:01')
         h2 = self.addHost('h2', mac='00:00:00:00:00:02')
@@ -125,9 +122,9 @@ class RingTopo(Topo):
         h3 = self.addHost('h3', ip='0.0.0.0')
 
         # Create the switches
-        s1 = self.addSwitch('s1', cls=get_switch_class())
-        s2 = self.addSwitch('s2', cls=get_switch_class())
-        s3 = self.addSwitch('s3', cls=get_switch_class())
+        s1 = self.addSwitch('s1')
+        s2 = self.addSwitch('s2')
+        s3 = self.addSwitch('s3')
 
         # Add links between the switch and each host
         self.addLink(s1, h11)
@@ -146,10 +143,10 @@ class Ring4Topo(Topo):
 
     def build(self):
         # ("*** Creating switches\n")
-        s1 = self.addSwitch('s1', listenPort=6601, dpid="1", cls=get_switch_class())
-        s2 = self.addSwitch('s2', listenPort=6602, dpid="2", cls=get_switch_class())
-        s3 = self.addSwitch('s3', listenPort=6603, dpid="3", cls=get_switch_class())
-        s4 = self.addSwitch('s4', listenPort=6604, dpid="4", cls=get_switch_class())
+        s1 = self.addSwitch('s1', listenPort=6601, dpid="1")
+        s2 = self.addSwitch('s2', listenPort=6602, dpid="2")
+        s3 = self.addSwitch('s3', listenPort=6603, dpid="3")
+        s4 = self.addSwitch('s4', listenPort=6604, dpid="4")
 
         # ("*** Creating hosts\n")
         hosts1 = [self.addHost('h%d' % n) for n in (1, 2)]
@@ -181,8 +178,8 @@ class Looped(Topo):
     def build(self):
         "Create custom topo."
 
-        s1 = self.addSwitch("s1", cls=get_switch_class())
-        s2 = self.addSwitch("s2", cls=get_switch_class())
+        s1 = self.addSwitch("s1")
+        s2 = self.addSwitch("s2")
 
         self.addLink(s1, s1, port1=1, port2=2)
         self.addLink(s1, s1, port1=4, port2=5)
@@ -200,12 +197,12 @@ class MultiConnectedTopo(Topo):
         h5 = self.addHost('h5', ip='0.0.0.0')
         h6 = self.addHost('h6', ip='0.0.0.0')
         # Create the switches
-        s1 = self.addSwitch('s1', cls=get_switch_class())
-        s2 = self.addSwitch('s2', cls=get_switch_class())
-        s3 = self.addSwitch('s3', cls=get_switch_class())
-        s4 = self.addSwitch('s4', cls=get_switch_class())
-        s5 = self.addSwitch('s5', cls=get_switch_class())
-        s6 = self.addSwitch('s6', cls=get_switch_class())
+        s1 = self.addSwitch('s1')
+        s2 = self.addSwitch('s2')
+        s3 = self.addSwitch('s3')
+        s4 = self.addSwitch('s4')
+        s5 = self.addSwitch('s5')
+        s6 = self.addSwitch('s6')
         # Add links between the switch and each host
         self.addLink(s1, h1)
         self.addLink(s2, h2)
@@ -285,7 +282,7 @@ class NetworkTest:
             topo=topos.get(topo_name, (lambda: RingTopo()))(),
             controller=lambda name: RemoteController(
                 name, ip=controller_ip, port=6653),
-            switch=OVSSwitch,
+            switch=SwitchFactory,
             autoSetMacs=True)
         db_client_kwargs = db_client_options or {}
         db_name = db_client_kwargs.get("database") or os.environ.get("MONGO_DBNAME")
