@@ -101,12 +101,15 @@ class TestE2EOfLLDP:
         response = requests.get(api_url)
         data = response.json()
         assert data["pairs"], data
+        live_intf_links = {}
         for entry in data["pairs"]:
-            assert entry["link_id"] == entry["interface_a"]["id"], entry
             assert entry["status"] == "up", entry
             intfa_id = entry["interface_a"]["id"]
             intfb_id = entry["interface_b"]["id"]
             assert (intfa_id, intfb_id) in intfs_grouped
+            assert entry["link_id"]
+            live_intf_links[intfa_id] = entry["link_id"]
+            live_intf_links[intfb_id] = entry["link_id"]
 
         # Assert link metadata has liveness_status "up"
         api_url = f"{KYTOS_API}/topology/v3/links"
@@ -122,6 +125,9 @@ class TestE2EOfLLDP:
                 )
             ):
                 assert link["metadata"]["liveness_status"] == "up"
+                # Make sure on v1/liveness/pair intfs have the same link_id
+                assert link["id"] == live_intf_links[link["endpoint_a"]["id"]]
+                assert link["id"] == live_intf_links[link["endpoint_b"]["id"]]
 
         # Restart the controller maintaining config
         self.restart(wait_for=15)
