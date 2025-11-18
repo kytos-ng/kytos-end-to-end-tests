@@ -345,7 +345,7 @@ class NoviSwitch( Switch ):
             if intf.link:
                 self.novi_setup_intf(intf)
 
-        cmd = 'set config switch dpid %s' % hex(int(self.dpid))
+        cmd = 'set config switch dpid %s' % hex(int(self.dpid, 16))
         result = self.novi_cmd(cmd)
         if 'error' in result.lower():
             log.error('error configuring dpid %s in switch %s: %s\n' % (self.dpid, self.novi_name, result))
