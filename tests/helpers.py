@@ -6,6 +6,7 @@ from mock import patch
 import time
 import os
 import requests
+import hashlib
 
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
@@ -385,9 +386,42 @@ class NetworkTest:
                 status = [(sw.name, sw.connected()) for sw in self.net.switches]
                 raise Exception('Timeout: timed out waiting switches reconnect. Status %s' % status)
 
+    def wait_kytos_links(self):
+        wait_count = 0
+        last_error = ""
+        topo_links = []
+        for link in self.net.links:
+            if link.intf1.node in self.net.switches and link.intf2.node in self.net.switches:
+                topo_links.append(self.create_link_id(link))
+        while wait_count < 30:
+            try:
+                response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
+                links = response.json()["links"]
+                assert len(topo_links) == len(links), f"{topo_links=} {links=}"
+                assert all(link_id in links for link_id in topo_links), f"{topo_links=} {links=}"
+                break
+            except Exception as exc:
+                last_error = str(exc)
+            time.sleep(1)
+            wait_count += 1
+        else:
+            msg = f"Timeout waiting for links. Last error: {last_error}"
+            raise Exception(msg)
+
+    def create_link_id(self, link):
+        dpid1 = link.intf1.node.dpid
+        dpid2 = link.intf2.node.dpid
+        port1 = link.intf1.node.ports[link.intf1]
+        port2 = link.intf2.node.ports[link.intf2]
+        intf1 = ":".join(dpid1[i:i+2] for i in range(0, len(dpid1), 2)) + f":{port1}"
+        intf2 = ":".join(dpid2[i:i+2] for i in range(0, len(dpid2), 2)) + f":{port2}"
+        raw_str = ":".join(sorted((intf1, intf2)))
+        return hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
+
     def restart_kytos_clean(self):
         self.start_controller(clean_config=True, enable_all=True)
         self.wait_switches_connect()
+        self.wait_kytos_links()
 
     def reconnect_switches(self, target="tcp:127.0.0.1:6653",
                            temp_target="tcp:127.0.0.1:6654", wait=True):

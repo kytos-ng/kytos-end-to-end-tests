@@ -39,8 +39,7 @@ class TestE2EMefEline:
         # the link state to up (for all links)
         self.net.config_all_links_up()
         # Start the controller with all elements enabled and clean database
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     @classmethod

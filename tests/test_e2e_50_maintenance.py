@@ -1225,8 +1225,7 @@ class TestE2EMaintenance:
         assert response.status_code == 400, response.text
 
     def test_125_multiple_payload_item_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1263,8 +1262,7 @@ class TestE2EMaintenance:
         ]
 
     def test_130_switch_payload_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1292,8 +1290,7 @@ class TestE2EMaintenance:
         assert data["links"] == []
 
     def test_135_interface_payload_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1321,8 +1318,7 @@ class TestE2EMaintenance:
         assert data["links"] == []
 
     def test_140_link_payload_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1380,8 +1376,7 @@ class TestE2EMaintenance:
 
     def test_150_no_time_conflicts(self):
         """Test MWs with no end time and possible conflicts."""
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         now = datetime.now(UTC)
         api_url = KYTOS_API + '/maintenance/v1'
 
@@ -1441,8 +1436,7 @@ class TestE2EMaintenance:
 
     def test_155_extend_mw_every_time_unit(self):
         """Test extending MW with seconds, minutes, hours and days."""
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         mw_start_delay = 10
         mw_duration_hrs = 1
         mw_extension_sec = 10

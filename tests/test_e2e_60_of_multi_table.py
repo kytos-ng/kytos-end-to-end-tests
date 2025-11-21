@@ -13,8 +13,7 @@ class TestE2EOfMultiTable:
 
     def setup_method(self, method):
         """Called at the beginning of each class method"""
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     @classmethod
