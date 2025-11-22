@@ -413,12 +413,14 @@ class NetworkTest:
     def create_link_id(self, link):
         dpid1 = link.intf1.node.dpid
         dpid2 = link.intf2.node.dpid
+        dpid1 = ":".join(dpid1[i:i+2] for i in range(0, len(dpid1), 2))
+        dpid2 = ":".join(dpid2[i:i+2] for i in range(0, len(dpid2), 2))
         port1 = link.intf1.node.ports.get(link.intf1)
         port2 = link.intf2.node.ports.get(link.intf2)
         if not port1 or not port2:
             return
-        intf1 = ":".join(dpid1[i:i+2] for i in range(0, len(dpid1), 2)) + f":{port1}"
-        intf2 = ":".join(dpid2[i:i+2] for i in range(0, len(dpid2), 2)) + f":{port2}"
+        intf1 = f"{dpid1}:{port1}"
+        intf2 = f"{dpid2}:{port2}"
         if dpid1 == dpid2:
             port1, port2 = sorted((port1, port2))
             raw_str = f"{dpid1}:{port1}:{dpid2}:{port2}"
