@@ -16,7 +16,8 @@ class TestE2ETopology:
         It is called at the beginning of every class method execution
         """
         # Start the controller setting an environment in
-        # which all elements are disabled in a clean setting
+        # which all elements are enabled in a clean setting
+        self.net.config_all_links_up()
         self.net.restart_kytos_clean()
         time.sleep(20)
 

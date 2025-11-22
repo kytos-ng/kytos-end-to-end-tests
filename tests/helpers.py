@@ -415,7 +415,11 @@ class NetworkTest:
         port2 = link.intf2.node.ports[link.intf2]
         intf1 = ":".join(dpid1[i:i+2] for i in range(0, len(dpid1), 2)) + f":{port1}"
         intf2 = ":".join(dpid2[i:i+2] for i in range(0, len(dpid2), 2)) + f":{port2}"
-        raw_str = ":".join(sorted((intf1, intf2)))
+        if dpid1 == dpid2:
+            port1, port2 = sorted((port1, port2))
+            raw_str = f"{dpid1}:{port1}:{dpid2}:{port2}"
+        else:
+            raw_str = ":".join(sorted((intf1, intf2)))
         return hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
 
     def restart_kytos_clean(self):

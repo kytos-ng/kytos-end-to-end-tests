@@ -29,7 +29,6 @@ class TestE2EKafkaEvents:
         self.net.config_all_links_up()
         self.net.start_controller(clean_config=True, enable_all=False)
         self.net.wait_switches_connect()
-        self.net.wait_kytos_links()
         time.sleep(5)
 
     @classmethod
