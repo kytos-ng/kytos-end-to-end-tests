@@ -392,7 +392,9 @@ class NetworkTest:
         topo_links = []
         for link in self.net.links:
             if link.intf1.node in self.net.switches and link.intf2.node in self.net.switches:
-                topo_links.append(self.create_link_id(link))
+                link_id = self.create_link_id(link)
+                if link_id:
+                    topo_links.append(link_id)
         while wait_count < 30:
             try:
                 response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
@@ -411,8 +413,10 @@ class NetworkTest:
     def create_link_id(self, link):
         dpid1 = link.intf1.node.dpid
         dpid2 = link.intf2.node.dpid
-        port1 = link.intf1.node.ports[link.intf1]
-        port2 = link.intf2.node.ports[link.intf2]
+        port1 = link.intf1.node.ports.get(link.intf1)
+        port2 = link.intf2.node.ports.get(link.intf2)
+        if not port1 or not port2:
+            return
         intf1 = ":".join(dpid1[i:i+2] for i in range(0, len(dpid1), 2)) + f":{port1}"
         intf2 = ":".join(dpid2[i:i+2] for i in range(0, len(dpid2), 2)) + f":{port2}"
         if dpid1 == dpid2:
