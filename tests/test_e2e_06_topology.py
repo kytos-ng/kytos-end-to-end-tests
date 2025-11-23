@@ -147,6 +147,7 @@ class TestE2ETopology:
             counter_searches += 1
 
         self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.net.configLinkStatus('s1', 's6', 'down')
         for link in links_id:
             # Disabling links
             api_url = f'{KYTOS_API}/topology/v3/links/{link}/disable'
@@ -166,6 +167,7 @@ class TestE2ETopology:
             api_url = f'{KYTOS_API}/topology/v3/switches/{switch_1}'
             response = requests.delete(api_url)
             status_code = response.status_code
+            counter_tries += 1
         assert response.status_code == 200, f"{response.text}, tries: {counter_tries}"
 
     @pytest.mark.skipif(
