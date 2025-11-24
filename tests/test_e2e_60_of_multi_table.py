@@ -330,7 +330,7 @@ class TestE2EOfMultiTable:
         h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan_ra type vlan id 100')
         h2.cmd('ip link set up vlan_ra')
         h2.cmd('ip addr add 100.0.0.2/24 dev vlan_ra')
-        result = h11.cmd('ping -c1 100.0.0.2')
+        result = h11.cmd('ping -c1 -W5 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         s1 = self.net.net.get('s1')
@@ -359,7 +359,7 @@ class TestE2EOfMultiTable:
         h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan_ra type vlan id 100')
         h2.cmd('ip link set up vlan_ra')
         h2.cmd('ip addr add 100.0.0.2/24 dev vlan_ra')
-        result = h11.cmd('ping -c1 100.0.0.2')
+        result = h11.cmd('ping -c1 -W5 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         s1 = self.net.net.get('s1')
