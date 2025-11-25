@@ -129,7 +129,7 @@ class TestE2EMaintenance:
         h3.cmd('ip link add link %s name vlan100 type vlan id 100' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan100')
         h3.cmd('ip addr add 100.0.0.2/24 dev vlan100')
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Initially, it should only have these flows
@@ -178,7 +178,7 @@ class TestE2EMaintenance:
             "00:00:00:00:00:00:00:01",
             "00:00:00:00:00:00:00:03",
         }, current_path_sws
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert '0 received' not in result
 
         # Waits for the MW to finish and check if the path returns to the initial configuration
@@ -194,7 +194,7 @@ class TestE2EMaintenance:
             sw_mw,
             "00:00:00:00:00:00:00:03",
         }, current_path_sws
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Eventually these flows are expected over the original path again
@@ -396,7 +396,7 @@ class TestE2EMaintenance:
         h3.cmd('ip link add link %s name vlan100 type vlan id 100' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan100')
         h3.cmd('ip addr add 100.0.0.2/24 dev vlan100')
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Waits for the MW to finish and check if the path returns to the initial configuration
@@ -405,7 +405,7 @@ class TestE2EMaintenance:
         # Verifies the flows behavior after the maintenance
         flows_s2 = s2.dpctl('dump-flows')
         assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Cleans up
@@ -732,7 +732,7 @@ class TestE2EMaintenance:
         # (no maintenance at that time, it has been delayed)
         flows_s2 = s2.dpctl('dump-flows')
         assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Waits for the time in which MW will be running
@@ -742,7 +742,7 @@ class TestE2EMaintenance:
         flows_s2 = s2.dpctl('dump-flows')
         assert 'dl_vlan=100' not in flows_s2
         assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Waits for the MW to finish and check if the path returns to the initial configuration
@@ -751,7 +751,7 @@ class TestE2EMaintenance:
         # Verifies the flow behavior after the maintenance window
         flows_s2 = s2.dpctl('dump-flows')
         assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Cleans up
@@ -855,7 +855,7 @@ class TestE2EMaintenance:
         # (no maintenance at that time, it has been deleted)
         flows_s2 = s2.dpctl('dump-flows')
         assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Cleans up
@@ -928,7 +928,7 @@ class TestE2EMaintenance:
         h3.cmd('ip link add link %s name vlan100 type vlan id 100' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan100')
         h3.cmd('ip addr add 100.0.0.2/24 dev vlan100')
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Ends the maintenance window information
@@ -942,7 +942,7 @@ class TestE2EMaintenance:
         # Verifies the flow behavior and connectivity after ending the maintenance
         flows_s2 = s2.dpctl('dump-flows')
         assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Cleans up
@@ -1057,7 +1057,7 @@ class TestE2EMaintenance:
         h3.cmd('ip link add link %s name vlan100 type vlan id 100' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan100')
         h3.cmd('ip addr add 100.0.0.2/24 dev vlan100')
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         payload2 = {'minutes': mw_extension}
@@ -1084,7 +1084,7 @@ class TestE2EMaintenance:
         h3.cmd('ip link add link %s name vlan100 type vlan id 100' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan100')
         h3.cmd('ip addr add 100.0.0.2/24 dev vlan100')
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Waits for the MW to finish and check if the path returns to the initial configuration
@@ -1093,7 +1093,7 @@ class TestE2EMaintenance:
         # Verifies the flows behavior after the maintenance
         flows_s2 = s2.dpctl('dump-flows')
         assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Cleans up

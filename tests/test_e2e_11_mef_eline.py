@@ -110,7 +110,7 @@ class TestE2EMefEline:
         h3.cmd('ip link add link %s name vlan101 type vlan id 101' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan101')
         h3.cmd('ip addr add 101.0.0.3/24 dev vlan101')
-        result = h1.cmd('ping -c1 -W5 101.0.0.3')
+        result = h1.cmd('ping -c1 101.0.0.3')
         assert ', 0% packet loss,' in result
 
         # Clean up
@@ -173,7 +173,7 @@ class TestE2EMefEline:
         h3.cmd('ip link add link %s name vlan101 type vlan id 101' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan101')
         h3.cmd('ip addr add 101.0.0.3/24 dev vlan101')
-        result = h1.cmd('ping -c1 -W5 101.0.0.3')
+        result = h1.cmd('ping -c1 101.0.0.3')
         assert ', 0% packet loss,' in result
 
         # Clean up
@@ -235,7 +235,7 @@ class TestE2EMefEline:
         h3.cmd('ip link add link %s name vlan101 type vlan id 101' % (h3.intfNames()[0]))
         h3.cmd('ip link set up vlan101')
         h3.cmd('ip addr add 101.0.0.3/24 dev vlan101')
-        result = h1.cmd('ping -c1 -W5 101.0.0.3')
+        result = h1.cmd('ping -c1 101.0.0.3')
         assert ', 0% packet loss,' in result
 
         # clean up
@@ -281,7 +281,7 @@ class TestE2EMefEline:
         h2.cmd('ip link add link %s name vlan101 type vlan id 101' % (h2.intfNames()[0]))
         h2.cmd('ip link set up vlan101')
         h2.cmd('ip addr add 101.0.0.3/24 dev vlan101')
-        result = h1.cmd('ping -c1 -W5 101.0.0.3')
+        result = h1.cmd('ping -c1 101.0.0.3')
         assert ', 0% packet loss,' in result
 
         # Clean up

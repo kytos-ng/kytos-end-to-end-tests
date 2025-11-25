@@ -362,7 +362,7 @@ class TestE2EKytosStats:
         h12.cmd('ip link set up vlan101')
         h12.cmd('ip addr add 10.1.1.12/24 dev vlan101')
 
-        result = h11.cmd('ping -c1 -W5 10.1.1.12')
+        result = h11.cmd('ping -c1 10.1.1.12')
         assert ', 0% packet loss,' in result
 
         # give enough time for stats gathering

@@ -140,7 +140,7 @@ class TestE2EMefEline:
         h2.cmd('ip link add link %s name vlan100 type vlan id 100' % (h2.intfNames()[0]))
         h2.cmd('ip link set up vlan100')
         h2.cmd('ip addr add 100.0.0.2/24 dev vlan100')
-        result = h11.cmd('ping -c1 -W5 100.0.0.2')
+        result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
     def test_001_create_update_with_constraints(self):
@@ -518,7 +518,7 @@ class TestE2EMefEline:
         h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan12 type vlan id {vlan}')
         h2.cmd(f'ip link set up vlan12')
         h2.cmd(f'ip addr add {vlan}.0.0.2/24 dev vlan12')
-        result = h11.cmd(f'ping -c1 -W5 {vlan}.0.0.2')
+        result = h11.cmd(f'ping -c1 {vlan}.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Ping mask 16/4092
@@ -529,7 +529,7 @@ class TestE2EMefEline:
         h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan16 type vlan id {vlan}')
         h2.cmd(f'ip link set up vlan16')
         h2.cmd(f'ip addr add {vlan}.0.0.2/24 dev vlan16')
-        result = h11.cmd(f'ping -c1 -W5 {vlan}.0.0.2')
+        result = h11.cmd(f'ping -c1 {vlan}.0.0.2')
         assert ', 0% packet loss,' in result
 
         # Ping mask 20/4094
@@ -540,7 +540,7 @@ class TestE2EMefEline:
         h2.cmd(f'ip link add link {h2.intfNames()[0]} name vlan20 type vlan id {vlan}')
         h2.cmd(f'ip link set up vlan20')
         h2.cmd(f'ip addr add {vlan}.0.0.2/24 dev vlan20')
-        result = h11.cmd(f'ping -c1 -W5 {vlan}.0.0.2')
+        result = h11.cmd(f'ping -c1 {vlan}.0.0.2')
         assert ', 0% packet loss,' in result
 
     def test_006_evc_vlan_allocation_not_available(self):
