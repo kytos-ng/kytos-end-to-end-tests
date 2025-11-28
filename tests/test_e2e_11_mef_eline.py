@@ -344,3 +344,82 @@ class TestE2EMefEline:
         assert "The request body contains invalid API data" in data["description"]
         assert "not of type" in data["description"]
         assert "1 is not of type 'string'" in data["description"]
+
+    def test_030_fail_patch_with_uni(self):
+        """Test patch when updating with UNI making path invalid."""
+        payload = {
+            "name": "my evc1",
+            "enabled": True,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+                "tag": {"tag_type": "vlan", "value": 101}
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {"tag_type": 1, "value": 101}
+            },
+            "primary_path": [
+                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
+                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:3"}}
+            ],
+            "dynamic_backup_path": False,
+        }
+
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert response.status_code == 201, response.text
+
+        circuit_id = response.json()["circuit_id"]
+        payload = {"uni_a": {
+            "interface_id": "00:00:00:00:00:00:00:03:1",
+            "tag": {"tag_type": "vlan", "value": 101}
+        }}
+
+        api_url = f'{KYTOS_API}/mef_eline/v2/evc/{circuit_id}'
+        response = requests.patch(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert response.status_code == 400, response.text
+
+    def test_035_patch_fail_not_use_vlan(self):
+        """Test patch failure and not use vlan in content."""
+        payload = {
+            "name": "my evc1",
+            "enabled": True,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+                "tag": {"tag_type": "vlan", "value": 101}
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {"tag_type": 1, "value": 101}
+            },
+            "primary_path": [
+                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
+                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:3"}}
+            ],
+            "dynamic_backup_path": False,
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert response.status_code == 201, response.text
+
+        circuit_id = response.json()["circuit_id"]
+        payload = {
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:03:1",
+                "tag": {"tag_type": "vlan", "value": 999}
+            },
+            "primary_path": [
+                {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
+                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"}}
+            ],}
+
+        api_url = f'{KYTOS_API}/mef_eline/v2/evc/{circuit_id}'
+        response = requests.patch(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
+        assert response.status_code == 400, response.text
+
+        # Check for VLAN 999
+        api_url = f'{KYTOS_API}/topology/v3/interfaces/tag_ranges'
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        available_vlans = response.json()["00:00:00:00:00:00:00:03:1"]["available_tags"]["vlan"]
+        assert available_vlans == [[1, 3798], [3800, 4094]]
