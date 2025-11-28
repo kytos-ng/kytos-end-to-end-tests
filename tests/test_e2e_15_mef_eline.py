@@ -6,6 +6,8 @@ import requests
 
 from tests.helpers import NetworkTest
 
+from kytos.core.id import LinkID
+
 CONTROLLER = "127.0.0.1"
 KYTOS_API = "http://%s:8181/api/kytos" % CONTROLLER
 
@@ -225,6 +227,31 @@ class TestE2EMefEline:
 
     def test_003_evc_vlan_allocation(self):
         """Test patch an evc with a duplicated tag value"""
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[1, 99], [101, 199], [201, 3798], [3800, 4095]]
+        }
+
+        link_id = LinkID(
+            "00:00:00:00:00:00:00:02:2",
+            "00:00:00:00:00:00:00:01:3"
+        )
+        api_url = KYTOS_API + f'/topology/v3/links/{link_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[100, 100], [200, 200], [3799, 3799]]
+        }
+
+        intf_id = "00:00:00:00:00:00:00:02:2"
+        api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+
         evc_1 = {
             "name": "EVC_1",
             "enabled": True,
@@ -253,7 +280,9 @@ class TestE2EMefEline:
         assert actual == expected
         assert actual_tr == expected_tr
         actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
-        actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
+        expected = [[200, 200]]
+        expected_tr = [[100, 100], [200, 200], [3799, 3799]]
         assert actual == expected
         assert actual_tr == expected_tr
 
@@ -281,21 +310,23 @@ class TestE2EMefEline:
         response = requests.get(topo_url)
         data = response.json()
         actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
-        expected_tr = [[1, 4094]]
+        expected = []
+        expected_tr = [[100, 100], [200, 200], [3799, 3799]]
         assert actual == expected
         assert actual_tr == expected_tr
 
         actual = data["00:00:00:00:00:00:00:01:1"]["available_tags"]["vlan"]
-        expected = [[1, 199], [201, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:01:1"]["tag_ranges"]["vlan"]
+        expected = [[1, 199], [201, 3798], [3800, 4094]]
+        expected_tr = [[1, 4094]]
         assert actual == expected
         assert actual_tr == expected_tr
 
         actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        expected = [[1, 99], [101, 3798], [3800, 4094]]
+        expected_tr = [[1, 4094]]
         assert actual == expected
         assert actual_tr == expected_tr
 
@@ -316,14 +347,16 @@ class TestE2EMefEline:
         response = requests.get(topo_url)
         data = response.json()
         actual = data["00:00:00:00:00:00:00:02:1"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:1"]["tag_ranges"]["vlan"]
+        expected = [[1, 99], [101, 3798], [3800, 4094]]
+        expected_tr = [[1, 4094]]
         assert actual == expected
         assert actual_tr == expected_tr
 
         actual = data["00:00:00:00:00:00:00:02:2"]["available_tags"]["vlan"]
-        expected = [[1, 99], [101, 199], [201, 3798], [3800, 4094]]
         actual_tr = data["00:00:00:00:00:00:00:02:2"]["tag_ranges"]["vlan"]
+        expected = []
+        expected_tr = [[100, 100], [200, 200], [3799, 3799]]
         assert actual == expected
         assert actual_tr == expected_tr
 
@@ -550,15 +583,15 @@ class TestE2EMefEline:
         # only of_lldp to simulate no tags available
         payload = {
             "tag_type": "vlan",
-            "tag_ranges": [[3799, 3799]]
+            "tag_ranges": []
         }
-        for intf_id in (
+        link_id = LinkID(
             "00:00:00:00:00:00:00:03:2",
-            "00:00:00:00:00:00:00:03:3"
-        ):
-            api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
-            response = requests.post(api_url, json=payload)
-            assert response.status_code == 200, response.text
+            "00:00:00:00:00:00:00:02:3"
+        )
+        api_url = KYTOS_API + f'/topology/v3/links/{link_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
 
         evc_1 = {
             "name": "epl_static",
@@ -602,10 +635,24 @@ class TestE2EMefEline:
         expected = [[1, 3798], [3800, 4094]]
         for intf_id in (
             "00:00:00:00:00:00:00:01:1",
-            "00:00:00:00:00:00:00:01:3",
-            "00:00:00:00:00:00:00:02:2",
             "00:00:00:00:00:00:00:03:1",
         ):
             actual = data[intf_id]["available_tags"]["vlan"]
             actual_tr = data[intf_id]["tag_ranges"]["vlan"]
             assert actual == expected, actual
+
+        # Verify that tags haven't been allocated
+        topo_url = KYTOS_API + "/topology/v3/links/tag_ranges"
+        response = requests.get(topo_url)
+        data = response.json()
+        expected = [[1, 3798], [3800, 4094]]
+        for link_id in (
+            LinkID(
+                "00:00:00:00:00:00:00:01:3",
+                "00:00:00:00:00:00:00:02:2"
+            ),
+        ):
+            actual = data[link_id]["available_tags"]["vlan"]
+            actual_tr = data[link_id]["tag_ranges"]["vlan"]
+            assert actual == expected, actual
+        

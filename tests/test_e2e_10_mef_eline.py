@@ -9,6 +9,8 @@ import requests
 
 from tests.helpers import NetworkTest
 
+from kytos.core.id import LinkID
+
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
 
@@ -2017,6 +2019,29 @@ class TestE2EMefEline:
         data = response.json()
         assert 'circuit_id' in data
         evc_1_id = data["circuit_id"]
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[1, 2199], [2201, 3798], [3800, 4095]]
+        }
+
+        link_id = LinkID(
+            "00:00:00:00:00:00:00:02:2",
+            "00:00:00:00:00:00:00:01:3"
+        )
+        api_url = KYTOS_API + f'/topology/v3/links/{link_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[2200, 2200], [3799, 3799]]
+        }
+
+        intf_id = "00:00:00:00:00:00:00:02:2"
+        api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
 
         evc_2 = {
             "name": "EVC_2",

@@ -180,14 +180,11 @@ class TestE2EMefEline:
 
         for link in data["current_path"]:
             s_vlan = link["metadata"]["s_vlan"]
-            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
-                vlan_allocations[endpoint["id"]].append(s_vlan)
+            vlan_allocations[link["id"]].append(s_vlan)
 
         for link in data["failover_path"]:
             s_vlan = link["metadata"]["s_vlan"]
-            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
-                vlan_allocations[endpoint["id"]].append(s_vlan)
-
+            vlan_allocations[link["id"]].append(s_vlan)
 
         # Close a link that both the current and failover path depend on
 
@@ -209,7 +206,7 @@ class TestE2EMefEline:
 
         # Check that all the s_vlans have been freed
 
-        api_url = f"{KYTOS_API}/topology/v3/interfaces/tag_ranges"
+        api_url = f"{KYTOS_API}/topology/v3/links/tag_ranges"
 
         response = requests.get(api_url)
 
@@ -217,13 +214,13 @@ class TestE2EMefEline:
 
         data = response.json()
 
-        for interface, reserved_tags in vlan_allocations.items():
-            available_tags = data[interface]["available_tags"]
+        for link, reserved_tags in vlan_allocations.items():
+            available_tags = data[link]["available_tags"]
             for reserved_tag in reserved_tags:
                 assert any(
                     reserved_tag["value"] >= range_start and reserved_tag["value"] <= range_end
                     for (range_start, range_end) in available_tags[reserved_tag["tag_type"]]
-                ), f"Vlan tag {reserved_tag} on interface {interface}, not released. Available tags: {available_tags}"
+                ), f"Vlan tag {reserved_tag} on link {link}, not released. Available tags: {available_tags}"
 
 
     def test_002_link_down(self):
@@ -268,8 +265,7 @@ class TestE2EMefEline:
 
         for link in data["current_path"]:
             s_vlan = link["metadata"]["s_vlan"]
-            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
-                vlan_allocations[endpoint["id"]].append(s_vlan)
+            vlan_allocations[link["id"]].append(s_vlan)
 
         # Close a link that the current path depends on
 
@@ -295,7 +291,7 @@ class TestE2EMefEline:
 
         # Check that all the s_vlans have been freed
 
-        api_url = f"{KYTOS_API}/topology/v3/interfaces/tag_ranges"
+        api_url = f"{KYTOS_API}/topology/v3/links/tag_ranges"
 
         response = requests.get(api_url)
 
@@ -303,13 +299,13 @@ class TestE2EMefEline:
 
         data = response.json()
 
-        for interface, reserved_tags in vlan_allocations.items():
-            available_tags = data[interface]["available_tags"]
+        for link, reserved_tags in vlan_allocations.items():
+            available_tags = data[link]["available_tags"]
             for reserved_tag in reserved_tags:
                 assert any(
                     reserved_tag["value"] >= range_start and reserved_tag["value"] <= range_end
                     for (range_start, range_end) in available_tags[reserved_tag["tag_type"]]
-                ), f"Vlan tag {reserved_tag} on interface {interface}, not released. Available tags: {available_tags}"
+                ), f"Vlan tag {reserved_tag} on link {link}, not released. Available tags: {available_tags}"
 
     def test_003_link_down(self):
         """Test link down behaviour on failover_path."""
@@ -353,8 +349,7 @@ class TestE2EMefEline:
 
         for link in data["failover_path"]:
             s_vlan = link["metadata"]["s_vlan"]
-            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
-                vlan_allocations[endpoint["id"]].append(s_vlan)
+            vlan_allocations[link["id"]].append(s_vlan)
 
         # Close a link that the failover path depends on
 
@@ -380,7 +375,7 @@ class TestE2EMefEline:
 
         # Check that all the s_vlans have been freed
 
-        api_url = f"{KYTOS_API}/topology/v3/interfaces/tag_ranges"
+        api_url = f"{KYTOS_API}/topology/v3/links/tag_ranges"
 
         response = requests.get(api_url)
 
@@ -388,13 +383,13 @@ class TestE2EMefEline:
 
         data = response.json()
 
-        for interface, reserved_tags in vlan_allocations.items():
-            available_tags = data[interface]["available_tags"]
+        for link, reserved_tags in vlan_allocations.items():
+            available_tags = data[link]["available_tags"]
             for reserved_tag in reserved_tags:
                 assert any(
                     reserved_tag["value"] >= range_start and reserved_tag["value"] <= range_end
                     for (range_start, range_end) in available_tags[reserved_tag["tag_type"]]
-                ), f"Vlan tag {reserved_tag} on interface {interface}, not released. Available tags: {available_tags}"
+                ), f"Vlan tag {reserved_tag} on link {link}, not released. Available tags: {available_tags}"
 
     def test_004_link_down(self):
         """Test multiple simultaneous link down behaviour."""
@@ -438,13 +433,11 @@ class TestE2EMefEline:
 
         for link in data["current_path"]:
             s_vlan = link["metadata"]["s_vlan"]
-            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
-                vlan_allocations[endpoint["id"]].append(s_vlan)
+            vlan_allocations[link["id"]].append(s_vlan)
 
         for link in data["failover_path"]:
             s_vlan = link["metadata"]["s_vlan"]
-            for endpoint in (link["endpoint_a"], link["endpoint_b"]):
-                vlan_allocations[endpoint["id"]].append(s_vlan)
+            vlan_allocations[link["id"]].append(s_vlan)
 
 
         # Close a link that both the current and failover path depend on
@@ -468,7 +461,7 @@ class TestE2EMefEline:
 
         # Check that all the s_vlans have been freed
 
-        api_url = f"{KYTOS_API}/topology/v3/interfaces/tag_ranges"
+        api_url = f"{KYTOS_API}/topology/v3/links/tag_ranges"
 
         response = requests.get(api_url)
 
@@ -476,13 +469,13 @@ class TestE2EMefEline:
 
         data = response.json()
 
-        for interface, reserved_tags in vlan_allocations.items():
-            available_tags = data[interface]["available_tags"]
+        for link, reserved_tags in vlan_allocations.items():
+            available_tags = data[link]["available_tags"]
             for reserved_tag in reserved_tags:
                 assert any(
                     reserved_tag["value"] >= range_start and reserved_tag["value"] <= range_end
                     for (range_start, range_end) in available_tags[reserved_tag["tag_type"]]
-                ), f"Vlan tag {reserved_tag} on interface {interface}, not released. Available tags: {available_tags}"
+                ), f"Vlan tag {reserved_tag} on link {link}, not released. Available tags: {available_tags}"
 
 
     def test_005_link_down_current_path_failover_path(self):
