@@ -137,9 +137,9 @@ class TestE2EMaintenance:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS + 2, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 2, flows_s3
 
         # Sets up the maintenance window information
         mw_start_delay = 10
@@ -202,9 +202,9 @@ class TestE2EMaintenance:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
-        assert len(flows_s3.split('\r\n ')) == BASIC_FLOWS + 2, flows_s3
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 2, flows_s3
 
         # Cleans up
         h11.cmd('ip link del vlan100')
@@ -386,7 +386,7 @@ class TestE2EMaintenance:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl('dump-flows')
         assert 'dl_vlan=100' not in flows_s2
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
 
         # Checks connectivity during maintenance
         h11, h3 = self.net.net.get('h11', 'h3')
@@ -404,7 +404,7 @@ class TestE2EMaintenance:
 
         # Verifies the flows behavior after the maintenance
         flows_s2 = s2.dpctl('dump-flows')
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
@@ -731,7 +731,7 @@ class TestE2EMaintenance:
         # Verifies the flow at the initial MW time
         # (no maintenance at that time, it has been delayed)
         flows_s2 = s2.dpctl('dump-flows')
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
@@ -741,7 +741,7 @@ class TestE2EMaintenance:
         # Verifies the flow during maintenance time
         flows_s2 = s2.dpctl('dump-flows')
         assert 'dl_vlan=100' not in flows_s2
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
@@ -750,7 +750,7 @@ class TestE2EMaintenance:
 
         # Verifies the flow behavior after the maintenance window
         flows_s2 = s2.dpctl('dump-flows')
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
@@ -854,7 +854,7 @@ class TestE2EMaintenance:
         # Verifies the flow behavior
         # (no maintenance at that time, it has been deleted)
         flows_s2 = s2.dpctl('dump-flows')
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
@@ -918,7 +918,7 @@ class TestE2EMaintenance:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl('dump-flows')
         assert 'dl_vlan=100' not in flows_s2
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS
 
         # Checks connectivity during maintenance
         h11, h3 = self.net.net.get('h11', 'h3')
@@ -941,7 +941,7 @@ class TestE2EMaintenance:
 
         # Verifies the flow behavior and connectivity after ending the maintenance
         flows_s2 = s2.dpctl('dump-flows')
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
@@ -1047,7 +1047,7 @@ class TestE2EMaintenance:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl('dump-flows')
         assert 'dl_vlan=100' not in flows_s2
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
 
         # Checks connectivity during maintenance
         h11, h3 = self.net.net.get('h11', 'h3')
@@ -1074,7 +1074,7 @@ class TestE2EMaintenance:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl('dump-flows')
         assert 'dl_vlan=100' not in flows_s2
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
 
         # Checks connectivity during maintenance
         h11, h3 = self.net.net.get('h11', 'h3')
@@ -1092,7 +1092,7 @@ class TestE2EMaintenance:
 
         # Verifies the flows behavior after the maintenance
         flows_s2 = s2.dpctl('dump-flows')
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 2, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
         result = h11.cmd('ping -c1 100.0.0.2')
         assert ', 0% packet loss,' in result
 
@@ -1225,8 +1225,7 @@ class TestE2EMaintenance:
         assert response.status_code == 400, response.text
 
     def test_125_multiple_payload_item_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1263,8 +1262,7 @@ class TestE2EMaintenance:
         ]
 
     def test_130_switch_payload_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1292,8 +1290,7 @@ class TestE2EMaintenance:
         assert data["links"] == []
 
     def test_135_interface_payload_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1321,8 +1318,7 @@ class TestE2EMaintenance:
         assert data["links"] == []
 
     def test_140_link_payload_filtering(self):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         start = datetime.utcnow() + timedelta(days=1)
@@ -1380,8 +1376,7 @@ class TestE2EMaintenance:
 
     def test_150_no_time_conflicts(self):
         """Test MWs with no end time and possible conflicts."""
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         now = datetime.now(UTC)
         api_url = KYTOS_API + '/maintenance/v1'
 
@@ -1441,8 +1436,7 @@ class TestE2EMaintenance:
 
     def test_155_extend_mw_every_time_unit(self):
         """Test extending MW with seconds, minutes, hours and days."""
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         mw_start_delay = 10
         mw_duration_hrs = 1
         mw_extension_sec = 10

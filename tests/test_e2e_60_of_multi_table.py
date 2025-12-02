@@ -13,8 +13,7 @@ class TestE2EOfMultiTable:
 
     def setup_method(self, method):
         """Called at the beginning of each class method"""
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     @classmethod
@@ -144,27 +143,27 @@ class TestE2EOfMultiTable:
         flows_s1 = s1.dpctl('dump-flows').splitlines()
         assert len(flows_s1) == 9, flows_s1
         assert "table=0" in flows_s1[0]
-        assert 'priority=0 actions=resubmit(,1)' in flows_s1[0] or \
+        assert 'priority=0 actions=goto_table:1' in flows_s1[0] or \
                'priority=0 actions=goto_table:1' in flows_s1[0]
         assert "table=1" in flows_s1[1]
         assert 'actions=CONTROLLER:65535' in flows_s1[1]
         assert "table=1" in flows_s1[2]
         assert 'actions=CONTROLLER:65535' in flows_s1[2]
         assert "table=1" in flows_s1[3]
-        assert 'priority=0 actions=resubmit(,2)' in flows_s1[3] or \
+        assert 'priority=0 actions=goto_table:2' in flows_s1[3] or \
                'priority=0 actions=goto_table:2' in flows_s1[3]
         assert "table=2" in flows_s1[4]
         assert 'dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
         assert "table=2" in flows_s1[5]
-        assert 'priority=0 actions=resubmit(,3)' in flows_s1[5] or \
+        assert 'priority=0 actions=goto_table:3' in flows_s1[5] or \
                'priority=0 actions=goto_table:3' in flows_s1[5]
         assert "table=3" in flows_s1[6]
-        assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[6]
+        assert 'dl_vlan=100 actions=output:2' in flows_s1[6]
         assert "table=3" in flows_s1[7]
-        assert 'priority=0 actions=resubmit(,4)' in flows_s1[7] or \
+        assert 'priority=0 actions=goto_table:4' in flows_s1[7] or \
                'priority=0 actions=goto_table:4' in flows_s1[7]
         assert "table=4" in flows_s1[8]
-        assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[8]
+        assert 'actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1' in flows_s1[8]
 
         self.net.start_controller(clean_config=False)
         self.net.wait_switches_connect()
@@ -175,27 +174,27 @@ class TestE2EOfMultiTable:
         flows_s1 = s1.dpctl('dump-flows').splitlines()
         assert len(flows_s1) == 9, flows_s1
         assert "table=0" in flows_s1[0]
-        assert 'priority=0 actions=resubmit(,1)' in flows_s1[0] or \
+        assert 'priority=0 actions=goto_table:1' in flows_s1[0] or \
                'priority=0 actions=goto_table:1' in flows_s1[0]
         assert "table=1" in flows_s1[1]
         assert 'actions=CONTROLLER:65535' in flows_s1[1]
         assert "table=1" in flows_s1[2]
         assert 'actions=CONTROLLER:65535' in flows_s1[2]
         assert "table=1" in flows_s1[3]
-        assert 'priority=0 actions=resubmit(,2)' in flows_s1[3] or \
+        assert 'priority=0 actions=goto_table:2' in flows_s1[3] or \
                'priority=0 actions=goto_table:2' in flows_s1[3]
         assert "table=2" in flows_s1[4]
         assert 'dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
         assert "table=2" in flows_s1[5]
-        assert 'priority=0 actions=resubmit(,3)' in flows_s1[5] or \
+        assert 'priority=0 actions=goto_table:3' in flows_s1[5] or \
                'priority=0 actions=goto_table:3' in flows_s1[5]
         assert "table=3" in flows_s1[6]
-        assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[6]
+        assert 'dl_vlan=100 actions=output:2' in flows_s1[6]
         assert "table=3" in flows_s1[7]
-        assert 'priority=0 actions=resubmit(,4)' in flows_s1[7] or \
+        assert 'priority=0 actions=goto_table:4' in flows_s1[7] or \
                'priority=0 actions=goto_table:4' in flows_s1[7]
         assert "table=4" in flows_s1[8]
-        assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[8]
+        assert 'actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1' in flows_s1[8]
 
         # Return to default pipeline
         # Disabled pipeline
@@ -214,8 +213,8 @@ class TestE2EOfMultiTable:
         assert 'actions=CONTROLLER:65535' in flows_s1[0]
         assert 'actions=CONTROLLER:65535' in flows_s1[1]
         assert 'actions=CONTROLLER:65535' in flows_s1[2]
-        assert 'dl_vlan=100 actions=output:"s1-eth2"' in flows_s1[3]
-        assert 'actions=mod_vlan_vid:100,output:"s1-eth1"' in flows_s1[4]
+        assert 'dl_vlan=100 actions=output:2' in flows_s1[3]
+        assert 'actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1' in flows_s1[4]
 
         # Delete disabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}"
@@ -265,7 +264,7 @@ class TestE2EOfMultiTable:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert 'actions=resubmit(,1)' in flows_s1
+        assert 'actions=goto_table:1' in flows_s1
 
         # Delete all flows from switch 1
         s1.dpctl('del-flows')
@@ -274,7 +273,7 @@ class TestE2EOfMultiTable:
         time.sleep(10)
 
         flows_s1 = s1.dpctl('dump-flows')
-        assert 'actions=resubmit(,1)' in flows_s1
+        assert 'actions=goto_table:1' in flows_s1
 
     def test_015_mef_eline_pipelined(self):
         "Test if mef_eline flows can communicate through tables"
@@ -367,11 +366,11 @@ class TestE2EOfMultiTable:
         flows_s1 = s1.dpctl('dump-flows').splitlines()
         assert len(flows_s1) == 7, flows_s1
         assert 'table=1' in flows_s1[4]
-        assert 'in_port="s1-eth1",dl_vlan=100' in flows_s1[4]
+        assert 'in_port=1,dl_vlan=100' in flows_s1[4]
         assert 'table=1' in flows_s1[5]
-        assert 'in_port="s1-eth3",dl_vlan=1 ' in flows_s1[5]
+        assert 'in_port=3,dl_vlan=1 ' in flows_s1[5]
         assert 'table=1' in flows_s1[6]
-        assert 'in_port="s1-eth4",dl_vlan=1 ' in flows_s1[6]
+        assert 'in_port=4,dl_vlan=1 ' in flows_s1[6]
 
     def test_020_install_multiple_pipelines(test):
         """Test changing pipeline status"""

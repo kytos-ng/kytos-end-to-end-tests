@@ -2,6 +2,8 @@ import requests
 from tests.helpers import NetworkTest
 import time
 import json
+import os
+import pytest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
@@ -14,9 +16,9 @@ class TestE2ETopology:
         It is called at the beginning of every class method execution
         """
         # Start the controller setting an environment in
-        # which all elements are disabled in a clean setting
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        # which all elements are enabled in a clean setting
+        self.net.config_all_links_up()
+        self.net.restart_kytos_clean()
         time.sleep(20)
 
     @classmethod
@@ -30,6 +32,10 @@ class TestE2ETopology:
     def teardown_class(cls):
         cls.net.stop()
 
+    @pytest.mark.skipif(
+        os.environ.get("SWITCH_CLASS") == "NoviSwitch",
+        reason="NoviSwitch does not support interface removal",
+    )
     def test_010_delete_interface_automatically(self):
         """Test interface removal after logical deletion.
         Deleted:
@@ -141,6 +147,7 @@ class TestE2ETopology:
             counter_searches += 1
 
         self.net.net.configLinkStatus('s1', 's2', 'down')
+        self.net.net.configLinkStatus('s1', 's6', 'down')
         for link in links_id:
             # Disabling links
             api_url = f'{KYTOS_API}/topology/v3/links/{link}/disable'
@@ -160,8 +167,13 @@ class TestE2ETopology:
             api_url = f'{KYTOS_API}/topology/v3/switches/{switch_1}'
             response = requests.delete(api_url)
             status_code = response.status_code
+            counter_tries += 1
         assert response.status_code == 200, f"{response.text}, tries: {counter_tries}"
 
+    @pytest.mark.skipif(
+        os.environ.get("SWITCH_CLASS") == "NoviSwitch",
+        reason="NoviSwitch does not support interface removal",
+    )
     def test_025_delete_interface(self):
         """Test api/kytos/topology/v3/interfaces/{interface_id} on DELETE
         Deleted:

@@ -17,8 +17,7 @@ class TestE2EMefEline:
         """
         It is called at the beginning of every class method execution
         """
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     @classmethod
@@ -501,14 +500,14 @@ class TestE2EMefEline:
         s1, s2 = self.net.net.get('s1', 's2')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == 8, flows_s1
-        assert 'in_port="s1-eth1",vlan_tci=0x100c/0x1ffc' in flows_s1
-        assert 'in_port="s1-eth1",vlan_tci=0x1010/0x1ffc' in flows_s1
-        assert 'in_port="s1-eth1",vlan_tci=0x1014/0x1ffe' in flows_s1
-        assert len(flows_s2.split('\r\n ')) == 8, flows_s2
-        assert 'in_port="s2-eth1",vlan_tci=0x100c/0x1ffc' in flows_s2
-        assert 'in_port="s2-eth1",vlan_tci=0x1010/0x1ffc' in flows_s2
-        assert 'in_port="s2-eth1",vlan_tci=0x1014/0x1ffe' in flows_s2
+        assert len(flows_s1.splitlines()) == 8, flows_s1
+        assert 'in_port=1,vlan_tci=0x100c/0x1ffc' in flows_s1
+        assert 'in_port=1,vlan_tci=0x1010/0x1ffc' in flows_s1
+        assert 'in_port=1,vlan_tci=0x1014/0x1ffe' in flows_s1
+        assert len(flows_s2.splitlines()) == 8, flows_s2
+        assert 'in_port=1,vlan_tci=0x100c/0x1ffc' in flows_s2
+        assert 'in_port=1,vlan_tci=0x1010/0x1ffc' in flows_s2
+        assert 'in_port=1,vlan_tci=0x1014/0x1ffe' in flows_s2
 
         h11, h2 = self.net.net.get('h11', 'h2')
         # Ping mask 12/4092

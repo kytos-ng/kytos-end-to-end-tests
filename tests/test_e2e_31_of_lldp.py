@@ -31,8 +31,7 @@ class TestE2EOfLLDP:
         """
         It is called at the beginning of every class method execution
         """
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     def restart(self, clean_config=False, enable_all=True, wait_for=10):
@@ -217,7 +216,7 @@ class TestE2EOfLLDP:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl("dump-flows")
         # Expects 2x LLDP flow entries
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 1, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 1, flows_s2
 
         # Assert GET liveness/ is enabled and down
         api_url = f"{KYTOS_API}/of_lldp/v1/liveness/?interface_id={interface_ids[1]}"
@@ -246,7 +245,7 @@ class TestE2EOfLLDP:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl("dump-flows")
         # Expects 1x LLDP flow entry
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
 
         # Assert GET liveness/ is enabled and up
         api_url = f"{KYTOS_API}/of_lldp/v1/liveness/?interface_id={interface_ids[1]}"

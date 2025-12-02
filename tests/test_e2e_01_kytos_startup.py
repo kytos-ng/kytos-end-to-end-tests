@@ -122,4 +122,15 @@ class TestE2EKytosServer:
     @pytest.mark.skipif(not os.path.exists('/var/log/syslog'), reason="/var/log/syslog does not exist")
     def test_start_kytos_without_errors(self):
         with open(self.logfile, "r") as f:
-            assert re.findall(r'kytos.*?(error|exception)(.*)?', f.read(), re.I) == []
+            entries = re.findall(r'kytos.*?(error|exception)(.*)?', f.read(), re.I)
+        known_logs = [
+            "Waiting for application startup",
+            "Application startup complete",
+        ]
+        know_logs_re = re.compile(r".*(%s).*" % '|'.join(known_logs))
+        problems = []
+        for entry in entries:
+            if know_logs_re.match(entry[1]):
+                continue
+            problems.append(entry)
+        assert problems == [], str(problems)

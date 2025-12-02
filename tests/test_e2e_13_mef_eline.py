@@ -26,8 +26,7 @@ class TestE2EMefEline:
         self.net.config_all_links_up()
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     @classmethod
@@ -942,13 +941,13 @@ class TestE2EMefEline:
             "current_path": [
                 {"enabled": True,
                  "endpoint_a":
-                     {"lldp": True, "name": "s1-eth3", "nni": True, "type": "interface", "enabled": True,
+                     {"lldp": True, "name": 3, "nni": True, "type": "interface", "enabled": True,
                       "switch": "00:00:00:00:00:00:00:01", "mac": "86:d5:a8:af:83:a",
                       "link": "78282c4d5b579265f04ebadc4405ca1b49628eb1d684bb45e5d0607fa8b713d0", "uni": False,
                       "active": True, "port_number": 3, "speed": 1250000000.0, "id": "00:00:00:00:00:00:00:01:3",
                       "metadata": {}},
                  "endpoint_b":
-                     {"lldp": True, "name": "s2-eth2", "nni": True, "type": "interface", "enabled": True,
+                     {"lldp": True, "name": 2, "nni": True, "type": "interface", "enabled": True,
                       "switch": "00:00:00:00:00:00:00:02", "mac": "c6:30:da:40:aa:fa",
                       "link": "78282c4d5b579265f04ebadc4405ca1b49628eb1d684bb45e5d0607fa8b713d0", "uni": False,
                       "active": True, "port_number": 2, "speed": 1250000000.0, "id": "00:00:00:00:00:00:00:02:2",

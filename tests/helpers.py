@@ -6,11 +6,32 @@ from mock import patch
 import time
 import os
 import requests
+import hashlib
 
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+from tests.noviswitch import NoviSwitch
+
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
+
+def dpctl_wrapper(obj, *args):
+    if args[0] == "dump-flows":
+        return obj.orig_dpctl(*args, "--no-names", "--protocols=OpenFlow13", "|grep -v OFPST_FLOW")
+    return obj.orig_dpctl(*args)
+
+NoviSwitch.orig_dpctl = NoviSwitch.dpctl
+NoviSwitch.dpctl = dpctl_wrapper
+OVSSwitch.orig_dpctl = OVSSwitch.dpctl
+OVSSwitch.dpctl = dpctl_wrapper
+
+class SwitchFactory:
+    def __new__(cls, *args, **kwargs):
+        cls_name = os.environ.get('SWITCH_CLASS')
+        if cls_name == "NoviSwitch" and NoviSwitch.is_available():
+            return NoviSwitch(*args, **kwargs)
+        return OVSSwitch(*args, **kwargs)
+
 
 class AmlightTopo(Topo):
     """Amlight Topology."""
@@ -262,17 +283,20 @@ class NetworkTest:
             topo=topos.get(topo_name, (lambda: RingTopo()))(),
             controller=lambda name: RemoteController(
                 name, ip=controller_ip, port=6653),
-            switch=OVSSwitch,
+            switch=SwitchFactory,
             autoSetMacs=True)
         db_client_kwargs = db_client_options or {}
         db_name = db_client_kwargs.get("database") or os.environ.get("MONGO_DBNAME")
         self.db_client = db_client(**db_client_kwargs)
         self.db_name = db_name
         self.db = self.db_client[self.db_name]
+        # setup a wrapper for configLinkStatus
+        self.net.orig_configLinkStatus = self.net.configLinkStatus
+        self.net.configLinkStatus = self.configLinkStatus
 
-    def start(self):
+    def start(self, clean_config=True, **kwargs):
         self.net.start()
-        self.start_controller(clean_config=True)
+        self.start_controller(clean_config=clean_config, **kwargs)
 
     def drop_database(self):
         """Drop database."""
@@ -333,19 +357,24 @@ class NetworkTest:
 
         self.wait_controller_start()
 
+        # make sure switches will reconnect
+        self.reconnect_switches(wait=False)
+
     def wait_controller_start(self):
         """Wait until controller starts according to core/status API."""
         wait_count = 0
+        last_error = ""
         while wait_count < 60:
             try:
-                response = requests.get('http://127.0.0.1:8181/api/kytos/core/status/', timeout=1)
-                assert response.json()['response'] == 'running'
+                response = requests.get('http://127.0.0.1:8181/api/kytos/core/status/', timeout=3)
+                assert response.json()['response'] == 'running', response.text
                 break
-            except:
+            except Exception as exc:
+                last_error = str(exc)
                 time.sleep(0.5)
                 wait_count += 0.5
         else:
-            msg = 'Timeout while starting Kytos controller.'
+            msg = f"Timeout while starting Kytos controller. Last error: {last_error}"
             raise Exception(msg)
 
     def wait_switches_connect(self):
@@ -357,12 +386,55 @@ class NetworkTest:
                 status = [(sw.name, sw.connected()) for sw in self.net.switches]
                 raise Exception('Timeout: timed out waiting switches reconnect. Status %s' % status)
 
+    def wait_kytos_links(self):
+        wait_count = 0
+        last_error = ""
+        topo_links = []
+        for link in self.net.links:
+            if link.intf1.node in self.net.switches and link.intf2.node in self.net.switches:
+                link_id = self.create_link_id(link)
+                if link_id:
+                    topo_links.append(link_id)
+        while wait_count < 30:
+            try:
+                response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
+                links = response.json()["links"]
+                assert len(topo_links) == len(links), f"{topo_links=} {links=}"
+                assert all(link_id in links for link_id in topo_links), f"{topo_links=} {links=}"
+                break
+            except Exception as exc:
+                last_error = str(exc)
+            time.sleep(1)
+            wait_count += 1
+        else:
+            msg = f"Timeout waiting for links. Last error: {last_error}"
+            raise Exception(msg)
+
+    def create_link_id(self, link):
+        dpid1 = link.intf1.node.dpid
+        dpid2 = link.intf2.node.dpid
+        dpid1 = ":".join(dpid1[i:i+2] for i in range(0, len(dpid1), 2))
+        dpid2 = ":".join(dpid2[i:i+2] for i in range(0, len(dpid2), 2))
+        port1 = link.intf1.node.ports.get(link.intf1)
+        port2 = link.intf2.node.ports.get(link.intf2)
+        if not port1 or not port2:
+            return
+        intf1 = f"{dpid1}:{port1}"
+        intf2 = f"{dpid2}:{port2}"
+        if dpid1 == dpid2:
+            port1, port2 = sorted((port1, port2))
+            raw_str = f"{dpid1}:{port1}:{dpid2}:{port2}"
+        else:
+            raw_str = ":".join(sorted((intf1, intf2)))
+        return hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
+
     def restart_kytos_clean(self):
         self.start_controller(clean_config=True, enable_all=True)
         self.wait_switches_connect()
+        self.wait_kytos_links()
 
     def reconnect_switches(self, target="tcp:127.0.0.1:6653",
-                           temp_target="tcp:127.0.0.1:6654"):
+                           temp_target="tcp:127.0.0.1:6654", wait=True):
         """Restart switches connections.
         This method can also be used to trigger a consistency check initial run.
 
@@ -370,16 +442,29 @@ class NetworkTest:
         if the controller config were to be deleted.
         """
         for sw in self.net.switches:
+            if hasattr(sw, "reset_controller") and callable(sw.reset_controller):
+                sw.reset_controller()
+                continue
             sw.vsctl(f"set-controller {sw.name} {temp_target}")
             sw.controllerUUIDs(update=True)
-        for sw in self.net.switches:
             sw.vsctl(f"set-controller {sw.name} {target}")
             sw.controllerUUIDs(update=True)
-        self.wait_switches_connect()
+        if wait:
+            self.wait_switches_connect()
+
+    def configLinkStatus(self, a, b, status):
+        node_a = self.net.get(a)
+        node_b = self.net.get(b)
+        connections = node_a.connectionsTo(node_b)
+        if isinstance(node_a, NoviSwitch):
+            node_a.configLinkStatus([c[0] for c in connections], status)
+        if isinstance(node_b, NoviSwitch):
+            node_b.configLinkStatus([c[1] for c in connections], status)
+        self.net.orig_configLinkStatus(a, b, status)
 
     def config_all_links_up(self):
         for link in self.net.links:
-            self.net.configLinkStatus(
+            self.configLinkStatus(
                 link.intf1.node.name,
                 link.intf2.node.name,
                 "up"
