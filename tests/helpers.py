@@ -12,6 +12,15 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
+def dpctl_wrapper(obj, *args):
+    if args[0] == "dump-flows":
+        return obj.orig_dpctl(*args, "--no-names", "--protocols=OpenFlow13", "|grep -v OFPST_FLOW")
+     return obj.orig_dpctl(*args)
+
+OVSSwitch.orig_dpctl = OVSSwitch.dpctl
+OVSSwitch.dpctl = dpctl_wrapper
+
+
 class AmlightTopo(Topo):
     """Amlight Topology."""
     def build(self):

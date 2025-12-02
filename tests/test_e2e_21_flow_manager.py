@@ -85,8 +85,8 @@ class TestE2EFlowManager:
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
-        for flow in flows_s1.split('\r\n '):
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        for flow in flows_s1.splitlines():
             # Check all flows but the of_lldp, which is reinstalled
             if 'dl_vlan=999' not in flow: continue
             match = re.search("duration=([0-9.]+)", flow)
@@ -136,7 +136,7 @@ class TestE2EFlowManager:
         time.sleep(10)
 
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 1, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
         assert 'dl_vlan=999' in flows_s1
 
     def test_032_on_switch_reconnection_should_recreate_untagged_any_flows(self):
@@ -194,7 +194,7 @@ class TestE2EFlowManager:
         time.sleep(10)
 
         flows_s1 = s1.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == BASIC_FLOWS + 2, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
         # 4096/4096
         assert 'vlan_tci=0x1000/0x1000' in flows_s1
         # 0
