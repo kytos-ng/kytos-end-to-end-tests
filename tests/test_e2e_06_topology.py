@@ -15,8 +15,7 @@ class TestE2ETopology:
         """
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(20)
 
     @classmethod

@@ -35,8 +35,7 @@ class TestE2EMefEline:
         """
         It is called at the beginning of every class method execution
         """
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     def teardown_method(self, method):

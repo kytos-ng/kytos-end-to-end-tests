@@ -31,8 +31,7 @@ class TestE2EOfLLDP:
         """
         It is called at the beginning of every class method execution
         """
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     def restart(self, clean_config=False, enable_all=True, wait_for=10):
