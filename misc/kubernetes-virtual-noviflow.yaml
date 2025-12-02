@@ -1,0 +1,41 @@
+apiVersion: amlight.net/v1
+kind: VirtualboxVM
+metadata:
+  name: vnoviflow01
+spec:
+  image: noviflow:NW570.8.4
+---
+apiVersion: amlight.net/v1
+kind: VirtualboxVM
+metadata:
+  name: vnoviflow02
+spec:
+  image: noviflow:NW570.8.4
+---
+apiVersion: amlight.net/v1
+kind: VirtualboxVM
+metadata:
+  name: vnoviflow03
+spec:
+  image: noviflow:NW570.8.4
+---
+apiVersion: amlight.net/v1
+kind: VirtualboxVM
+metadata:
+  name: vnoviflow04
+spec:
+  image: noviflow:NW570.8.4
+---
+apiVersion: amlight.net/v1
+kind: VirtualboxVM
+metadata:
+  name: vnoviflow05
+spec:
+  image: noviflow:NW570.8.4
+---
+apiVersion: amlight.net/v1
+kind: VirtualboxVM
+metadata:
+  name: vnoviflow06
+spec:
+  image: noviflow:NW570.8.4
