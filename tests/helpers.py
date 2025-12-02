@@ -11,6 +11,8 @@ import hashlib
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+from tests.noviswitch import NoviSwitch
+
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
 def dpctl_wrapper(obj, *args):
@@ -18,8 +20,17 @@ def dpctl_wrapper(obj, *args):
         return obj.orig_dpctl(*args, "--no-names", "--protocols=OpenFlow13", "|grep -v OFPST_FLOW")
     return obj.orig_dpctl(*args)
 
+NoviSwitch.orig_dpctl = NoviSwitch.dpctl
+NoviSwitch.dpctl = dpctl_wrapper
 OVSSwitch.orig_dpctl = OVSSwitch.dpctl
 OVSSwitch.dpctl = dpctl_wrapper
+
+class SwitchFactory:
+    def __new__(cls, *args, **kwargs):
+        cls_name = os.environ.get('SWITCH_CLASS')
+        if cls_name == "NoviSwitch" and NoviSwitch.is_available():
+            return NoviSwitch(*args, **kwargs)
+        return OVSSwitch(*args, **kwargs)
 
 
 class AmlightTopo(Topo):
@@ -272,13 +283,16 @@ class NetworkTest:
             topo=topos.get(topo_name, (lambda: RingTopo()))(),
             controller=lambda name: RemoteController(
                 name, ip=controller_ip, port=6653),
-            switch=OVSSwitch,
+            switch=SwitchFactory,
             autoSetMacs=True)
         db_client_kwargs = db_client_options or {}
         db_name = db_client_kwargs.get("database") or os.environ.get("MONGO_DBNAME")
         self.db_client = db_client(**db_client_kwargs)
         self.db_name = db_name
         self.db = self.db_client[self.db_name]
+        # setup a wrapper for configLinkStatus
+        self.net.orig_configLinkStatus = self.net.configLinkStatus
+        self.net.configLinkStatus = self.configLinkStatus
 
     def start(self):
         self.net.start()
@@ -428,17 +442,29 @@ class NetworkTest:
         if the controller config were to be deleted.
         """
         for sw in self.net.switches:
+            if hasattr(sw, "reset_controller") and callable(sw.reset_controller):
+                sw.reset_controller()
+                continue
             sw.vsctl(f"set-controller {sw.name} {temp_target}")
             sw.controllerUUIDs(update=True)
-        for sw in self.net.switches:
             sw.vsctl(f"set-controller {sw.name} {target}")
             sw.controllerUUIDs(update=True)
         if wait:
             self.wait_switches_connect()
 
+    def configLinkStatus(self, a, b, status):
+        node_a = self.net.get(a)
+        node_b = self.net.get(b)
+        connections = node_a.connectionsTo(node_b)
+        if isinstance(node_a, NoviSwitch):
+            node_a.configLinkStatus([c[0] for c in connections], status)
+        if isinstance(node_b, NoviSwitch):
+            node_b.configLinkStatus([c[1] for c in connections], status)
+        self.net.orig_configLinkStatus(a, b, status)
+
     def config_all_links_up(self):
         for link in self.net.links:
-            self.net.configLinkStatus(
+            self.configLinkStatus(
                 link.intf1.node.name,
                 link.intf2.node.name,
                 "up"
