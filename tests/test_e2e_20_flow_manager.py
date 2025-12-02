@@ -141,11 +141,10 @@ class TestE2EFlowManager:
 
         time.sleep(10)
 
-        sw_name = "s1"
-        sw = self.net.net.get(sw_name)
+        sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
         assert len(flows_sw.splitlines()) == BASIC_FLOWS + 1, flows_sw
-        assert 'actions=output:"%s-eth2"' % sw_name in flows_sw
+        assert 'actions=output:2' in flows_sw
 
         stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?dpids={switch_id}'
         response = requests.get(stored_flows)
@@ -203,11 +202,10 @@ class TestE2EFlowManager:
         # wait for the flow to be installed
         time.sleep(10)
 
-        sw_name = "s1"
-        sw = self.net.net.get(sw_name)
+        sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
         assert len(flows_sw.splitlines()) == BASIC_FLOWS + 1, flows_sw
-        assert 'actions=output:"%s-eth2"' % sw_name in flows_sw
+        assert 'actions=output:2' in flows_sw
         assert 'cookie=0x65' in flows_sw
         assert 'cookie=0x64' not in flows_sw
 
@@ -264,7 +262,7 @@ class TestE2EFlowManager:
             sw = self.net.net.get(sw_name)
             flows_sw = sw.dpctl('dump-flows')
             assert len(flows_sw.splitlines()) == BASIC_FLOWS + 1, flows_sw
-            assert 'actions=output:"%s-eth2"' % sw_name in flows_sw
+            assert 'actions=output:2' in flows_sw
 
     def test_016_install_invalid_flow_cookie_overflowed(self):
         """Test try to install an overflowed cookie value."""
@@ -490,7 +488,7 @@ class TestE2EFlowManager:
             sw = self.net.net.get(sw_name)
             flows_sw = sw.dpctl('dump-flows')
             assert len(flows_sw.splitlines()) == BASIC_FLOWS, flows_sw
-            assert 'actions=output:"%s-eth2"' % sw_name not in flows_sw
+            assert 'actions=output:2' not in flows_sw
 
     def test_026_delete_flows_cookie_mask_range(self):
         """Test deleting flows with cookie range mask and persistence."""""
@@ -683,7 +681,7 @@ class TestE2EFlowManager:
 
         sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
-        assert flows_sw.splitlines() == [''], flows_sw
+        assert flows_sw.splitlines() == [], flows_sw
 
     def test_028_delete_flows_cookie_mask_range_partial(self):
         """Test deleting flows with cookie range mask partial match."""""
@@ -821,7 +819,7 @@ class TestE2EFlowManager:
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert 'in_port=1' in flows_s1
 
     def test_030_modify_match(self):
         self.modify_match()
@@ -861,7 +859,7 @@ class TestE2EFlowManager:
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert 'in_port=1' in flows_s1
 
         # Modify the actions and verify its modification
         s1.dpctl('mod-flows', 'actions=output:3')
@@ -883,7 +881,7 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
         assert 'actions=output:3' not in flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert 'in_port=1' in flows_s1
 
     def test_040_replace_action_flow(self):
         self.replace_action_flow()
@@ -920,7 +918,7 @@ class TestE2EFlowManager:
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port="s1-eth1' in flows_s1
+        assert 'in_port=1' in flows_s1
 
         s1.dpctl('add-flow', 'in_port=1,idle_timeout=360,hard_timeout=1200,priority=10,actions=strip_vlan,output:2')
 
@@ -936,7 +934,7 @@ class TestE2EFlowManager:
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
         assert 'actions=strip_vlan,' not in flows_s1
-        assert 'actions=output:"s1-eth2' in flows_s1
+        assert 'actions=output:2' in flows_s1
 
     def test_050_add_action_flow(self):
         self.add_action_flow()
