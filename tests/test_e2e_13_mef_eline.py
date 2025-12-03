@@ -940,8 +940,8 @@ class TestE2EMefEline:
         payload2 = {
             "current_path": [
                 {
-                    {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"}},
-                    {"endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"}},
+                    "endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
+                    "endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"},
                 },
             ]
         }
