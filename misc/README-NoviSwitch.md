@@ -6,6 +6,8 @@
 
 2. The execution environment can be just a Linux server with Virtualbox installed and all the tools needed for the end-to-end tests. However, we decided to implement our environment based on Kubernetes. Thus, the instructions below are based on the Kubernetes setup (but you can easily adapt for a standalone/simple Linux based solution). For the Kubernetes integration, you will need to install this Controller: https://github.com/italovalcy/vboxvms-k8s-ctrl (after installing the controller, we added the Virtual Noviflow switches as the templates according to the number of available licenses)
 
+3. Be aware that when creating topologies, the maximum port number for Noviflow switches is 16 (default port mapping from Tofino-model)
+
 ## Running end-to-end tests with NoviSwitch
 
 Overall steps are described below:
@@ -30,6 +32,9 @@ kubectl --kubeconfig $KUBECONFIG wait --for=jsonpath='{.status.phase}'=Running v
 NOVISWITCHES=$(kubectl --kubeconfig $KUBECONFIG get vboxvms -o=jsonpath="{.items[*]['.ip']}")
 
 kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- bash -c "cd kytos-end-to-end-tests/; env NOVIPASS=noviflow NOVIUSER=superuser NOVISWITCHES='$NOVISWITCHES' python3 scripts/wait_for_novissh.py"
+
+# temporary while fixing issues with Kafka events timeout
+kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- bash -c 'sed -ri "s/LINGER_MS = .*/LINGER_MS = 0/g; s/KAFKA_TIMELIMIT = .*/KAFKA_TIMELIMIT = 10/g" $NAPPS_PATH/var/lib/kytos/napps/kytos/kafka_events/settings.py'
 
 kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- tmux new-session -d -s kytos-tests -e SWITCH_CLASS=NoviSwitch -e NOVIPASS=noviflow -e NOVIUSER=superuser -e NOVISWITCHES="$NOVISWITCHES" -e RERUNS=4 bash -c 'cd kytos-end-to-end-tests/; ./kytos-init.sh 2>&1 | tee /results-kytos-e2e.txt'
 ```

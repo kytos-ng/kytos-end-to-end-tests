@@ -73,6 +73,11 @@ if os.environ.get("SWITCH_CLASS") == "NoviSwitch" and not NOVILOCALIP:
 
 NOVIMAXWAIT = int(os.environ.get("NOVIMAXWAIT", 30))
 
+# Noviflow virtual switches supports up to 16 interfaces.
+# We leave an option to change this via envvars just in case
+# on the future this gets increased
+NOVIMAXIFACES = int(os.environ.get("NOVIMAXIFACES", 16))
+
 
 class NoviSwitch(Switch):
     "Noviflow Virtual Switch"
@@ -186,6 +191,14 @@ class NoviSwitch(Switch):
                 if "error" in result.lower():
                     logger.error(f"ERROR: Failed to cleanup switch {s}: {result}")
 
+    def addIntf(self, intf, port=None, **kwards):
+        """Wrapper for Mininet Node.addIntf to validate port number against NOVIMAXIFACES."""
+        if port is None:
+            port = self.newPort()
+        if port > NOVIMAXIFACES:
+            raise ValueError(f"Invalid port number {port} intf={intf} node={self}. Max port number: {NOVIMAXIFACES}")
+        super().addIntf(intf, port=port, **kwargs)
+
     def is_ssh_alive(self):
         if not self.ssh_client:
             return False
@@ -210,8 +223,7 @@ class NoviSwitch(Switch):
                 "ERROR: Failed to check ports status at %s: %s" % (s, " ".join(result))
             )
             return
-        max_ifaces = len(result) - 2
-        for p in range(1, max_ifaces + 1):
+        for p in range(1, NOVIMAXIFACES + 1):
             cmd = "del config port portno %s l2tpaddr" % p
             result = self.novi_cmd(cmd)
             if "error" in result.lower():
@@ -291,7 +303,7 @@ class NoviSwitch(Switch):
         else:
             self.setup_link_linux(self.novi_ip, intf1.name, l2tp_tun_id)
 
-        self.setup_link_noviflow(remote_ip, intf1.name, l2tp_tun_id)
+        self.setup_link_noviflow(remote_ip, intf1.name, l2tp_tun_id, intf2.name)
 
     def get_l2tp_tun_id(self, intf1, intf2):
         link_name = "<->".join(
@@ -305,7 +317,7 @@ class NoviSwitch(Switch):
             NoviSwitch.l2tp_next_id += 1
         return l2tp_tun_id
 
-    def setup_link_noviflow(self, remote_ip, intf_name, l2tp_tun_id):
+    def setup_link_noviflow(self, remote_ip, intf_name, l2tp_tun_id, other_intf):
         port_num = self.intf_name_to_number(intf_name)
         logger.info(
             "setup_link_noviflow port_num=%d l2tp_tun_id=%d\n" % (port_num, l2tp_tun_id)
@@ -314,8 +326,15 @@ class NoviSwitch(Switch):
         self.novi_cmd(cmd)
         cmd = "set config port portno %d portdown off" % (port_num)
         self.novi_cmd(cmd)
-        l2tp_port = 17000 + l2tp_tun_id
-        cmd = f"set config port portno {port_num} l2tpaddr {remote_ip} localtunnelid {l2tp_tun_id} remotetunnelid {l2tp_tun_id} localsessionid {l2tp_tun_id} remotesessionid {l2tp_tun_id} udpsrc {l2tp_port} udpdst {l2tp_port}"
+        remote_tun_id = l2tp_tun_id
+        if remote_ip == self.novi_ip:
+            if intf_name < other_intf:
+                remote_tun_id = l2tp_tun_id + 1000
+            else:
+                l2tp_tun_id += 1000
+        local_port = 17000 + l2tp_tun_id
+        remote_port = 17000 + remote_tun_id
+        cmd = f"set config port portno {port_num} l2tpaddr {remote_ip} localtunnelid {l2tp_tun_id} remotetunnelid {remote_tun_id} localsessionid {l2tp_tun_id} remotesessionid {remote_tun_id} udpsrc {local_port} udpdst {remote_port}"
         l2tp_config_ok = False
         l2tp_config_warn_sent = False
         for i in range(3):
@@ -325,7 +344,7 @@ class NoviSwitch(Switch):
                 continue
             check_cmd = f"show config port portno {port_num}"
             result = self.novi_cmd(check_cmd)
-            if self.is_l2tp_config_ok(result, remote_ip, l2tp_tun_id):
+            if self.is_l2tp_config_ok(result, remote_ip, l2tp_tun_id, remote_tun_id, local_port, remote_port):
                 l2tp_config_ok = True
                 if l2tp_config_warn_sent:
                     logger.warning("-->> Now ok!")
@@ -340,7 +359,7 @@ class NoviSwitch(Switch):
             )
             logger.error("     %s" % cmd)
 
-    def is_l2tp_config_ok(self, result, remote_ip, l2tp_port):
+    def is_l2tp_config_ok(self, result, remote_ip, local_tun_id, remote_tun_id, local_port, remote_port):
         if isinstance(result, list):
             result = "\n".join(result)
         try:
@@ -351,14 +370,13 @@ class NoviSwitch(Switch):
             l2tp_config = None
         if not l2tp_config:
             return False
-        udp_port = 17000 + l2tp_port
         required_matches = [
             r"Remote ip:\s+%s" % remote_ip,
-            r"Local tunnel id:\s+%s" % l2tp_port,
-            r"Remote tunnel id:\s+%s" % l2tp_port,
-            r"Local session id:\s+%s" % l2tp_port,
-            r"Udp source port:\s+%s" % udp_port,
-            r"Udp destination port:\s+%s" % udp_port,
+            r"Local tunnel id:\s+%s" % local_tun_id,
+            r"Remote tunnel id:\s+%s" % remote_tun_id,
+            r"Local session id:\s+%s" % local_tun_id,
+            r"Udp source port:\s+%s" % local_port,
+            r"Udp destination port:\s+%s" % remote_port,
         ]
         for required_match in required_matches:
             if not re.findall(required_match, l2tp_config):
