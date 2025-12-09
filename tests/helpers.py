@@ -112,6 +112,46 @@ class AmlightLoopedTopo(AmlightTopo):
         self.addLink(self.Ampath4, self.Ampath4, port1=12, port2=13)
 
 
+class AmlightINTLab(Topo):
+    """AmLight INT Lab representing Novi[01-06] with INT[01-03] hosts."""
+    def build(self):
+        # Create the switches
+        s1 = self.addSwitch('s1')
+        s2 = self.addSwitch('s2')
+        s3 = self.addSwitch('s3')
+        s4 = self.addSwitch('s4')
+        s5 = self.addSwitch('s5')
+        s6 = self.addSwitch('s6')
+        # Create two hosts
+        h1 = self.addHost('h1', ip='0.0.0.0')
+        h2 = self.addHost('h2', ip='0.0.0.0')
+        h3 = self.addHost('h3', ip='0.0.0.0')
+        # Add links between the switch and each host
+        self.addLink(s1, h1, port1=1, port2=1)
+        self.addLink(s1, h1, port1=2, port2=2)
+        self.addLink(s1, h2, port1=3, port2=1)
+        self.addLink(s1, h2, port1=4, port2=2)
+        self.addLink(s6, h3, port1=1, port2=1)
+        self.addLink(s6, h3, port1=2, port2=2)
+        # Add links between the switches
+        self.addLink(s1, s5, port1=5, port2=5)
+        self.addLink(s1, s2, port1=6, port2=6)
+        self.addLink(s1, s6, port1=7, port2=7)
+        self.addLink(s2, s5, port1=3, port2=3)
+        self.addLink(s2, s3, port1=4, port2=4)
+        self.addLink(s2, s6, port1=5, port2=5)
+        self.addLink(s3, s4, port1=6, port2=6)
+        self.addLink(s4, s5, port1=7, port2=7)
+        self.addLink(s5, s6, port1=8, port2=8)
+        self.addLink(s5, s6, port1=9, port2=9)
+        # loops
+        self.addLink(s1, s1, port1=15, port2=16)
+        self.addLink(s1, s1, port1=13, port2=14)
+        self.addLink(s6, s6, port1=13, port2=14)
+        self.addLink(s6, s6, port1=15, port2=16)
+        self.addLink(s3, s3, port1=15, port2=16)
+
+
 class RingTopo(Topo):
     """Ring topology with three switches
     and one host connected to each switch"""
@@ -231,6 +271,7 @@ topos = {
     'ring4': (lambda: Ring4Topo()),
     'amlight': (lambda: AmlightTopo()),
     'amlight_looped': (lambda: AmlightLoopedTopo()),
+    'amlight_intlab': (lambda: AmlightINTLab()),
     'linear10': (lambda: LinearTopo(10)),
     'multi': (lambda: MultiConnectedTopo()),
     'looped': (lambda: Looped()),
