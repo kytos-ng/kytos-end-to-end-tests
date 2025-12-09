@@ -191,7 +191,7 @@ class NoviSwitch(Switch):
                 if "error" in result.lower():
                     logger.error(f"ERROR: Failed to cleanup switch {s}: {result}")
 
-    def addIntf(self, intf, port=None, **kwards):
+    def addIntf(self, intf, port=None, **kwargs):
         """Wrapper for Mininet Node.addIntf to validate port number against NOVIMAXIFACES."""
         if port is None:
             port = self.newPort()
