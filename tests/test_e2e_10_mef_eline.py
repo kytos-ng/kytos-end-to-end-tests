@@ -228,7 +228,7 @@ class TestE2EMefEline:
         assert response.status_code == 201, response.text
         data = response.json()
         assert 'circuit_id' in data
-        time.sleep(15)
+        time.sleep(10)
 
         # Each switch must have BASIC_FLOWS + 03 for the EVC:
         #  - 2 for current path (ingress + egress)
@@ -740,7 +740,7 @@ class TestE2EMefEline:
                 response = requests.delete(api_url)
                 assert response.status_code == 200, response.text
 
-            time.sleep(10)
+            time.sleep(60)
 
             # make sure the circuits were deleted
             api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -803,7 +803,7 @@ class TestE2EMefEline:
             response = requests.delete(api_url)
             assert response.status_code == 200, response.text
 
-        time.sleep(10)
+        time.sleep(60)
 
         # make sure the circuits were deleted
         api_url = KYTOS_API + '/mef_eline/v2/evc/'

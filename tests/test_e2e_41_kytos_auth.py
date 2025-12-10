@@ -3,7 +3,11 @@ import time
 import shutil
 import requests
 from tests.helpers import NetworkTest
-from kytos.core.auth import UserController
+import mock
+# make sure the correct args will be passed to kytosd
+# (it may be an issue if you run pytest with -v)
+with mock.patch('sys.argv', ["kytosd"]):
+    from kytos.core.auth import UserController
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
