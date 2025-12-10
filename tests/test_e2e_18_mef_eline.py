@@ -26,8 +26,7 @@ class TestE2EMefEline:
         cls.net.stop()
 
     def setup_method(self, method):
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     def teardown_method(self, method):
