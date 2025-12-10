@@ -41,60 +41,6 @@ class TestE2EKafkaEvents:
     def teardown_class(cls):
         cls.net.stop()
 
-    @pytest.fixture(autouse=True)
-    async def setup_kafka(self):
-        """
-        Pytest fixture that runs every time
-        """
-        # Create & setup the admin client
-        self.admin = AIOKafkaAdminClient(
-            bootstrap_servers=KAFKA_ADDRESSES
-        )
-        await self.admin.start()
-
-        # Create the kafka topic
-        await self.create_kafka_topic()
-
-        # Run the test
-        yield
-
-        # Tear down
-        await self.teardown_kafka_topic()
-
-        # Close the admin client
-        await self.admin.close()
-
-    async def teardown_kafka_topic(self):
-        """
-        Tears down the Kafka topic to be rebuilt
-        """
-        await self.admin.delete_topics([KAFKA_TOPIC], TIMEOUT)
-
-        # Let the topic deletion propagate
-        await asyncio.sleep(5)
-
-    async def topic_exists(self):
-        """
-        Checks if a topic exists
-        """
-        return KAFKA_TOPIC in await self.admin.list_topics()
-
-    async def create_kafka_topic(self):
-        """
-        Creates the Kafka topic
-        """
-        # In case it exists, delete it.
-        if await self.topic_exists():
-            await self.teardown_kafka_topic()
-
-        await self.admin.create_topics(
-            [NewTopic(KAFKA_TOPIC, num_partitions=3, replication_factor=3)],
-            timeout_ms=5000
-        )
-
-        # Let the topic creation propagate
-        await asyncio.sleep(5)
-
     async def test_01_napp_sends_data_correctly(self):
         """
         Test that kafka_events correctly runs the 'setup' method. This would require
