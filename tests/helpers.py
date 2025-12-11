@@ -11,6 +11,8 @@ import hashlib
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+from tests.noviswitch import NoviSwitch
+
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
 def dpctl_wrapper(obj, *args):
@@ -18,8 +20,17 @@ def dpctl_wrapper(obj, *args):
         return obj.orig_dpctl(*args, "--no-names", "--protocols=OpenFlow13", "|grep -v OFPST_FLOW")
     return obj.orig_dpctl(*args)
 
+NoviSwitch.orig_dpctl = NoviSwitch.dpctl
+NoviSwitch.dpctl = dpctl_wrapper
 OVSSwitch.orig_dpctl = OVSSwitch.dpctl
 OVSSwitch.dpctl = dpctl_wrapper
+
+class SwitchFactory:
+    def __new__(cls, *args, **kwargs):
+        cls_name = os.environ.get('SWITCH_CLASS')
+        if cls_name == "NoviSwitch" and NoviSwitch.is_available():
+            return NoviSwitch(*args, **kwargs)
+        return OVSSwitch(*args, **kwargs)
 
 
 class AmlightTopo(Topo):
@@ -56,50 +67,51 @@ class AmlightTopo(Topo):
         h15 = self.addHost('h15', mac='00:00:00:00:00:0F')
         # Add links
         self.addLink(self.Ampath1, self.Ampath2, port1=1, port2=1)
-        self.addLink(self.Ampath1, SouthernLight2, port1=2, port2=2)
-        self.addLink(self.Ampath1, SouthernLight2, port1=3, port2=3)
-        self.addLink(self.Ampath2, AndesLight2, port1=4, port2=4)
-        self.addLink(SouthernLight2, AndesLight3, port1=5, port2=5)
-        self.addLink(AndesLight3, AndesLight2, port1=6, port2=6)
-        self.addLink(AndesLight2, SanJuan, port1=7, port2=7)
-        self.addLink(SanJuan, self.Ampath2, port1=8, port2=8)
-        self.addLink(self.Ampath1, self.Ampath3, port1=9, port2=9)
-        self.addLink(self.Ampath2, self.Ampath3, port1=10, port2=10)
-        self.addLink(self.Ampath1, self.Ampath4, port1=11, port2=11)
-        self.addLink(self.Ampath2, self.Ampath5, port1=12, port2=12)
-        self.addLink(self.Ampath4, self.Ampath5, port1=13, port2=13)
-        self.addLink(self.Ampath4, JAX1, port1=14, port2=14)
-        self.addLink(self.Ampath5, JAX2, port1=15, port2=15)
-        self.addLink(self.Ampath4, self.Ampath7, port1=16, port2=16)
-        self.addLink(self.Ampath7, SouthernLight2, port1=17, port2=17)
-        self.addLink(JAX1, JAX2, port1=18, port2=18)
-        self.addLink(h1, self.Ampath1, port1=1, port2=50)
-        self.addLink(h2, self.Ampath2, port1=1, port2=51)
-        self.addLink(h3, SouthernLight2, port1=1, port2=52)
-        self.addLink(h4, SanJuan, port1=1, port2=53)
-        self.addLink(h5, AndesLight2, port1=1, port2=54)
-        self.addLink(h6, AndesLight3, port1=1, port2=55)
-        self.addLink(h7, self.Ampath3, port1=1, port2=56)
-        self.addLink(h8, self.Ampath4, port1=1, port2=57)
-        self.addLink(h9, self.Ampath5, port1=1, port2=58)
-        self.addLink(h10, self.Ampath7, port1=1, port2=59)
-        self.addLink(h11, JAX1, port1=1, port2=60)
-        self.addLink(h12, JAX2, port1=1, port2=61)
-        self.addLink(h13, self.Ampath1, port1=1, port2=62)
-        self.addLink(h14, self.Ampath2, port1=1, port2=63)
-        self.addLink(h15, AndesLight2, port1=1, port2=64)
+        self.addLink(self.Ampath1, self.Ampath3, port1=2, port2=2)
+        self.addLink(self.Ampath1, self.Ampath4, port1=3, port2=3)
+        self.addLink(self.Ampath1, SouthernLight2, port1=4, port2=4)
+        self.addLink(self.Ampath1, SouthernLight2, port1=5, port2=5)
+        self.addLink(self.Ampath2, self.Ampath3, port1=3, port2=3)
+        self.addLink(self.Ampath2, self.Ampath5, port1=4, port2=4)
+        self.addLink(self.Ampath2, AndesLight2, port1=5, port2=5)
+        self.addLink(self.Ampath2, SanJuan, port1=6, port2=6)
+        self.addLink(self.Ampath4, self.Ampath5, port1=1, port2=1)
+        self.addLink(self.Ampath4, self.Ampath7, port1=2, port2=2)
+        self.addLink(self.Ampath4, JAX1, port1=4, port2=4)
+        self.addLink(self.Ampath5, JAX2, port1=5, port2=5)
+        self.addLink(self.Ampath7, SouthernLight2, port1=1, port2=1)
+        self.addLink(SouthernLight2, AndesLight3, port1=2, port2=2)
+        self.addLink(AndesLight3, AndesLight2, port1=1, port2=1)
+        self.addLink(AndesLight2, SanJuan, port1=3, port2=3)
+        self.addLink(JAX1, JAX2, port1=1, port2=1)
+        self.addLink(h1, self.Ampath1, port1=1, port2=16)
+        self.addLink(h2, self.Ampath2, port1=1, port2=16)
+        self.addLink(h3, SouthernLight2, port1=1, port2=16)
+        self.addLink(h4, SanJuan, port1=1, port2=16)
+        self.addLink(h5, AndesLight2, port1=1, port2=16)
+        self.addLink(h6, AndesLight3, port1=1, port2=16)
+        self.addLink(h7, self.Ampath3, port1=1, port2=16)
+        self.addLink(h8, self.Ampath4, port1=1, port2=16)
+        self.addLink(h9, self.Ampath5, port1=1, port2=16)
+        self.addLink(h10, self.Ampath7, port1=1, port2=16)
+        self.addLink(h11, JAX1, port1=1, port2=16)
+        self.addLink(h12, JAX2, port1=1, port2=16)
+        self.addLink(h13, self.Ampath1, port1=1, port2=15)
+        self.addLink(h14, self.Ampath2, port1=1, port2=15)
+        self.addLink(h15, AndesLight2, port1=1, port2=15)
+
 
 class AmlightLoopedTopo(AmlightTopo):
     """Amlight Topology with loops."""
     def build(self):
         super().build()
         #Add loops
-        self.addLink(self.Ampath1, self.Ampath1, port1=17, port2=18)
-        self.addLink(self.Ampath1, self.Ampath1, port1=19, port2=20)
-        self.addLink(self.Ampath4, self.Ampath4, port1=25, port2=26)
-        self.addLink(self.Ampath4, self.Ampath4, port1=9, port2=10)
+        self.addLink(self.Ampath1, self.Ampath1, port1=10, port2=11)
+        self.addLink(self.Ampath1, self.Ampath1, port1=12, port2=13)
+        self.addLink(self.Ampath4, self.Ampath4, port1=10, port2=11)
+        self.addLink(self.Ampath4, self.Ampath4, port1=12, port2=13)
 
-        
+
 class RingTopo(Topo):
     """Ring topology with three switches
     and one host connected to each switch"""
@@ -272,13 +284,16 @@ class NetworkTest:
             topo=topos.get(topo_name, (lambda: RingTopo()))(),
             controller=lambda name: RemoteController(
                 name, ip=controller_ip, port=6653),
-            switch=OVSSwitch,
+            switch=SwitchFactory,
             autoSetMacs=True)
         db_client_kwargs = db_client_options or {}
         db_name = db_client_kwargs.get("database") or os.environ.get("MONGO_DBNAME")
         self.db_client = db_client(**db_client_kwargs)
         self.db_name = db_name
         self.db = self.db_client[self.db_name]
+        # setup a wrapper for configLinkStatus
+        self.net.orig_configLinkStatus = self.net.configLinkStatus
+        self.net.configLinkStatus = self.configLinkStatus
 
     def start(self):
         self.net.start()
@@ -428,17 +443,29 @@ class NetworkTest:
         if the controller config were to be deleted.
         """
         for sw in self.net.switches:
+            if hasattr(sw, "reset_controller") and callable(sw.reset_controller):
+                sw.reset_controller()
+                continue
             sw.vsctl(f"set-controller {sw.name} {temp_target}")
             sw.controllerUUIDs(update=True)
-        for sw in self.net.switches:
             sw.vsctl(f"set-controller {sw.name} {target}")
             sw.controllerUUIDs(update=True)
         if wait:
             self.wait_switches_connect()
 
+    def configLinkStatus(self, a, b, status):
+        node_a = self.net.get(a)
+        node_b = self.net.get(b)
+        connections = node_a.connectionsTo(node_b)
+        if isinstance(node_a, NoviSwitch):
+            node_a.configLinkStatus([c[0] for c in connections], status)
+        if isinstance(node_b, NoviSwitch):
+            node_b.configLinkStatus([c[1] for c in connections], status)
+        self.net.orig_configLinkStatus(a, b, status)
+
     def config_all_links_up(self):
         for link in self.net.links:
-            self.net.configLinkStatus(
+            self.configLinkStatus(
                 link.intf1.node.name,
                 link.intf2.node.name,
                 "up"
