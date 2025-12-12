@@ -133,6 +133,7 @@ class AmlightINTLab(Topo):
         self.addLink(s1, h2, port1=4, port2=2)
         self.addLink(s6, h3, port1=1, port2=1)
         self.addLink(s6, h3, port1=2, port2=2)
+        self.addLink(s6, h2, port1=3, port2=3)
         # Add links between the switches
         self.addLink(s1, s5, port1=5, port2=5)
         self.addLink(s1, s2, port1=6, port2=6)
