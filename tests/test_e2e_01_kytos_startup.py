@@ -69,6 +69,8 @@ class TestE2EKytosServer:
                 ("kytos", "of_lldp"),
                 ("kytos", "of_multi_table"),
                 ("kytos", "kafka_events"),
+                ('kytos', 'telemetry_int'),
+                ('amlight', 'noviflow'),
                 ('amlight', 'sdntrace'),
                 ('amlight', 'coloring'),
                 ('amlight', 'sdntrace_cp'),
