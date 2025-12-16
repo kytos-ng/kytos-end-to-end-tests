@@ -2,6 +2,7 @@ from mininet.net import Mininet
 from mininet.topo import Topo, LinearTopo
 from mininet.node import RemoteController, OVSSwitch
 import mininet.clean
+from mininet.log import error
 from mock import patch
 import time
 import os
@@ -495,15 +496,41 @@ class NetworkTest:
         if wait:
             self.wait_switches_connect()
 
-    def configLinkStatus(self, a, b, status):
+    def configLinkStatus(self, a, b, status, port1=None, port2=None):
+        connections = []
         node_a = self.net.get(a)
         node_b = self.net.get(b)
-        connections = node_a.connectionsTo(node_b)
+        if not node_a:
+            error(f"src not in network: {a}\n")
+            return
+        if not node_b:
+            error(f"dst not in network: {b}\n")
+            return
+        if port1 and port2:
+            intf1 = node_a.intfs.get(port1)
+            intf2 = node_b.intfs.get(port2)
+            if intf1.link and intf1.link == intf2.link:
+                connections = [(intf1, intf2)]
+        else:
+            connections = node_a.connectionsTo(node_b)
+        if len(connections) == 0:
+            error(f"src and dst not connected: {src} {dst}\n")
+            return
+        # for NoviSwitch hosts, before changing the status of the veth interfaces
+        # we need to actually change the status of the interface on the switch to
+        # trigger the OpenFlow PortStatus message on Noviflow NOS
         if isinstance(node_a, NoviSwitch):
             node_a.configLinkStatus([c[0] for c in connections], status)
         if isinstance(node_b, NoviSwitch):
             node_b.configLinkStatus([c[1] for c in connections], status)
-        self.net.orig_configLinkStatus(a, b, status)
+        # now we change the status on veth interfaces
+        for srcIntf, dstIntf in connections:
+            result = srcIntf.ifconfig(status)
+            if result:
+                error(f"link src status change failed: {result}\n")
+            result = dstIntf.ifconfig(status)
+            if result:
+                error(f"link dst status change failed: {result}\n")
 
     def config_all_links_up(self):
         for link in self.net.links:
