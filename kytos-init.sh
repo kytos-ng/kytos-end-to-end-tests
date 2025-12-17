@@ -26,7 +26,6 @@ sed -i 's/CONSISTENCY_COOKIE_IGNORED_RANGE =.*/CONSISTENCY_COOKIE_IGNORED_RANGE 
 sed -i 's/LIVENESS_DEAD_MULTIPLIER =.*/LIVENESS_DEAD_MULTIPLIER = 3/g' $NAPPS_PATH/var/lib/kytos/napps/kytos/of_lldp/settings.py
 
 # increase logging to facilitate troubleshooting
-test -d /etc/kytos && mv /etc/kytos /etc/kytos-bkp-$(date +%s)
 kytosd --help >/dev/null 2>&1  ## create configs at /etc/kytos from templates
 sed -i 's/WARNING/INFO/g' $NAPPS_PATH/etc/kytos/logging.ini
 sed -i 's/keys: root,kytos,api_server,socket/keys: root,kytos,api_server,socket,aiokafka/' $NAPPS_PATH/etc/kytos/logging.ini

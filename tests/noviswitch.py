@@ -54,12 +54,11 @@ elif os.environ.get("SWITCH_CLASS") == "NoviSwitch":
         "Neither NOVISWITCHES nor NOVISETTINGS environment variables found. You must define one of them"
     )
 
-NOVIUSER = os.environ.get("NOVIUSER")
-NOVIPASS = os.environ.get("NOVIPASS")
-if os.environ.get("SWITCH_CLASS") == "NoviSwitch" and (not NOVIUSER or not NOVIPASS):
-    raise ValueError(
-        "Missing env vars for username/password for Noviflow switches: NOVIUSER and NOVIPASS"
-    )
+if os.environ.get("SWITCH_CLASS") == "NoviSwitch":
+    if not (NOVIUSER := os.environ.get("NOVIUSER")):
+        raise ValueError("Missing username env var for Noviflow switches: NOVIUSER")
+    if not (NOVIPASS := os.environ.get("NOVIPASS")):
+        raise ValueError("Missing password env var for Noviflow switches: NOVIPASS")
 
 NOVILOCALIP = os.environ.get("NOVILOCALIP")
 if os.environ.get("SWITCH_CLASS") == "NoviSwitch" and not NOVILOCALIP:
@@ -196,7 +195,9 @@ class NoviSwitch(Switch):
         if port is None:
             port = self.newPort()
         if port > NOVIMAXIFACES:
-            raise ValueError(f"Invalid port number {port} intf={intf} node={self}. Max port number: {NOVIMAXIFACES}")
+            raise ValueError(
+                f"Invalid port number {port} intf={intf} node={self}. Max port number: {NOVIMAXIFACES}"
+            )
         super().addIntf(intf, port=port, **kwargs)
 
     def is_ssh_alive(self):
@@ -344,7 +345,9 @@ class NoviSwitch(Switch):
                 continue
             check_cmd = f"show config port portno {port_num}"
             result = self.novi_cmd(check_cmd)
-            if self.is_l2tp_config_ok(result, remote_ip, l2tp_tun_id, remote_tun_id, local_port, remote_port):
+            if self.is_l2tp_config_ok(
+                result, remote_ip, l2tp_tun_id, remote_tun_id, local_port, remote_port
+            ):
                 l2tp_config_ok = True
                 if l2tp_config_warn_sent:
                     logger.warning("-->> Now ok!")
@@ -359,7 +362,9 @@ class NoviSwitch(Switch):
             )
             logger.error("     %s" % cmd)
 
-    def is_l2tp_config_ok(self, result, remote_ip, local_tun_id, remote_tun_id, local_port, remote_port):
+    def is_l2tp_config_ok(
+        self, result, remote_ip, local_tun_id, remote_tun_id, local_port, remote_port
+    ):
         if isinstance(result, list):
             result = "\n".join(result)
         try:
