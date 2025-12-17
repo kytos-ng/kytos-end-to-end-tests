@@ -3,6 +3,7 @@ import time
 import os
 import sys
 
+
 def test_ssh_connection(hostname, username, password):
     """
     Tests an SSH connection to a remote host using Paramiko.
@@ -41,9 +42,9 @@ def novissh_wait(maxwait=300):
 
 
 if __name__ == "__main__":
-    print("Trying to run hello command on Noviflow switches via SSH...")
     maxwait = 600
     if len(sys.argv) > 1:
         maxwait = int(sys.argv[1])
 
+    print(f"Trying to run hello on Noviflow switches via SSH maxwait={maxwait}...")
     novissh_wait(maxwait=maxwait)
