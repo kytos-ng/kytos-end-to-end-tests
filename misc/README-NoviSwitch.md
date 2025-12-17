@@ -8,6 +8,20 @@
 
 3. Be aware that when creating topologies, the maximum port number for Noviflow switches is 16 (default port mapping from Tofino-model)
 
+## Environment variables
+
+Before running the end-to-end tests, some environment variables need to be configured to enable tests to run correctly:
+
+- ``NOVISWITCHES``: this variable is **mandatory** and should contain a comma-separated list of IP addresses for each virtual Noviflow switch that is available for the test. Example: ``export NOVISWITCHES=192.168.56.101,192.168.56.102``
+
+- ``NOVIUSER``: this variable is **mandatory** and should contain the username used for SSH authentication with Noviflow switch. The username has to be for a privileged user (example: superuser).
+
+- ``NOVIPASS``: this variable is **mandatory** and should contain the password used for SSH authentication with Noviflow switch.
+
+- ``SWITCH_CLASS``: this variable is **very important** to actually run the tests with Noviflow backend. When using the NoviSwitch backend, Mininet will try to allocate virtual Noviflow switches as much as possible, meaning: if your topology has 10 switches, but you only provided 6 virtual switches (i.e., your ``NOVISWITCHES`` have 6 IP addresses) then your topology will be mixed with 6 virtual Noviflow switches plus 4 OpenVSwitch for backwards compatibility. Thus, if you want to have Noviflows switches as the backend for Mininet, you have set this variable with: ``export SWITCH_CLASS=NoviSwitch``.
+
+- ``NOVISETTINGS``: this variable is **optional** and when set should be a JSON encoded string or file containing more information about the switches, which allows for instance to have different names for each switch. Example: ``export NOVISETTINGS='{"vNovi01": {"ip": "192.168.56.101"}, "vNovi02": {"ip": "192.168.56.102"}}'``
+
 ## Running end-to-end tests with NoviSwitch
 
 Overall steps are described below:
