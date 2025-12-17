@@ -2,6 +2,7 @@ from mininet.net import Mininet
 from mininet.topo import Topo, LinearTopo
 from mininet.node import RemoteController, OVSSwitch
 import mininet.clean
+from mininet.log import error
 from mock import patch
 import time
 import os
@@ -110,6 +111,47 @@ class AmlightLoopedTopo(AmlightTopo):
         self.addLink(self.Ampath1, self.Ampath1, port1=12, port2=13)
         self.addLink(self.Ampath4, self.Ampath4, port1=10, port2=11)
         self.addLink(self.Ampath4, self.Ampath4, port1=12, port2=13)
+
+
+class AmlightINTLab(Topo):
+    """AmLight INT Lab representing Novi[01-06] with INT[01-03] hosts."""
+    def build(self):
+        # Create the switches
+        s1 = self.addSwitch('s1')
+        s2 = self.addSwitch('s2')
+        s3 = self.addSwitch('s3')
+        s4 = self.addSwitch('s4')
+        s5 = self.addSwitch('s5')
+        s6 = self.addSwitch('s6')
+        # Create two hosts
+        h1 = self.addHost('h1', ip='0.0.0.0')
+        h2 = self.addHost('h2', ip='0.0.0.0')
+        h3 = self.addHost('h3', ip='0.0.0.0')
+        # Add links between the switch and each host
+        self.addLink(s1, h1, port1=1, port2=1)
+        self.addLink(s1, h1, port1=2, port2=2)
+        self.addLink(s1, h2, port1=3, port2=1)
+        self.addLink(s1, h2, port1=4, port2=2)
+        self.addLink(s6, h3, port1=1, port2=1)
+        self.addLink(s6, h3, port1=2, port2=2)
+        self.addLink(s6, h2, port1=3, port2=3)
+        # Add links between the switches
+        self.addLink(s1, s5, port1=5, port2=5)
+        self.addLink(s1, s2, port1=6, port2=6)
+        self.addLink(s1, s6, port1=7, port2=7)
+        self.addLink(s2, s5, port1=3, port2=3)
+        self.addLink(s2, s3, port1=4, port2=4)
+        self.addLink(s2, s6, port1=5, port2=5)
+        self.addLink(s3, s4, port1=6, port2=6)
+        self.addLink(s4, s5, port1=7, port2=7)
+        self.addLink(s5, s6, port1=8, port2=8)
+        self.addLink(s5, s6, port1=9, port2=9)
+        # loops
+        self.addLink(s1, s1, port1=15, port2=16)
+        self.addLink(s1, s1, port1=13, port2=14)
+        self.addLink(s6, s6, port1=13, port2=14)
+        self.addLink(s6, s6, port1=15, port2=16)
+        self.addLink(s3, s3, port1=15, port2=16)
 
 
 class RingTopo(Topo):
@@ -231,6 +273,7 @@ topos = {
     'ring4': (lambda: Ring4Topo()),
     'amlight': (lambda: AmlightTopo()),
     'amlight_looped': (lambda: AmlightLoopedTopo()),
+    'amlight_intlab': (lambda: AmlightINTLab()),
     'linear10': (lambda: LinearTopo(10)),
     'multi': (lambda: MultiConnectedTopo()),
     'looped': (lambda: Looped()),
@@ -453,15 +496,41 @@ class NetworkTest:
         if wait:
             self.wait_switches_connect()
 
-    def configLinkStatus(self, a, b, status):
+    def configLinkStatus(self, a, b, status, port1=None, port2=None):
+        connections = []
         node_a = self.net.get(a)
         node_b = self.net.get(b)
-        connections = node_a.connectionsTo(node_b)
+        if not node_a:
+            error(f"src not in network: {a}\n")
+            return
+        if not node_b:
+            error(f"dst not in network: {b}\n")
+            return
+        if port1 and port2:
+            intf1 = node_a.intfs.get(port1)
+            intf2 = node_b.intfs.get(port2)
+            if intf1.link and intf1.link == intf2.link:
+                connections = [(intf1, intf2)]
+        else:
+            connections = node_a.connectionsTo(node_b)
+        if len(connections) == 0:
+            error(f"src and dst not connected: {src} {dst}\n")
+            return
+        # for NoviSwitch hosts, before changing the status of the veth interfaces
+        # we need to actually change the status of the interface on the switch to
+        # trigger the OpenFlow PortStatus message on Noviflow NOS
         if isinstance(node_a, NoviSwitch):
             node_a.configLinkStatus([c[0] for c in connections], status)
         if isinstance(node_b, NoviSwitch):
             node_b.configLinkStatus([c[1] for c in connections], status)
-        self.net.orig_configLinkStatus(a, b, status)
+        # now we change the status on veth interfaces
+        for srcIntf, dstIntf in connections:
+            result = srcIntf.ifconfig(status)
+            if result:
+                error(f"link src status change failed: {result}\n")
+            result = dstIntf.ifconfig(status)
+            if result:
+                error(f"link dst status change failed: {result}\n")
 
     def config_all_links_up(self):
         for link in self.net.links:

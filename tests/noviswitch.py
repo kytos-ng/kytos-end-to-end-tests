@@ -139,7 +139,7 @@ class NoviSwitch(Switch):
         "Make sure all NoviSwitches are is accessible"
         errors = []
         for s, switch in NOVISETTINGS.items():
-            logger.info("checking switch %s\n" % s)
+            logger.debug("checking switch %s\n" % s)
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             client.connect(
@@ -165,9 +165,9 @@ class NoviSwitch(Switch):
             exit(1)
 
     @classmethod
-    def cleanup(cls):
+    def batch_cleanup(cls):
         """ "Clean up"""
-        logger.info("*** Cleaning up L2TP tunnels\n")
+        logger.debug("*** Cleaning up L2TP tunnels\n")
         tunnels = run_cmd('ip l2tp show tunnel | egrep -o "Tunnel [0-9]+"').split("\n")[
             :-1
         ]
@@ -175,7 +175,7 @@ class NoviSwitch(Switch):
             s, tid = tunnel.split(" ")
             run_cmd("ip l2tp del tunnel tunnel_id %s 2>/dev/null" % (tid))
         for s, switch in NOVISETTINGS.items():
-            logger.info(f"cleanup switch - {s} ({switch['ip']})\n")
+            logger.debug(f"cleanup switch - {s} ({switch['ip']})\n")
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             client.connect(
@@ -266,7 +266,7 @@ class NoviSwitch(Switch):
     def batchShutdown(cls, switches):
         "Shutdown switchs, to be waited on later in stop()"
         for sw in switches:
-            logger.info("batch shutdown switches - %s (%s)\n" % (sw.name, sw.novi_name))
+            logger.debug("batch shutdown switches - %s (%s)\n" % (sw.name, sw.novi_name))
             switch = NOVISETTINGS[sw.novi_name]
             client = paramiko.SSHClient()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -287,7 +287,7 @@ class NoviSwitch(Switch):
         return int(nums[0])
 
     def novi_setup_intf(self, intf1):
-        logger.info("novi_setup_intf %s\n" % intf1.name)
+        logger.debug("novi_setup_intf %s\n" % intf1.name)
         intf2 = (
             intf1.link.intf2
             if (
@@ -320,7 +320,7 @@ class NoviSwitch(Switch):
 
     def setup_link_noviflow(self, remote_ip, intf_name, l2tp_tun_id, other_intf):
         port_num = self.intf_name_to_number(intf_name)
-        logger.info(
+        logger.debug(
             "setup_link_noviflow port_num=%d l2tp_tun_id=%d\n" % (port_num, l2tp_tun_id)
         )
         cmd = "del config port portno %d l2tpaddr" % (port_num)
@@ -432,7 +432,7 @@ class NoviSwitch(Switch):
     def start(self, controllers):
         "Setup a new NoviSwitch"
         switch = NOVISETTINGS[self.novi_name]
-        logger.info(
+        logger.debug(
             "start switch %s (%s - %s) controllers=%s\n"
             % (self.name, self.novi_name, switch["ip"], controllers)
         )
@@ -624,4 +624,4 @@ class NoviSwitch(Switch):
             self.novi_cmd(cmd)
 
 
-addCleanupCallback(NoviSwitch.cleanup)
+addCleanupCallback(NoviSwitch.batch_cleanup)
