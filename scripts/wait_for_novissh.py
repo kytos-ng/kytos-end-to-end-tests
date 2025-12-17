@@ -21,21 +21,22 @@ def test_ssh_connection(hostname, username, password):
 
 
 def novissh_wait(maxwait=300):
-    SWITCHES = os.environ.get("NOVISWITCHES", "").split()
-    NOVIUSER = os.environ.get("NOVIUSER")
-    NOVIPASS = os.environ.get("NOVIPASS")
-    if not SWITCHES or not NOVIUSER or not NOVIPASS:
-        raise ValueError("Missing one of the parameters switches: NOVISWITCHES, NOVIUSER or NOVIPASS")
+    if not (switches := os.environ.get("NOVISWITCHES", "").split()):
+        raise ValueError("Missing environment variable: NOVISWITCHES")
+    if not (noviuser := os.environ.get("NOVIUSER")):
+        raise ValueError("Missing environment variable: NOVIUSER")
+    if not (novipass := os.environ.get("NOVIPASS")):
+        raise ValueError("Missing environment variable: NOVIPASS")
 
     started = time.time()
     while time.time() - started < maxwait:
-        for sw in SWITCHES[:]:
-            if test_ssh_connection(sw, NOVIUSER, NOVIPASS):
-                SWITCHES.remove(sw)
-        if not SWITCHES:
+        for sw in switches[:]:
+            if test_ssh_connection(sw, noviuser, novipass):
+                switches.remove(sw)
+        if not switches:
             print("All switches connected")
             break
-        print(f"Pending switches: {SWITCHES}. Sleeping for 5s...")
+        print(f"Pending switches: {switches}. Sleeping for 5s...")
         time.sleep(5)
 
 
