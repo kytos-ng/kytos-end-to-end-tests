@@ -31,7 +31,7 @@ class TestE2ESDNTrace:
     def test_001_run_sdntrace_with_goto_table_intra(cls):
         """Run SDNTrace-CP for instruction type goto_table for the intra case:
         - test on switch Ampath1 (S1) with dpid='00:00:00:00:00:00:00:11'.
-        - 2 loops: S1:17 - S1:18 and S1:19 - S1:20.
+        - 2 loops: S1:10 - S1:11 and S1:12 - S1:13.
         - make sure sdntrace_cp detects correct traces for flows with goto_table instruction.
         """
 
@@ -40,7 +40,7 @@ class TestE2ESDNTrace:
             "flows": [
                 {
                     "match": {
-                        "in_port": 50,
+                        "in_port": 16,
                         "dl_vlan": 201
                         },
                     "instructions": [{
@@ -68,14 +68,14 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 50,
+                        "in_port": 16,
                         "dl_vlan": 201
                         },
                     "instructions": [{
                         "instruction_type": "apply_actions",
                         "actions": [{
                             "action_type": "output",
-                            "port": 19
+                            "port": 12
                         }]}
                     ],
                     "table_id": 2,
@@ -91,7 +91,7 @@ class TestE2ESDNTrace:
                         "instruction_type": "apply_actions",
                         "actions": [{
                             "action_type": "output",
-                            "port": 17
+                            "port": 10
                         }]}
                     ],
                     "table_id": 2,
@@ -100,7 +100,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 20,
+                        "in_port": 13,
                         "dl_vlan": 201
                         },
                     "instructions": [
@@ -115,7 +115,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 20,
+                        "in_port": 13,
                         "dl_vlan": 201
                         },
                     "instructions": [{
@@ -134,7 +134,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 18,
+                        "in_port": 11,
                         "dl_vlan": 200
                         },
                     "instructions": [
@@ -149,7 +149,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 18,
+                        "in_port": 11,
                         "dl_vlan": 200
                         },
                     "instructions": [{
@@ -159,7 +159,7 @@ class TestE2ESDNTrace:
                             "vlan_id": 201
                         }, {
                             "action_type": "output",
-                            "port": 50
+                            "port": 16
                         }]}
                     ],
                     "table_id": 2,
@@ -177,7 +177,7 @@ class TestE2ESDNTrace:
             {"trace": {
                 "switch": {
                     "dpid": "00:00:00:00:00:00:00:11",
-                    "in_port": 50
+                    "in_port": 16
                     },
                 "eth": {"dl_vlan": 201}
                 }},
@@ -199,11 +199,11 @@ class TestE2ESDNTrace:
         result = list_results[0]
 
         assert result[0]['dpid'] == '00:00:00:00:00:00:00:11'
-        assert result[0]['port'] == 50
+        assert result[0]['port'] == 16
         assert result[0]['vlan'] == 201
 
-        assert result[1]['port'] == 20
-        assert result[0]['vlan'] == 201
+        assert result[1]['port'] == 13
+        assert result[1]['vlan'] == 201
         assert result[1]['out']['port'] == 2
         assert result[1]['out']['vlan'] == 200
 
@@ -213,16 +213,17 @@ class TestE2ESDNTrace:
         assert result[0]['port'] == 2
         assert result[0]['vlan'] == 200
 
-        assert result[1]['port'] == 18
-        assert result[0]['vlan'] == 200
-        assert result[1]['out']['port'] == 50
+        assert result[1]['port'] == 11
+        assert result[1]['vlan'] == 200
+        assert result[1]['out']['port'] == 16
         assert result[1]['out']['vlan'] == 201
 
     def test_010_run_sdntrace_with_goto_table_inter(cls):
         """Run SDNTrace-CP for instruction type goto_table for the inter case:
         - test on switches Ampath1 (S1) with dpid='00:00:00:00:00:00:00:11' and Ampath4 (S4) 00:00:00:00:00:00:00:18 (S4).
-        - 2 loops in S1: S1:17 - S1:18 and S1:19 - S1:20.
-        - 2 loops in S4: S4:9 - S4:10 and S4:25 - S4:26.
+        - 2 loops in S1: S1:10 - S1:11 and S1:12 - S1:13
+        - 2 loops in S4: S4:10 - S4:11 and S4:12 - S4:13
+        - link S1:3 -- S4:3
         - make sure sdntrace_cp detects correct traces for flows with goto_table instruction.
         """
 
@@ -231,7 +232,7 @@ class TestE2ESDNTrace:
             "flows": [
                 {
                     "match": {
-                        "in_port": 50,
+                        "in_port": 16,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -245,7 +246,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 50,
+                        "in_port": 16,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -261,7 +262,7 @@ class TestE2ESDNTrace:
                             "vlan_id": 1
                         }, {
                             "action_type": "output",
-                            "port": 11
+                            "port": 3
                         }]}
                     ],
                     "table_id": 2,
@@ -270,14 +271,14 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 11,
+                        "in_port": 3,
                         "dl_vlan": 1
                         },
                     "instructions": [{
                         "instruction_type": "apply_actions",
                         "actions": [{
                             "action_type": "output",
-                            "port": 17
+                            "port": 10
                         }]}
                     ],
                     "table_id": 0,
@@ -286,7 +287,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 18,
+                        "in_port": 11,
                         "dl_vlan": 1
                         },
                     "instructions": [
@@ -301,7 +302,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 18,
+                        "in_port": 11,
                         "dl_vlan": 1
                         },
                     "instructions": [{
@@ -310,7 +311,7 @@ class TestE2ESDNTrace:
                             "action_type": "pop_vlan"
                         }, {
                             "action_type": "output",
-                            "port": 50
+                            "port": 16
                         }]}
                     ],
                     "table_id": 2,
@@ -329,7 +330,7 @@ class TestE2ESDNTrace:
             "flows": [
                 {
                     "match": {
-                        "in_port": 57,
+                        "in_port": 16,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -343,14 +344,14 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 11,
+                        "in_port": 3,
                         "dl_vlan": 1
                         },
                     "instructions": [{
                         "instruction_type": "apply_actions",
                         "actions": [{
                             "action_type": "output",
-                            "port": 25
+                            "port": 10
                         }]}
                     ],
                     "table_id": 0,
@@ -359,7 +360,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 57,
+                        "in_port": 16,
                         "dl_vlan": 100
                         },
                     "instructions": [{
@@ -375,7 +376,7 @@ class TestE2ESDNTrace:
                             "vlan_id": 1
                         }, {
                             "action_type": "output",
-                            "port": 11
+                            "port": 3
                         }]}
                     ],
                     "table_id": 2,
@@ -384,7 +385,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 26,
+                        "in_port": 11,
                         "dl_vlan": 1
                         },
                     "instructions": [
@@ -399,7 +400,7 @@ class TestE2ESDNTrace:
                 },
                 {
                     "match": {
-                        "in_port": 26,
+                        "in_port": 11,
                         "dl_vlan": 1
                         },
                     "instructions": [{
@@ -408,7 +409,7 @@ class TestE2ESDNTrace:
                             "action_type": "pop_vlan"
                         }, {
                             "action_type": "output",
-                            "port": 57
+                            "port": 16
                         }]}
                     ],
                     "table_id": 2,
@@ -426,14 +427,14 @@ class TestE2ESDNTrace:
             {"trace": {
                 "switch": {
                     "dpid": "00:00:00:00:00:00:00:11",
-                    "in_port": 50
+                    "in_port": 16
                     },
                 "eth": {"dl_vlan": 100}
                 }},
             {"trace": {
                 "switch": {
                     "dpid": "00:00:00:00:00:00:00:18",
-                    "in_port": 57
+                    "in_port": 16
                     },
                 "eth": {"dl_vlan": 100}
                 }}
@@ -448,31 +449,31 @@ class TestE2ESDNTrace:
         result = list_results[0]
 
         assert result[0]['dpid'] == '00:00:00:00:00:00:00:11'
-        assert result[0]['port'] == 50
+        assert result[0]['port'] == 16
         assert result[0]['vlan'] == 100
 
         assert result[1]['dpid'] == '00:00:00:00:00:00:00:18'
-        assert result[1]['port'] == 11
+        assert result[1]['port'] == 3
         assert result[1]['vlan'] == 1
 
         assert result[2]['dpid'] == '00:00:00:00:00:00:00:18'
-        assert result[2]['port'] == 26
+        assert result[2]['port'] == 11
         assert result[2]['vlan'] == 1
-        assert result[2]['out']['port'] == 57
+        assert result[2]['out']['port'] == 16
         assert result[2]['out']['vlan'] == 100
 
         result = list_results[1]
 
         assert result[0]['dpid'] == '00:00:00:00:00:00:00:18'
-        assert result[0]['port'] == 57
+        assert result[0]['port'] == 16
         assert result[0]['vlan'] == 100
 
         assert result[1]['dpid'] == '00:00:00:00:00:00:00:11'
-        assert result[1]['port'] == 11
+        assert result[1]['port'] == 3
         assert result[1]['vlan'] == 1
 
         assert result[2]['dpid'] == '00:00:00:00:00:00:00:11'
-        assert result[2]['port'] == 18
+        assert result[2]['port'] == 11
         assert result[2]['vlan'] == 1
-        assert result[2]['out']['port'] == 50
+        assert result[2]['out']['port'] == 16
         assert result[2]['out']['vlan'] == 100

@@ -2,6 +2,8 @@ import requests
 from tests.helpers import NetworkTest
 import time
 import json
+import os
+import pytest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
@@ -30,6 +32,10 @@ class TestE2ETopology:
     def teardown_class(cls):
         cls.net.stop()
 
+    @pytest.mark.skipif(
+        os.environ.get("SWITCH_CLASS") == "NoviSwitch",
+        reason="NoviSwitch does not support interface removal",
+    )
     def test_010_delete_interface_automatically(self):
         """Test interface removal after logical deletion.
         Deleted:
@@ -164,6 +170,10 @@ class TestE2ETopology:
             counter_tries += 1
         assert response.status_code == 200, f"{response.text}, tries: {counter_tries}"
 
+    @pytest.mark.skipif(
+        os.environ.get("SWITCH_CLASS") == "NoviSwitch",
+        reason="NoviSwitch does not support interface removal",
+    )
     def test_025_delete_interface(self):
         """Test api/kytos/topology/v3/interfaces/{interface_id} on DELETE
         Deleted:
