@@ -31,8 +31,7 @@ class TestE2EOfLLDP:
         """
         It is called at the beginning of every class method execution
         """
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     def restart(self, clean_config=False, enable_all=True, wait_for=10):
@@ -101,11 +100,15 @@ class TestE2EOfLLDP:
         response = requests.get(api_url)
         data = response.json()
         assert data["pairs"], data
+        live_intf_links = {}
         for entry in data["pairs"]:
             assert entry["status"] == "up", entry
             intfa_id = entry["interface_a"]["id"]
             intfb_id = entry["interface_b"]["id"]
             assert (intfa_id, intfb_id) in intfs_grouped
+            assert entry["link_id"]
+            live_intf_links[intfa_id] = entry["link_id"]
+            live_intf_links[intfb_id] = entry["link_id"]
 
         # Assert link metadata has liveness_status "up"
         api_url = f"{KYTOS_API}/topology/v3/links"
@@ -121,6 +124,9 @@ class TestE2EOfLLDP:
                 )
             ):
                 assert link["metadata"]["liveness_status"] == "up"
+                # Make sure on v1/liveness/pair intfs have the same link_id
+                assert link["id"] == live_intf_links[link["endpoint_a"]["id"]]
+                assert link["id"] == live_intf_links[link["endpoint_b"]["id"]]
 
         # Restart the controller maintaining config
         self.restart(wait_for=15)
@@ -210,7 +216,7 @@ class TestE2EOfLLDP:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl("dump-flows")
         # Expects 2x LLDP flow entries
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS + 1, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 1, flows_s2
 
         # Assert GET liveness/ is enabled and down
         api_url = f"{KYTOS_API}/of_lldp/v1/liveness/?interface_id={interface_ids[1]}"
@@ -239,7 +245,7 @@ class TestE2EOfLLDP:
         s2 = self.net.net.get('s2')
         flows_s2 = s2.dpctl("dump-flows")
         # Expects 1x LLDP flow entry
-        assert len(flows_s2.split('\r\n ')) == BASIC_FLOWS, flows_s2
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
 
         # Assert GET liveness/ is enabled and up
         api_url = f"{KYTOS_API}/of_lldp/v1/liveness/?interface_id={interface_ids[1]}"

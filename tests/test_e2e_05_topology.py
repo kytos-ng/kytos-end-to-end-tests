@@ -658,8 +658,7 @@ class TestE2ETopology:
          ("01:3" - "02:2") will be recovered.
         """
         self.net.config_all_links_up()
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
@@ -787,8 +786,7 @@ class TestE2ETopology:
 
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(5)
 
         # Make sure the switch is disabled
@@ -804,8 +802,7 @@ class TestE2ETopology:
 
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(5)
 
         # Make sure the interfaces are disabled

@@ -2,15 +2,37 @@ from mininet.net import Mininet
 from mininet.topo import Topo, LinearTopo
 from mininet.node import RemoteController, OVSSwitch
 import mininet.clean
+from mininet.log import error
 from mock import patch
 import time
 import os
 import requests
+import hashlib
 
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+from tests.noviswitch import NoviSwitch
+
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
+
+def dpctl_wrapper(obj, *args):
+    if args[0] == "dump-flows":
+        return obj.orig_dpctl(*args, "--no-names", "--protocols=OpenFlow13", "|grep -v OFPST_FLOW")
+    return obj.orig_dpctl(*args)
+
+NoviSwitch.orig_dpctl = NoviSwitch.dpctl
+NoviSwitch.dpctl = dpctl_wrapper
+OVSSwitch.orig_dpctl = OVSSwitch.dpctl
+OVSSwitch.dpctl = dpctl_wrapper
+
+class SwitchFactory:
+    def __new__(cls, *args, **kwargs):
+        cls_name = os.environ.get('SWITCH_CLASS')
+        if cls_name == "NoviSwitch" and NoviSwitch.is_available():
+            return NoviSwitch(*args, **kwargs)
+        return OVSSwitch(*args, **kwargs)
+
 
 class AmlightTopo(Topo):
     """Amlight Topology."""
@@ -46,50 +68,92 @@ class AmlightTopo(Topo):
         h15 = self.addHost('h15', mac='00:00:00:00:00:0F')
         # Add links
         self.addLink(self.Ampath1, self.Ampath2, port1=1, port2=1)
-        self.addLink(self.Ampath1, SouthernLight2, port1=2, port2=2)
-        self.addLink(self.Ampath1, SouthernLight2, port1=3, port2=3)
-        self.addLink(self.Ampath2, AndesLight2, port1=4, port2=4)
-        self.addLink(SouthernLight2, AndesLight3, port1=5, port2=5)
-        self.addLink(AndesLight3, AndesLight2, port1=6, port2=6)
-        self.addLink(AndesLight2, SanJuan, port1=7, port2=7)
-        self.addLink(SanJuan, self.Ampath2, port1=8, port2=8)
-        self.addLink(self.Ampath1, self.Ampath3, port1=9, port2=9)
-        self.addLink(self.Ampath2, self.Ampath3, port1=10, port2=10)
-        self.addLink(self.Ampath1, self.Ampath4, port1=11, port2=11)
-        self.addLink(self.Ampath2, self.Ampath5, port1=12, port2=12)
-        self.addLink(self.Ampath4, self.Ampath5, port1=13, port2=13)
-        self.addLink(self.Ampath4, JAX1, port1=14, port2=14)
-        self.addLink(self.Ampath5, JAX2, port1=15, port2=15)
-        self.addLink(self.Ampath4, self.Ampath7, port1=16, port2=16)
-        self.addLink(self.Ampath7, SouthernLight2, port1=17, port2=17)
-        self.addLink(JAX1, JAX2, port1=18, port2=18)
-        self.addLink(h1, self.Ampath1, port1=1, port2=50)
-        self.addLink(h2, self.Ampath2, port1=1, port2=51)
-        self.addLink(h3, SouthernLight2, port1=1, port2=52)
-        self.addLink(h4, SanJuan, port1=1, port2=53)
-        self.addLink(h5, AndesLight2, port1=1, port2=54)
-        self.addLink(h6, AndesLight3, port1=1, port2=55)
-        self.addLink(h7, self.Ampath3, port1=1, port2=56)
-        self.addLink(h8, self.Ampath4, port1=1, port2=57)
-        self.addLink(h9, self.Ampath5, port1=1, port2=58)
-        self.addLink(h10, self.Ampath7, port1=1, port2=59)
-        self.addLink(h11, JAX1, port1=1, port2=60)
-        self.addLink(h12, JAX2, port1=1, port2=61)
-        self.addLink(h13, self.Ampath1, port1=1, port2=62)
-        self.addLink(h14, self.Ampath2, port1=1, port2=63)
-        self.addLink(h15, AndesLight2, port1=1, port2=64)
+        self.addLink(self.Ampath1, self.Ampath3, port1=2, port2=2)
+        self.addLink(self.Ampath1, self.Ampath4, port1=3, port2=3)
+        self.addLink(self.Ampath1, SouthernLight2, port1=4, port2=4)
+        self.addLink(self.Ampath1, SouthernLight2, port1=5, port2=5)
+        self.addLink(self.Ampath2, self.Ampath3, port1=3, port2=3)
+        self.addLink(self.Ampath2, self.Ampath5, port1=4, port2=4)
+        self.addLink(self.Ampath2, AndesLight2, port1=5, port2=5)
+        self.addLink(self.Ampath2, SanJuan, port1=6, port2=6)
+        self.addLink(self.Ampath4, self.Ampath5, port1=1, port2=1)
+        self.addLink(self.Ampath4, self.Ampath7, port1=2, port2=2)
+        self.addLink(self.Ampath4, JAX1, port1=4, port2=4)
+        self.addLink(self.Ampath5, JAX2, port1=5, port2=5)
+        self.addLink(self.Ampath7, SouthernLight2, port1=1, port2=1)
+        self.addLink(SouthernLight2, AndesLight3, port1=2, port2=2)
+        self.addLink(AndesLight3, AndesLight2, port1=1, port2=1)
+        self.addLink(AndesLight2, SanJuan, port1=3, port2=3)
+        self.addLink(JAX1, JAX2, port1=1, port2=1)
+        self.addLink(h1, self.Ampath1, port1=1, port2=16)
+        self.addLink(h2, self.Ampath2, port1=1, port2=16)
+        self.addLink(h3, SouthernLight2, port1=1, port2=16)
+        self.addLink(h4, SanJuan, port1=1, port2=16)
+        self.addLink(h5, AndesLight2, port1=1, port2=16)
+        self.addLink(h6, AndesLight3, port1=1, port2=16)
+        self.addLink(h7, self.Ampath3, port1=1, port2=16)
+        self.addLink(h8, self.Ampath4, port1=1, port2=16)
+        self.addLink(h9, self.Ampath5, port1=1, port2=16)
+        self.addLink(h10, self.Ampath7, port1=1, port2=16)
+        self.addLink(h11, JAX1, port1=1, port2=16)
+        self.addLink(h12, JAX2, port1=1, port2=16)
+        self.addLink(h13, self.Ampath1, port1=1, port2=15)
+        self.addLink(h14, self.Ampath2, port1=1, port2=15)
+        self.addLink(h15, AndesLight2, port1=1, port2=15)
+
 
 class AmlightLoopedTopo(AmlightTopo):
     """Amlight Topology with loops."""
     def build(self):
         super().build()
         #Add loops
-        self.addLink(self.Ampath1, self.Ampath1, port1=17, port2=18)
-        self.addLink(self.Ampath1, self.Ampath1, port1=19, port2=20)
-        self.addLink(self.Ampath4, self.Ampath4, port1=25, port2=26)
-        self.addLink(self.Ampath4, self.Ampath4, port1=9, port2=10)
+        self.addLink(self.Ampath1, self.Ampath1, port1=10, port2=11)
+        self.addLink(self.Ampath1, self.Ampath1, port1=12, port2=13)
+        self.addLink(self.Ampath4, self.Ampath4, port1=10, port2=11)
+        self.addLink(self.Ampath4, self.Ampath4, port1=12, port2=13)
 
-        
+
+class AmlightINTLab(Topo):
+    """AmLight INT Lab representing Novi[01-06] with INT[01-03] hosts."""
+    def build(self):
+        # Create the switches
+        s1 = self.addSwitch('s1')
+        s2 = self.addSwitch('s2')
+        s3 = self.addSwitch('s3')
+        s4 = self.addSwitch('s4')
+        s5 = self.addSwitch('s5')
+        s6 = self.addSwitch('s6')
+        # Create two hosts
+        h1 = self.addHost('h1', ip='0.0.0.0')
+        h2 = self.addHost('h2', ip='0.0.0.0')
+        h3 = self.addHost('h3', ip='0.0.0.0')
+        # Add links between the switch and each host
+        self.addLink(s1, h1, port1=1, port2=1)
+        self.addLink(s1, h1, port1=2, port2=2)
+        self.addLink(s1, h2, port1=3, port2=1)
+        self.addLink(s1, h2, port1=4, port2=2)
+        self.addLink(s6, h3, port1=1, port2=1)
+        self.addLink(s6, h3, port1=2, port2=2)
+        self.addLink(s6, h2, port1=3, port2=3)
+        # Add links between the switches
+        self.addLink(s1, s5, port1=5, port2=5)
+        self.addLink(s1, s2, port1=6, port2=6)
+        self.addLink(s1, s6, port1=7, port2=7)
+        self.addLink(s2, s5, port1=3, port2=3)
+        self.addLink(s2, s3, port1=4, port2=4)
+        self.addLink(s2, s6, port1=5, port2=5)
+        self.addLink(s3, s4, port1=6, port2=6)
+        self.addLink(s4, s5, port1=7, port2=7)
+        self.addLink(s5, s6, port1=8, port2=8)
+        self.addLink(s5, s6, port1=9, port2=9)
+        # loops
+        self.addLink(s1, s1, port1=15, port2=16)
+        self.addLink(s1, s1, port1=13, port2=14)
+        self.addLink(s6, s6, port1=13, port2=14)
+        self.addLink(s6, s6, port1=15, port2=16)
+        self.addLink(s3, s3, port1=15, port2=16)
+
+
 class RingTopo(Topo):
     """Ring topology with three switches
     and one host connected to each switch"""
@@ -209,6 +273,7 @@ topos = {
     'ring4': (lambda: Ring4Topo()),
     'amlight': (lambda: AmlightTopo()),
     'amlight_looped': (lambda: AmlightLoopedTopo()),
+    'amlight_intlab': (lambda: AmlightINTLab()),
     'linear10': (lambda: LinearTopo(10)),
     'multi': (lambda: MultiConnectedTopo()),
     'looped': (lambda: Looped()),
@@ -262,13 +327,16 @@ class NetworkTest:
             topo=topos.get(topo_name, (lambda: RingTopo()))(),
             controller=lambda name: RemoteController(
                 name, ip=controller_ip, port=6653),
-            switch=OVSSwitch,
+            switch=SwitchFactory,
             autoSetMacs=True)
         db_client_kwargs = db_client_options or {}
         db_name = db_client_kwargs.get("database") or os.environ.get("MONGO_DBNAME")
         self.db_client = db_client(**db_client_kwargs)
         self.db_name = db_name
         self.db = self.db_client[self.db_name]
+        # setup a wrapper for configLinkStatus
+        self.net.orig_configLinkStatus = self.net.configLinkStatus
+        self.net.configLinkStatus = self.configLinkStatus
 
     def start(self):
         self.net.start()
@@ -333,19 +401,24 @@ class NetworkTest:
 
         self.wait_controller_start()
 
+        # make sure switches will reconnect
+        self.reconnect_switches(wait=False)
+
     def wait_controller_start(self):
         """Wait until controller starts according to core/status API."""
         wait_count = 0
+        last_error = ""
         while wait_count < 60:
             try:
-                response = requests.get('http://127.0.0.1:8181/api/kytos/core/status/', timeout=1)
-                assert response.json()['response'] == 'running'
+                response = requests.get('http://127.0.0.1:8181/api/kytos/core/status/', timeout=3)
+                assert response.json()['response'] == 'running', response.text
                 break
-            except:
+            except Exception as exc:
+                last_error = str(exc)
                 time.sleep(0.5)
                 wait_count += 0.5
         else:
-            msg = 'Timeout while starting Kytos controller.'
+            msg = f"Timeout while starting Kytos controller. Last error: {last_error}"
             raise Exception(msg)
 
     def wait_switches_connect(self):
@@ -357,12 +430,55 @@ class NetworkTest:
                 status = [(sw.name, sw.connected()) for sw in self.net.switches]
                 raise Exception('Timeout: timed out waiting switches reconnect. Status %s' % status)
 
+    def wait_kytos_links(self):
+        wait_count = 0
+        last_error = ""
+        topo_links = []
+        for link in self.net.links:
+            if link.intf1.node in self.net.switches and link.intf2.node in self.net.switches:
+                link_id = self.create_link_id(link)
+                if link_id:
+                    topo_links.append(link_id)
+        while wait_count < 30:
+            try:
+                response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
+                links = response.json()["links"]
+                assert len(topo_links) == len(links), f"{topo_links=} {links=}"
+                assert all(link_id in links for link_id in topo_links), f"{topo_links=} {links=}"
+                break
+            except Exception as exc:
+                last_error = str(exc)
+            time.sleep(1)
+            wait_count += 1
+        else:
+            msg = f"Timeout waiting for links. Last error: {last_error}"
+            raise Exception(msg)
+
+    def create_link_id(self, link):
+        dpid1 = link.intf1.node.dpid
+        dpid2 = link.intf2.node.dpid
+        dpid1 = ":".join(dpid1[i:i+2] for i in range(0, len(dpid1), 2))
+        dpid2 = ":".join(dpid2[i:i+2] for i in range(0, len(dpid2), 2))
+        port1 = link.intf1.node.ports.get(link.intf1)
+        port2 = link.intf2.node.ports.get(link.intf2)
+        if not port1 or not port2:
+            return
+        intf1 = f"{dpid1}:{port1}"
+        intf2 = f"{dpid2}:{port2}"
+        if dpid1 == dpid2:
+            port1, port2 = sorted((port1, port2))
+            raw_str = f"{dpid1}:{port1}:{dpid2}:{port2}"
+        else:
+            raw_str = ":".join(sorted((intf1, intf2)))
+        return hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
+
     def restart_kytos_clean(self):
         self.start_controller(clean_config=True, enable_all=True)
         self.wait_switches_connect()
+        self.wait_kytos_links()
 
     def reconnect_switches(self, target="tcp:127.0.0.1:6653",
-                           temp_target="tcp:127.0.0.1:6654"):
+                           temp_target="tcp:127.0.0.1:6654", wait=True):
         """Restart switches connections.
         This method can also be used to trigger a consistency check initial run.
 
@@ -370,16 +486,55 @@ class NetworkTest:
         if the controller config were to be deleted.
         """
         for sw in self.net.switches:
+            if hasattr(sw, "reset_controller") and callable(sw.reset_controller):
+                sw.reset_controller()
+                continue
             sw.vsctl(f"set-controller {sw.name} {temp_target}")
             sw.controllerUUIDs(update=True)
-        for sw in self.net.switches:
             sw.vsctl(f"set-controller {sw.name} {target}")
             sw.controllerUUIDs(update=True)
-        self.wait_switches_connect()
+        if wait:
+            self.wait_switches_connect()
+
+    def configLinkStatus(self, a, b, status, port1=None, port2=None):
+        connections = []
+        node_a = self.net.get(a)
+        node_b = self.net.get(b)
+        if not node_a:
+            error(f"src not in network: {a}\n")
+            return
+        if not node_b:
+            error(f"dst not in network: {b}\n")
+            return
+        if port1 and port2:
+            intf1 = node_a.intfs.get(port1)
+            intf2 = node_b.intfs.get(port2)
+            if intf1.link and intf1.link == intf2.link:
+                connections = [(intf1, intf2)]
+        else:
+            connections = node_a.connectionsTo(node_b)
+        if len(connections) == 0:
+            error(f"src and dst not connected: {src} {dst}\n")
+            return
+        # for NoviSwitch hosts, before changing the status of the veth interfaces
+        # we need to actually change the status of the interface on the switch to
+        # trigger the OpenFlow PortStatus message on Noviflow NOS
+        if isinstance(node_a, NoviSwitch):
+            node_a.configLinkStatus([c[0] for c in connections], status)
+        if isinstance(node_b, NoviSwitch):
+            node_b.configLinkStatus([c[1] for c in connections], status)
+        # now we change the status on veth interfaces
+        for srcIntf, dstIntf in connections:
+            result = srcIntf.ifconfig(status)
+            if result:
+                error(f"link src status change failed: {result}\n")
+            result = dstIntf.ifconfig(status)
+            if result:
+                error(f"link dst status change failed: {result}\n")
 
     def config_all_links_up(self):
         for link in self.net.links:
-            self.net.configLinkStatus(
+            self.configLinkStatus(
                 link.intf1.node.name,
                 link.intf2.node.name,
                 "up"

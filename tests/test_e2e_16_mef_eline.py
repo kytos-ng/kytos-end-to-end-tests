@@ -17,8 +17,7 @@ class TestE2EMefEline:
         """
         It is called at the beginning of every class method execution
         """
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     @classmethod
@@ -214,9 +213,9 @@ class TestE2EMefEline:
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
 
-        assert len(flows_s1.split('\r\n ')) == 6, flows_s1
-        assert len(flows_s2.split('\r\n ')) == 6, flows_s2
-        assert len(flows_s3.split('\r\n ')) == 5, flows_s3
+        assert len(flows_s1.splitlines()) == 6, flows_s1
+        assert len(flows_s2.splitlines()) == 6, flows_s2
+        assert len(flows_s3.splitlines()) == 5, flows_s3
 
         url = f"{KYTOS_API}/topology/v3/interfaces/00:00:00:00:00:00:00:03:3/disable"
         response = requests.post(url, headers={"Content-type": "application/json"})
@@ -231,9 +230,9 @@ class TestE2EMefEline:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == 4, flows_s1
-        assert len(flows_s2.split('\r\n ')) == 5, flows_s2
-        assert len(flows_s3.split('\r\n ')) == 2, flows_s3
+        assert len(flows_s1.splitlines()) == 4, flows_s1
+        assert len(flows_s2.splitlines()) == 5, flows_s2
+        assert len(flows_s3.splitlines()) == 2, flows_s3
 
 
         url = f"{KYTOS_API}/topology/v3/interfaces/00:00:00:00:00:00:00:03:3/enable"
@@ -262,6 +261,6 @@ class TestE2EMefEline:
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
-        assert len(flows_s1.split('\r\n ')) == 6, flows_s1
-        assert len(flows_s2.split('\r\n ')) == 6, flows_s2
-        assert len(flows_s3.split('\r\n ')) == 5, flows_s3
+        assert len(flows_s1.splitlines()) == 6, flows_s1
+        assert len(flows_s2.splitlines()) == 6, flows_s2
+        assert len(flows_s3.splitlines()) == 5, flows_s3

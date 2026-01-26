@@ -22,8 +22,7 @@ class TestE2EMefEline:
         self.net.config_all_links_up()
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
-        self.net.start_controller(clean_config=True, enable_all=True)
-        self.net.wait_switches_connect()
+        self.net.restart_kytos_clean()
         time.sleep(10)
 
     @classmethod
@@ -79,6 +78,14 @@ class TestE2EMefEline:
         data = response.json()
         return data["result"]["trace_id"]
 
+    def delete_evc(self, circuit_id) -> dict:
+        """Delete an EVC."""
+        api_url = f"{KYTOS_API}/kytos/mef_eline/v2/evc/{circuit_id}"
+        response = requests.delete(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        return data
+
     def create_evc(
         self,
         uni_a="00:00:00:00:00:00:00:01:1",
@@ -86,6 +93,8 @@ class TestE2EMefEline:
         vlan_id=100,
         primary_path=None,
         backup_path=None,
+        max_retries=5,
+        wait_time=1,
         **kwargs,
     ):
         payload = {
@@ -108,10 +117,22 @@ class TestE2EMefEline:
             payload["backup_path"] = backup_path
         if kwargs:
             payload.update(kwargs)
-        api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
-        response = requests.post(api_url, json=payload)
-        data = response.json()
-        assert response.status_code == 201, response.text
+        times = 0
+        while times < max_retries:
+            api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
+            response = requests.post(api_url, json=payload)
+            data = response.json()
+            assert response.status_code == 201, response.text
+            if data["deployed"] is True:
+                break
+            time.sleep(wait_time)
+            self.delete_evc(data["circuit_id"])
+            time.sleep(wait_time)
+            times += 1
+        else:
+            msg = "Time out to create EVC which deploys"
+            raise Exception(msg)
+
         return data['circuit_id']
 
     def get_evc_data(self, evc_id:str) -> dict:
@@ -186,7 +207,7 @@ class TestE2EMefEline:
         assert response.status_code == 200, response.text
 
         api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
-        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:16:5',
+        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:16:2',
                                uni_z='00:00:00:00:00:00:00:11:1',
                                vlan_id=100,
                                max_paths=10)
@@ -199,7 +220,7 @@ class TestE2EMefEline:
         assert data['enabled'] == True
         assert data['active'] == True
 
-        trace_id = self.do_sdntrace('00:00:00:00:00:00:00:16', 5, 100)
+        trace_id = self.do_sdntrace('00:00:00:00:00:00:00:16', 2, 100)
         result = self.wait_sdntrace_result(trace_id)
 
         assert len(result) == 7
@@ -213,8 +234,8 @@ class TestE2EMefEline:
 
     def test_010_redeploy_avoid_vlan(self):
         """Test if dynamic EVC takes different VLAN when redeploying."""
-        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
-                               uni_z='00:00:00:00:00:00:00:17:56',
+        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:16',
+                               uni_z='00:00:00:00:00:00:00:17:16',
                                vlan_id=100)
         
         time.sleep(10)
@@ -238,20 +259,20 @@ class TestE2EMefEline:
         """Test redeploying avoiding VLAN with primary_path"""
         primary_path = [
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:16"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:16"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:2"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:11"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:11"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:3"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:3"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:9"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:9"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:2"}
             }
         ]
-        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
-                               uni_z='00:00:00:00:00:00:00:17:56',
+        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:16',
+                               uni_z='00:00:00:00:00:00:00:17:16',
                                vlan_id=100,
                                primary_path=primary_path)
         
@@ -276,34 +297,34 @@ class TestE2EMefEline:
         """Test avoiding VLAN with static EVC"""
         primary_path = [
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:16"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:16"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:2"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:11"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:11"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:3"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:3"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:9"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:9"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:2"}
             }
         ]
         backup_path = [
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:17"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:13:17"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:1"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:13:1"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:13:2"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:2"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:13:4"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:4"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:9"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:9"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:11:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:17:2"}
             }
         ]
-        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
-                               uni_z='00:00:00:00:00:00:00:17:56',
+        evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:20:16',
+                               uni_z='00:00:00:00:00:00:00:17:16',
                                vlan_id=100,
                                primary_path=primary_path,
                                backup_path=backup_path)
@@ -357,27 +378,27 @@ class TestE2EMefEline:
 
         primary_path = [
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:16"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:16"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:2"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:18:2"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:11"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:11"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:18:3"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:3"}
             },
         ]
         backup_path = [
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:17"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:13:17"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:20:1"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:13:1"}
             },
             {
-                "endpoint_a": {"id": "00:00:00:00:00:00:00:13:2"},
-                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:2"}
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:13:4"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:11:4"}
             },
         ]
         # UNI_Z is an NNI link with Ampath3: 00:17
-        evc = self.create_evc(uni_a='00:00:00:00:00:00:00:20:59',
-                               uni_z='00:00:00:00:00:00:00:11:9',
+        evc = self.create_evc(uni_a='00:00:00:00:00:00:00:20:16',
+                               uni_z='00:00:00:00:00:00:00:11:2',
                                vlan_id=100,
                                primary_path=primary_path,
                                backup_path=backup_path)
@@ -443,8 +464,8 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus('Ampath1', 'SoL2', 'down')
         time.sleep(5)
 
-        evc = self.create_evc(uni_a='00:00:00:00:00:00:00:15:54',
-                       uni_z='00:00:00:00:00:00:00:11:50',
+        evc = self.create_evc(uni_a='00:00:00:00:00:00:00:15:16',
+                       uni_z='00:00:00:00:00:00:00:11:16',
                        vlan_id=100)
         time.sleep(10)
         evc_content = self.get_evc_data(evc)
@@ -457,16 +478,16 @@ class TestE2EMefEline:
             })
 
         expected_failover_path = [
-            {"endpoint_a": {"id": "00:00:00:00:00:00:00:15:6"},
-             "endpoint_b": {"id": "00:00:00:00:00:00:00:16:6"}},
-            {"endpoint_a": {"id": "00:00:00:00:00:00:00:13:5"},
-             "endpoint_b": {"id": "00:00:00:00:00:00:00:16:5"}},
-            {"endpoint_a": {"id": "00:00:00:00:00:00:00:13:17"},
-             "endpoint_b": {"id": "00:00:00:00:00:00:00:20:17"}},
-            {"endpoint_a": {"id": "00:00:00:00:00:00:00:18:16"},
-             "endpoint_b": {"id": "00:00:00:00:00:00:00:20:16"}},
-            {"endpoint_a": {"id": "00:00:00:00:00:00:00:11:11"},
-             "endpoint_b": {"id": "00:00:00:00:00:00:00:18:11"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:15:1"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:16:1"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:13:2"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:16:2"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:13:1"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:20:1"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:18:2"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:20:2"}},
+            {"endpoint_a": {"id": "00:00:00:00:00:00:00:11:3"},
+             "endpoint_b": {"id": "00:00:00:00:00:00:00:18:3"}},
         ]
         assert len(failover_path) == len(expected_failover_path)
         assert failover_path == expected_failover_path
