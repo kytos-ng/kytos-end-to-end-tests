@@ -3,7 +3,7 @@ import time
 import pytest
 import requests
 
-from tests.helpers import NetworkTest
+from .helpers import NetworkTest
 
 from kytos.core.id import LinkID
 
@@ -166,8 +166,8 @@ class TestE2EMefEline:
         }
 
         link_id = LinkID(
-            "00:00:00:00:00:00:00:16:5",
-            "00:00:00:00:00:00:00:13:5"
+            "00:00:00:00:00:00:00:16:2",
+            "00:00:00:00:00:00:00:13:2"
         )
         api_url = KYTOS_API + f'/kytos/topology/v3/links/{link_id}/tag_ranges'
         response = requests.post(api_url, json=payload)
@@ -178,7 +178,7 @@ class TestE2EMefEline:
             "tag_ranges": [[100, 100], [3799, 3799]]
         }
 
-        intf_id = "00:00:00:00:00:00:00:16:5"
+        intf_id = "00:00:00:00:00:00:00:16:2"
         api_url = KYTOS_API + f'/kytos/topology/v3/interfaces/{intf_id}/tag_ranges'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 200, response.text
@@ -359,8 +359,8 @@ class TestE2EMefEline:
         }
 
         link_id = LinkID(
-            "00:00:00:00:00:00:00:11:9",
-            "00:00:00:00:00:00:00:17:9"
+            "00:00:00:00:00:00:00:11:2",
+            "00:00:00:00:00:00:00:17:2"
         )
         api_url = KYTOS_API + f'/kytos/topology/v3/links/{link_id}/tag_ranges'
         response = requests.post(api_url, json=payload)
@@ -371,7 +371,7 @@ class TestE2EMefEline:
             "tag_ranges": [[100, 100], [3799, 3799]]
         }
 
-        intf_id = "00:00:00:00:00:00:00:11:9"
+        intf_id = "00:00:00:00:00:00:00:11:2"
         api_url = KYTOS_API + f'/kytos/topology/v3/interfaces/{intf_id}/tag_ranges'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 200, response.text
