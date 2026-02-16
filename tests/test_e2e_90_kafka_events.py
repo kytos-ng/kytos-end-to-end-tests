@@ -51,10 +51,17 @@ class TestE2EKafkaEvents:
         consumer = AIOKafkaConsumer(
             (KAFKA_TOPIC),
             bootstrap_servers=KAFKA_ADDRESSES,
+            auto_offset_reset='earliest'
         )
 
+        counter = 0
         await consumer.start()
-
+        while not consumer.assignment():
+            await asyncio.sleep(0.1)
+            counter += 1
+            if counter > 100:
+                print("Too large of a counters")
+                assert False
         # Create an EVC-creation event to send to Kafka
 
         evc_name = "Vlan_%s" % 902
@@ -112,6 +119,6 @@ class TestE2EKafkaEvents:
             except Exception as exc:
                 print(f"An exception occurred: {exc}")
 
-        assert found
+        assert found, f"Counter -> {counter}"
 
         await consumer.stop()
