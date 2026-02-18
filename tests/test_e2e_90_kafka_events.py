@@ -51,9 +51,18 @@ class TestE2EKafkaEvents:
         consumer = AIOKafkaConsumer(
             (KAFKA_TOPIC),
             bootstrap_servers=KAFKA_ADDRESSES,
+            auto_offset_reset='earliest', # Consume earlier messages
         )
 
         await consumer.start()
+
+        # Make sure consumer has assignments
+        tries = 0
+        while not consumer.assignment():
+            await asyncio.sleep(0.5)
+            if tries > 4:
+                assert False, "Consumer does not get assignments."
+            tries += 1
 
         # Create an EVC-creation event to send to Kafka
 
