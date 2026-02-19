@@ -41,7 +41,7 @@ class TestE2EKafkaEvents:
     def teardown_class(cls):
         cls.net.stop()
 
-    async def check_for_assignments(self, consumer, max_tries, sleep_interval):
+    async def check_for_assignments(self, consumer, max_tries=4, sleep_interval=0.5):
         """Check the consumer for assignments."""
         tries = 1
         while not consumer.assignment():
@@ -66,7 +66,7 @@ class TestE2EKafkaEvents:
         await consumer.start()
 
         # Make sure consumer has assignments
-        await self.check_for_assignments(consumer, 4, 0.5)
+        await self.check_for_assignments(consumer)
 
         # Create an EVC-creation event to send to Kafka
 
