@@ -3,7 +3,9 @@ import time
 import pytest
 import requests
 
-from tests.helpers import NetworkTest
+from .helpers import NetworkTest
+
+from kytos.core.id import LinkID
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api' % CONTROLLER
@@ -157,6 +159,53 @@ class TestE2EMefEline:
     def test_005_create_evc_on_nni(self):
         """Test to evaluate how mef_eline will behave when the uni is actually
         an NNI."""
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[1, 99], [101, 3798], [3800, 4095]]
+        }
+
+        link_id = LinkID(
+            "00:00:00:00:00:00:00:16:2",
+            "00:00:00:00:00:00:00:13:2"
+        )
+        api_url = KYTOS_API + f'/kytos/topology/v3/links/{link_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[100, 100], [3799, 3799]]
+        }
+
+        intf_id = "00:00:00:00:00:00:00:16:2"
+        api_url = KYTOS_API + f'/kytos/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[1, 99], [101, 3798], [3800, 4095]]
+        }
+
+        link_id = LinkID(
+            "00:00:00:00:00:00:00:11:1",
+            "00:00:00:00:00:00:00:12:1"
+        )
+        api_url = KYTOS_API + f'/kytos/topology/v3/links/{link_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[100, 100], [3799, 3799]]
+        }
+
+        intf_id = "00:00:00:00:00:00:00:11:1"
+        api_url = KYTOS_API + f'/kytos/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
         api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
         evc1 = self.create_evc(uni_a='00:00:00:00:00:00:00:16:2',
                                uni_z='00:00:00:00:00:00:00:11:1',
@@ -303,6 +352,30 @@ class TestE2EMefEline:
          - primary_path: Ampath7 - Ampath4 - Ampath1
          - backup_path: Ampath7 - SoL2 - Ampath1
          """
+        
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[1, 99], [101, 3798], [3800, 4095]]
+        }
+
+        link_id = LinkID(
+            "00:00:00:00:00:00:00:11:2",
+            "00:00:00:00:00:00:00:17:2"
+        )
+        api_url = KYTOS_API + f'/kytos/topology/v3/links/{link_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
+        payload = {
+            "tag_type": "vlan",
+            "tag_ranges": [[100, 100], [3799, 3799]]
+        }
+
+        intf_id = "00:00:00:00:00:00:00:11:2"
+        api_url = KYTOS_API + f'/kytos/topology/v3/interfaces/{intf_id}/tag_ranges'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 200, response.text
+
         primary_path = [
             {
                 "endpoint_a": {"id": "00:00:00:00:00:00:00:20:2"},
