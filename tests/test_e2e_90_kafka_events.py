@@ -54,6 +54,7 @@ class TestE2EKafkaEvents:
         )
 
         await consumer.start()
+
         while not consumer.assignment():
             await asyncio.sleep(0.1)
             counter += 1
@@ -61,6 +62,9 @@ class TestE2EKafkaEvents:
                 print("Too large of a counters")
                 assert False
         # Create an EVC-creation event to send to Kafka
+
+        await consumer.seek_to_end()
+        await time.sleep(4)
 
         evc_name = "Vlan_%s" % 902
 
