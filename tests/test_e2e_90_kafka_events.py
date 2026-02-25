@@ -51,10 +51,8 @@ class TestE2EKafkaEvents:
         consumer = AIOKafkaConsumer(
             (KAFKA_TOPIC),
             bootstrap_servers=KAFKA_ADDRESSES,
-            auto_offset_reset='earliest'
         )
 
-        counter = 0
         await consumer.start()
         while not consumer.assignment():
             await asyncio.sleep(0.1)
@@ -96,8 +94,8 @@ class TestE2EKafkaEvents:
         # Try pulling from Kafka multiple times
 
         found = False
-
-        for _ in range(4):
+        counter = 0
+        for _ in range(10):
 
             if found:
                 break
@@ -118,7 +116,9 @@ class TestE2EKafkaEvents:
 
             except Exception as exc:
                 print(f"An exception occurred: {exc}")
+            counter += 1
 
-        assert found, f"Counter -> {counter}"
+        assert found
 
         await consumer.stop()
+        assert False, f"Counter -> {counter}"

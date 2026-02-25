@@ -38,7 +38,7 @@ test -z "$RERUNS" && RERUNS=0
 python3 scripts/wait_for_mongo.py 2>/dev/null
 python3 scripts/setup_kafka.py 2>/dev/null
 
-python3 -m pytest tests/test_e2e_01_kytos_startup.py tests/test_e2e_90_kafka_events.py tests/test_e2e_80_pathfinder.py --reruns $RERUNS -r fEr
+python3 -m pytest tests/test_e2e_01_kytos_startup.py tests/test_e2e_80_pathfinder.py tests/test_e2e_90_kafka_events.py --reruns $RERUNS -r fEr
 
 #tail -f
 
