@@ -60,13 +60,13 @@ class TestE2EKafkaEvents:
         consumer = AIOKafkaConsumer(
             (KAFKA_TOPIC),
             bootstrap_servers=KAFKA_ADDRESSES,
-            auto_offset_reset='earliest', # Consume earlier messages
         )
 
         await consumer.start()
 
-        # Make sure consumer has assignments
+        # Make sure consumer has assignments and waits for them
         await self.check_for_assignments(consumer)
+        await consumer.seek_to_end()
 
         # Create an EVC-creation event to send to Kafka
 
@@ -103,7 +103,7 @@ class TestE2EKafkaEvents:
 
         found = False
 
-        for _ in range(4):
+        for _ in range(5):
 
             if found:
                 break
