@@ -55,6 +55,10 @@ class TestE2EKafkaEvents:
 
         await consumer.start()
 
+        # Make sure consumer has assignments and waits for them
+        await self.check_for_assignments(consumer)
+        await consumer.seek_to_end()
+
         # Create an EVC-creation event to send to Kafka
 
         evc_name = "Vlan_%s" % 902
@@ -90,7 +94,7 @@ class TestE2EKafkaEvents:
 
         found = False
 
-        for _ in range(4):
+        for _ in range(5):
 
             if found:
                 break
