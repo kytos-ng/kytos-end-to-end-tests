@@ -51,6 +51,7 @@ class TestE2EKafkaEvents:
         consumer = AIOKafkaConsumer(
             (KAFKA_TOPIC),
             bootstrap_servers=KAFKA_ADDRESSES,
+            auto_offset_reset='earliest',
         )
 
         await consumer.start()
