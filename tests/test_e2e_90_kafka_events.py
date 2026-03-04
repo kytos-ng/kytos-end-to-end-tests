@@ -90,7 +90,7 @@ class TestE2EKafkaEvents:
 
         found = False
 
-        for _ in range(4):
+        for _ in range(10):
 
             if found:
                 break
@@ -112,6 +112,6 @@ class TestE2EKafkaEvents:
             except Exception as exc:
                 print(f"An exception occurred: {exc}")
 
-        assert found
-
         await consumer.stop()
+        assert found
+        assert False, "Ended manually"
