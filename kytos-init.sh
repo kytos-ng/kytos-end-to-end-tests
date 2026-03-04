@@ -33,7 +33,7 @@ sed -i 's/keys: root,kytos,api_server,socket/keys: root,kytos,api_server,socket,
 echo -e "\n\n[logger_aiokafka]\nlevel: INFO\nhandlers:\nqualname: aiokafka" >> $NAPPS_PATH/etc/kytos/logging.ini
 
 test -z "$TESTS" && TESTS=tests/test_e2e_90_kafka_events.py
-test -z "$RERUNS" && RERUNS=2
+test -z "$RERUNS" && RERUNS=20
 
 python3 scripts/wait_for_mongo.py 2>/dev/null
 python3 scripts/setup_kafka.py 2>/dev/null
