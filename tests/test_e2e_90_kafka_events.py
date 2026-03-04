@@ -63,7 +63,7 @@ class TestE2EKafkaEvents:
                 assert False
         # Create an EVC-creation event to send to Kafka
 
-        #await consumer.seek_to_end()
+        await consumer.seek_to_end()
         #await asyncio.sleep(4)
 
         evc_name = "Vlan_%s" % 902
