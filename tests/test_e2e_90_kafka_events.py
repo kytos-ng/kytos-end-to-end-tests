@@ -41,6 +41,15 @@ class TestE2EKafkaEvents:
     def teardown_class(cls):
         cls.net.stop()
 
+    async def check_for_assignments(self, consumer, max_tries=4, sleep_interval=0.5):
+        """Check the consumer for assignments."""
+        tries = 1
+        while not consumer.assignment():
+            await asyncio.sleep(sleep_interval)
+            if tries > max_tries:
+                assert False, "Consumer does not get assignments."
+            tries += 1
+
     async def test_01_napp_sends_data_correctly(self):
         """
         Test that kafka_events correctly runs the 'setup' method. This would require
