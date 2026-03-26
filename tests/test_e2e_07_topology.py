@@ -422,3 +422,171 @@ class TestE2ETopology:
         assert data[interface2_id]['tag_ranges']['vlan'] == [[2049, 4094]], data
         assert data[interface2_id]['available_tags']['vlan'] == [[2049, 3798], [3800, 4094]], data
         assert data[interface2_id]['default_tag_ranges']['vlan'] == [[2049, 4094]], data
+
+
+    def test_050_uni_to_nni(self):
+        """Test trying to move tags from uni to nni"""
+
+        interface1_id = "00:00:00:00:00:00:00:01:2"
+        interface2_id = "00:00:00:00:00:00:00:02:2"
+
+        link_id = LinkID(
+            interface1_id,
+            interface2_id
+        )
+
+        interface1_url = f'{KYTOS_API}/topology/v3/interfaces/{interface1_id}/tag_ranges'
+        interface2_url = f'{KYTOS_API}/topology/v3/interfaces/{interface2_id}/tag_ranges'
+        link_url = f'{KYTOS_API}/topology/v3/links/{link_id}/tag_ranges'
+
+        # Check the default state of the tags
+
+        response = requests.get(link_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[link_id]['tag_ranges']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[link_id]['available_tags']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[link_id]['default_tag_ranges']['vlan'] == [[1, 3798], [3800, 4094]], data
+
+        response = requests.get(interface1_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface1_id]['tag_ranges']['vlan'] == [[3799, 3799]], data
+        assert data[interface1_id]['available_tags']['vlan'] == [], data
+        assert data[interface1_id]['default_tag_ranges']['vlan'] == [[3799, 3799]], data
+
+        response = requests.get(interface2_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface2_id]['tag_ranges']['vlan'] == [[3799, 3799]], data
+        assert data[interface2_id]['available_tags']['vlan'] == [], data
+        assert data[interface2_id]['default_tag_ranges']['vlan'] == [[3799, 3799]], data
+
+
+        # Release all tags from the nni
+
+        new_tag_ranges = {"tag_type": "vlan", "tag_ranges": []}
+        response = requests.post(link_url, json=new_tag_ranges)
+        assert response.status_code == 200, response.text
+
+        response = requests.get(link_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[link_id]['tag_ranges']['vlan'] == [], data
+        assert data[link_id]['available_tags']['vlan'] == [], data
+        assert data[link_id]['default_tag_ranges']['vlan'] == [[1, 3798], [3800, 4094]], data
+
+        # Acquire all tags on the unis
+
+        response = requests.get(interface1_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface1_id]['tag_ranges']['vlan'] == [[3799, 3799]], data
+        assert data[interface1_id]['available_tags']['vlan'] == [], data
+        assert data[interface1_id]['default_tag_ranges']['vlan'] == [[3799, 3799]], data
+
+        new_tag_ranges = {"tag_type": "vlan", "tag_ranges": [[1, 4094]]}
+        response = requests.post(interface1_url, json=new_tag_ranges)
+        assert response.status_code == 200, response.text
+
+        response = requests.get(interface1_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface1_id]['tag_ranges']['vlan'] == [[1, 4094]], data
+        assert data[interface1_id]['available_tags']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[interface1_id]['default_tag_ranges']['vlan'] == [[1, 4094]], data
+
+        response = requests.get(interface2_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface2_id]['tag_ranges']['vlan'] == [[3799, 3799]], data
+        assert data[interface2_id]['available_tags']['vlan'] == [], data
+        assert data[interface2_id]['default_tag_ranges']['vlan'] == [[1, 4094]], data
+
+        response = requests.delete(interface2_url)
+        assert response.status_code == 200, response.text
+
+        response = requests.get(interface2_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface2_id]['tag_ranges']['vlan'] == [[1, 4094]], data
+        assert data[interface2_id]['available_tags']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[interface2_id]['default_tag_ranges']['vlan'] == [[1, 4094]], data
+
+        # Confirm no tags can be acquired by the link
+
+        response = requests.get(link_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[link_id]['tag_ranges']['vlan'] == [], data
+        assert data[link_id]['available_tags']['vlan'] == [], data
+        assert data[link_id]['default_tag_ranges']['vlan'] == [], data
+
+        new_tag_ranges = {"tag_type": "vlan", "tag_ranges": [[1, 4094]]}
+        response = requests.post(link_url, json=new_tag_ranges)
+        assert response.status_code != 200, response.text
+
+        response = requests.get(link_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[link_id]['tag_ranges']['vlan'] == [], data
+        assert data[link_id]['available_tags']['vlan'] == [], data
+        assert data[link_id]['default_tag_ranges']['vlan'] == [], data
+
+        # Deallocate the tags from both interfaces
+
+        response = requests.get(interface1_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface1_id]['tag_ranges']['vlan'] == [[1, 4094]], data
+        assert data[interface1_id]['available_tags']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[interface1_id]['default_tag_ranges']['vlan'] == [[1, 4094]], data
+
+        new_tag_ranges = {"tag_type": "vlan", "tag_ranges": [[3799, 3799]]}
+        response = requests.post(interface1_url, json=new_tag_ranges)
+        assert response.status_code == 200, response.text
+
+        response = requests.get(interface1_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface1_id]['tag_ranges']['vlan'] == [[3799, 3799]], data
+        assert data[interface1_id]['available_tags']['vlan'] == [], data
+        assert data[interface1_id]['default_tag_ranges']['vlan'] == [[1, 4094]], data
+
+        response = requests.get(interface2_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface2_id]['tag_ranges']['vlan'] == [[1, 4094]], data
+        assert data[interface2_id]['available_tags']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[interface2_id]['default_tag_ranges']['vlan'] == [[1, 4094]], data
+
+        new_tag_ranges = {"tag_type": "vlan", "tag_ranges": [[3799, 3799]]}
+        response = requests.post(interface2_url, json=new_tag_ranges)
+        assert response.status_code == 200, response.text
+
+        response = requests.get(interface2_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[interface2_id]['tag_ranges']['vlan'] == [[3799, 3799]], data
+        assert data[interface2_id]['available_tags']['vlan'] == [], data
+        assert data[interface2_id]['default_tag_ranges']['vlan'] == [[1, 4094]], data
+
+        # Reacquire the tags on the link
+
+        response = requests.get(link_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[link_id]['tag_ranges']['vlan'] == [], data
+        assert data[link_id]['available_tags']['vlan'] == [], data
+        assert data[link_id]['default_tag_ranges']['vlan'] == [], data
+
+        new_tag_ranges = {"tag_type": "vlan", "tag_ranges": [[1, 3798], [3800, 4094]]}
+        response = requests.post(link_url, json=new_tag_ranges)
+        assert response.status_code == 200, response.text
+
+        response = requests.get(link_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data[link_id]['tag_ranges']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[link_id]['available_tags']['vlan'] == [[1, 3798], [3800, 4094]], data
+        assert data[link_id]['default_tag_ranges']['vlan'] == [[1, 3798], [3800, 4094]], data
