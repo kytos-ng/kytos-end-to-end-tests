@@ -543,3 +543,20 @@ class NetworkTest:
     def stop(self):
         self.net.stop()
         mininet.clean.cleanup()
+
+
+class LinkID(str):
+    """Link Identifier"""
+
+    def __new__(cls, interface_a, interface_b):
+        raw_str = ":".join(sorted((interface_a, interface_b)))
+        digest = hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
+        return super().__new__(cls, digest)
+
+    def __init__(self, interface_a, interface_b):
+        self.interfaces = tuple(sorted((interface_a, interface_b)))
+        super().__init__()
+
+    def __getnewargs__(self):
+        """To make sure it's pickleable"""
+        return self.interfaces

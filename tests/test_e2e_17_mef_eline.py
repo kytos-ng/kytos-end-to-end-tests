@@ -1,32 +1,12 @@
-import hashlib
-import json
 import time
-import random
 from collections import defaultdict
 
 import requests
 
-from .helpers import NetworkTest
+from .helpers import NetworkTest, LinkID
 
 CONTROLLER = "127.0.0.1"
 KYTOS_API = "http://%s:8181/api/kytos" % CONTROLLER
-
-class LinkID(str):
-    """Link Identifier"""
-
-    def __new__(cls, interface_a, interface_b):
-        raw_str = ":".join(sorted((interface_a, interface_b)))
-        digest = hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
-        return super().__new__(cls, digest)
-
-    def __init__(self, interface_a, interface_b):
-        self.interfaces = tuple(sorted((interface_a, interface_b)))
-        super().__init__()
-
-    def __getnewargs__(self):
-        """To make sure it's pickleable"""
-        return self.interfaces
-
 
 class TestE2EMefEline:
     net = None
