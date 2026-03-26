@@ -212,7 +212,7 @@ class TestE2ETopology:
         assert response.status_code == 409, response.text
 
         # Interface has a link
-        S2 = self.net.net.get('s2')
+        S2, S6 = self.net.net.get('s2', 's6')
         S2.detach('s2-eth4')
 
         api_url = f'{KYTOS_API}/topology/v3/interfaces/{intf_id}'
@@ -262,3 +262,34 @@ class TestE2ETopology:
         assert response.status_code == 200, response.text
         data = response.json()
         assert not intf_id in data["interfaces"]
+
+        # Delete link from mininet
+        topo_links = self.net.net.linksBetween(S2, S6)
+        assert len(topo_links) == 1, f"Multi topo s2 and s6 only had 1 link now: {topo_links}"
+        self.net.net.delLink(topo_links[0])
+
+    def test_030_add_interface(self):
+        """Test adding an interface while kytos is running
+        Added:
+            - Link: 01:1 - 03:1
+            - Interface: 01:4 ('s1-eth4')
+        """
+        # Count how many interfaces does Switch 01
+        api_url = f'{KYTOS_API}/topology/v3/'
+        response = requests.get(api_url)
+        data = response.json()
+        s1_intfs_before = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+
+        S1, S3 = self.net.net.get('s1', 's3')
+        self.net.net.addLink(S1, S3, port1=20, port2=20)
+        S1.attach('s1-eth20')
+        S3.attach('s3-eth20')
+        time.sleep(2)
+
+        # Look new interface in the database
+        api_url = f'{KYTOS_API}/topology/v3/'
+        response = requests.get(api_url)
+        data = response.json()
+        s1_intfs_after = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+
+        assert s1_intfs_before + 1 == s1_intfs_after
