@@ -264,9 +264,11 @@ class TestE2ETopology:
         assert not intf_id in data["interfaces"]
 
         # Delete link from mininet
+        n_links_before = len(self.net.net.links)
         topo_links = self.net.net.linksBetween(S2, S6)
-        assert len(topo_links) == 1, f"Multi topo s2 and s6 only had 1 link now: {topo_links}"
+        assert len(topo_links) == 1, f"In Multi topo, s2 and s6 only had 1 link now: {topo_links}"
         self.net.net.delLink(topo_links[0])
+        assert n_links_before == len(self.net.net.links) + 1, "Link from s2 and s6 was not deleted."
 
     def test_030_add_interface(self):
         """Test adding an interface while kytos is running
