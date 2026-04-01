@@ -280,18 +280,33 @@ class TestE2ETopology:
         api_url = f'{KYTOS_API}/topology/v3/'
         response = requests.get(api_url)
         data = response.json()
-        s1_intfs_before = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+        memo_intfs_before = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
 
+        s1_db = self.net.db.switches.find({"id":"00:00:00:00:00:00:00:01"})
+        s1_docu = list(s1_db)
+        assert len(s1_docu) == 1, "Switch 1 not found"
+        db_intfs_before = len(s1_docu[0]["interfaces"])
+        assert memo_intfs_before == db_intfs_before
+
+        # Add interface to s1 and s3
         S1, S3 = self.net.net.get('s1', 's3')
         self.net.net.addLink(S1, S3, port1=20, port2=20)
         S1.attach('s1-eth20')
         S3.attach('s3-eth20')
         time.sleep(2)
 
-        # Look new interface in the database
+        # Look for new interface in the database
+        s1_db = self.net.db.switches.find({"id":"00:00:00:00:00:00:00:01"})
+        s1_docu = list(s1_db)
+        assert len(s1_docu) == 1, "Switch 1 not found"
+        db_intfs_after = len(s1_docu[0]["interfaces"])
+        assert db_intfs_after == db_intfs_before + 1
+
+        # Look for new interface in the memory
         api_url = f'{KYTOS_API}/topology/v3/'
         response = requests.get(api_url)
         data = response.json()
-        s1_intfs_after = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+        memo_intfs_after = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
 
-        assert s1_intfs_before + 1 == s1_intfs_after
+        assert memo_intfs_after == memo_intfs_before + 1
+        assert db_intfs_after == memo_intfs_after
