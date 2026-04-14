@@ -13,6 +13,7 @@ class P4OfSwitch(DockerSwitch):
     def __init__(self, name, **kwargs):
         """create p4ofswitch instance."""
         self.arch = P4OFSWITCH_ARCH
+        self.controllers = []
         DockerSwitch.__init__(
             self,
             name,
@@ -92,14 +93,13 @@ class P4OfSwitch(DockerSwitch):
                 error(f"\nFailed to run name={self.name} cmd={cmd}: {output}")
             self.controllers = []
             i = 0
-            for c in controllers:
+            for c in args[2:]:
                 i += 1
-                c_ip = c.IP()
-                c_port = c.port
-                self.controllers.append((c_ip, c_port))
+                proto, ip, port = c.split(":")
+                self.controllers.append((ip, port))
                 cmd_str = (
-                    f"p4ofagent set config controller --ip {c_ip} "
-                    f"--port {c_port} --name c{i} --priority {1000+i}"
+                    f"p4ofagent set config controller --ip {ip} "
+                    f"--port {port} --name c{i} --priority {1000+i}"
                 )
                 output = self.cmd(cmd_str)
                 if output:
