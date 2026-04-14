@@ -7,6 +7,21 @@ from mininet.log import error
 
 P4OFSWITCH_ARCH = os.environ.get("P4OFSWITCH_ARCH", "tf1")
 
+MYLOCALIP = os.environ.get("MYLOCALIP")
+if os.environ.get("SWITCH_CLASS") == "P4OfSwitch" and not MYLOCALIP:
+    try:
+        stream = os.popen("ip -j route get 8.8.8.8 | jq -r '.[0].prefsrc'")
+        output = stream.read().strip()
+    except:
+        output = ""
+    if not output:
+        raise ValueError(
+            "Could not identify the Local IP. Please define MYLOCALIP env var"
+            " or check pref ip default router"
+        )
+    MYLOCALIP = output
+
+
 class P4OfSwitch(DockerSwitch):
     """P4OfSwitch (P4OfAgent + AmLight P4 pipeline)."""
 
@@ -48,7 +63,7 @@ class P4OfSwitch(DockerSwitch):
         i = 0
         for c in controllers:
             i += 1
-            c_ip = c.IP()
+            c_ip = c.IP() if c.IP() not in ["127.0.0.1"] else MYLOCALIP
             c_port = c.port
             self.controllers.append((c_ip, c_port))
             cmd_str = (
@@ -96,6 +111,7 @@ class P4OfSwitch(DockerSwitch):
             for c in args[2:]:
                 i += 1
                 proto, ip, port = c.split(":")
+                ip = ip if ip not in ["127.0.0.1"] else MYLOCALIP
                 self.controllers.append((ip, port))
                 cmd_str = (
                     f"p4ofagent set config controller --ip {ip} "
