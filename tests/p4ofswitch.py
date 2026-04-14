@@ -1,6 +1,7 @@
 """P4OfSwitch"""
 
 import os
+import time
 from mininet.nodelib import DockerSwitch
 from mininet.log import error
 
