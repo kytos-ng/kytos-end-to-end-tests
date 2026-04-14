@@ -13,6 +13,7 @@ from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
 from tests.noviswitch import NoviSwitch
+from tests.p4ofswitch import P4OfSwitch
 
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
@@ -25,12 +26,16 @@ NoviSwitch.orig_dpctl = NoviSwitch.dpctl
 NoviSwitch.dpctl = dpctl_wrapper
 OVSSwitch.orig_dpctl = OVSSwitch.dpctl
 OVSSwitch.dpctl = dpctl_wrapper
+P4OfSwitch.orig_dpctl = P4OfSwitch.dpctl
+P4OfSwitch.dpctl = dpctl_wrapper
 
 class SwitchFactory:
     def __new__(cls, *args, **kwargs):
         cls_name = os.environ.get('SWITCH_CLASS')
         if cls_name == "NoviSwitch" and NoviSwitch.is_available():
             return NoviSwitch(*args, **kwargs)
+        if cls_name == "P4OfSwitch":
+            return P4OfSwitch(*args, **kwargs)
         return OVSSwitch(*args, **kwargs)
 
 
