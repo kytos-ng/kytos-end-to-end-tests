@@ -626,7 +626,7 @@ class NoviSwitch(Switch):
     def get_all_of_ports(self):
         """Get all OpenFlow port numbers."""
         ports = self.dpctl("dump-ports")
-        return list(map(int, re.findall(r" port ([0-9]+):", ports)))
+        return list(map(int, re.findall(r"\sport\s+([0-9]+)\s", ports)))
 
 
 addCleanupCallback(NoviSwitch.batch_cleanup)
