@@ -38,7 +38,6 @@ class P4OfSwitch(DockerSwitch):
                 f"ARCH={self.arch}",
                 "MIN_RETRY_DELAY=2",
                 "MAX_RETRY_DELAY=4",
-                "DEFAULT_PORTDOWN=on",
             ],
             volume=[f"/tmp/{name}-logs:/var/log"],
         )
@@ -78,7 +77,11 @@ class P4OfSwitch(DockerSwitch):
                 f"Failed to configure DPID {dpid} for {self.name}: {output}"
             )
 
-        # enable ports in use
+        # disable all ports and enable ports in use
+        cmd = "p4ofagent --timeout 120 set config port portno all --portdown on"
+        output = self.cmd(cmd)
+        if output:
+            error(f"Failed to run node={self.name} cmd={cmd}: {outpt}")
         for intf in self.intfs.values():
             if intf.link:
                 self.setup_intf(intf)
