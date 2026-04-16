@@ -166,5 +166,5 @@ class P4OfSwitch(DockerSwitch):
 
     def get_all_of_ports(self):
         """Get all OpenFlow port numbers."""
-        ports = self.dpctl("dump-ports")
+        ports = self.dpctl("dump-ports --no-names")
         return list(map(int, re.findall(r"\sport\s+([0-9]+)\s", ports)))
