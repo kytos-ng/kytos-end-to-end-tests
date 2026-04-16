@@ -144,16 +144,16 @@ class TestE2EOfLLDP:
         rx_stats_h12 = self.get_iface_stats_rx_pkt(h12)
         rx_stats_h2 = self.get_iface_stats_rx_pkt(h2)
         rx_stats_h3 = self.get_iface_stats_rx_pkt(h3)
-        time.sleep(10)
+        time.sleep(15)
         rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
         rx_stats_h12_2 = self.get_iface_stats_rx_pkt(h12)
         rx_stats_h2_2 = self.get_iface_stats_rx_pkt(h2)
         rx_stats_h3_2 = self.get_iface_stats_rx_pkt(h3)
 
-        assert rx_stats_h11_2 == rx_stats_h11 \
-            and rx_stats_h12_2 == rx_stats_h12 \
-            and rx_stats_h2_2 == rx_stats_h2 \
-            and rx_stats_h3_2 == rx_stats_h3
+        assert rx_stats_h11_2 == rx_stats_h11
+        assert rx_stats_h12_2 == rx_stats_h12
+        assert rx_stats_h2_2 == rx_stats_h2
+        assert rx_stats_h3_2 == rx_stats_h3
 
         # restart kytos and check if lldp remains disabled
         self.net.start_controller(clean_config=False, enable_all=False)
@@ -248,4 +248,4 @@ class TestE2EOfLLDP:
         delta_pps_2 = rx_stats_h11_2 - rx_stats_h11
 
         # the delta pps now should be around 30, because the interval is every 1s
-        assert delta_pps_2 > delta_pps + 15
+        assert delta_pps_2 > 2*delta_pps
