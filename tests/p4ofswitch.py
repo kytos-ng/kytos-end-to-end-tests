@@ -1,6 +1,7 @@
 """P4OfSwitch"""
 
 import os
+import re
 import time
 from mininet.nodelib import DockerSwitch
 from mininet.log import error
@@ -29,12 +30,17 @@ class P4OfSwitch(DockerSwitch):
         """create p4ofswitch instance."""
         self.arch = P4OFSWITCH_ARCH
         self.controllers = []
-        DockerSwitch.__init__(
-            self,
+        super().__init__(
             name,
             image="amlight/p4ofswitch:latest",
             pull="always",
-            env=[f"ARCH={self.arch}"],
+            env=[
+                f"ARCH={self.arch}",
+                "MIN_RETRY_DELAY=2",
+                "MAX_RETRY_DELAY=4",
+                "DEFAULT_PORTDOWN=on",
+            ],
+            volume=[f"/tmp/{name}-logs:/var/log"],
         )
 
     def wait_start(self):
@@ -45,6 +51,19 @@ class P4OfSwitch(DockerSwitch):
                 return True
             time.sleep(1)
         raise TimeoutError(f"timeout waiting for switch {self.name} to start")
+
+    def intf_name_to_number(self, intf_name):
+        """Convert interface name into number: s1-eth1 -> 1."""
+        nums = re.findall(r"\d+$", intf_name)
+        return int(nums[0])
+
+    def setup_intf(self, intf):
+        """Setup the interface by enabling it and other confis."""
+        portno = self.intf_name_to_number(intf.name)
+        cmd = f"p4ofagent set config port portno {portno} --portdown off"
+        output = self.cmd(cmd)
+        if output:
+            error(f"Failed to run node={self.name} cmd={cmd}: {outpt}")
 
     def start(self, controllers):
         """Start p4ofswitch instance."""
@@ -58,6 +77,11 @@ class P4OfSwitch(DockerSwitch):
             raise ValueError(
                 f"Failed to configure DPID {dpid} for {self.name}: {output}"
             )
+
+        # enable ports in use
+        for intf in self.intfs.values():
+            if intf.link:
+                self.setup_intf(intf)
 
         # configure controllers
         i = 0
@@ -85,6 +109,14 @@ class P4OfSwitch(DockerSwitch):
         cmd = f"ovs-ofctl {args[0]} -O OpenFlow13 tcp:127.0.0.1:6653 "
         cmd += " ".join(args[1:])
         return self.cmd(cmd)
+
+    def attach(self, intfName):
+        """Connect a data port"""
+        intf = self.nameToIntf.get(intfName)
+        if not intf:
+            error(f"Attached unknown intf {intfName} to {self.name}. Ignoring")
+            return
+        self.setup_intf(intf)
 
     def reset_controller(self):
         """Reset the controller connection."""
