@@ -40,6 +40,7 @@ class P4OfSwitch(DockerSwitch):
                 "MAX_RETRY_DELAY=4",
             ],
             volume=[f"/tmp/{name}-logs:/var/log"],
+            **kwargs,
         )
 
     def wait_start(self):
