@@ -163,3 +163,8 @@ class P4OfSwitch(DockerSwitch):
 
     def controllerUUIDs(self, *args, **kwargs):
         pass
+
+    def get_all_of_ports(self):
+        """Get all OpenFlow port numbers."""
+        ports = self.dpctl("dump-ports")
+        return list(map(int, re.findall(r" port ([0-9]+):", ports)))

@@ -623,5 +623,10 @@ class NoviSwitch(Switch):
             cmd = "set config port portno %d portdown %s" % (portno, portdown)
             self.novi_cmd(cmd)
 
+    def get_all_of_ports(self):
+        """Get all OpenFlow port numbers."""
+        ports = self.dpctl("dump-ports")
+        return list(map(int, re.findall(r" port ([0-9]+):", ports)))
+
 
 addCleanupCallback(NoviSwitch.batch_cleanup)
