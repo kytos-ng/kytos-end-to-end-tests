@@ -519,7 +519,7 @@ class NetworkTest:
         else:
             connections = node_a.connectionsTo(node_b)
         if len(connections) == 0:
-            error(f"src and dst not connected: {src} {dst}\n")
+            error(f"src and dst not connected: {a} {b}\n")
             return
         # for NoviSwitch hosts, before changing the status of the veth interfaces
         # we need to actually change the status of the interface on the switch to
