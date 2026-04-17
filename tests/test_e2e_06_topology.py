@@ -33,7 +33,7 @@ class TestE2ETopology:
         cls.net.stop()
 
     @pytest.mark.skipif(
-        os.environ.get("SWITCH_CLASS") == "NoviSwitch",
+        os.environ.get("SWITCH_CLASS") in ("NoviSwitch", "P4OfSwitch"),
         reason="NoviSwitch does not support interface removal",
     )
     def test_010_delete_interface_automatically(self):
@@ -171,7 +171,7 @@ class TestE2ETopology:
         assert response.status_code == 200, f"{response.text}, tries: {counter_tries}"
 
     @pytest.mark.skipif(
-        os.environ.get("SWITCH_CLASS") == "NoviSwitch",
+        os.environ.get("SWITCH_CLASS") in ("NoviSwitch", "P4OfSwitch"),
         reason="NoviSwitch does not support interface removal",
     )
     def test_025_delete_interface(self):
