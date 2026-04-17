@@ -4,7 +4,7 @@ import os
 import re
 import time
 from mininet.nodelib import DockerSwitch
-from mininet.log import error
+from mininet.log import error, info
 
 P4OFSWITCH_ARCH = os.environ.get("P4OFSWITCH_ARCH", "tf1")
 
@@ -164,6 +164,10 @@ class P4OfSwitch(DockerSwitch):
 
     def controllerUUIDs(self, *args, **kwargs):
         pass
+
+    def detach(self, intf):
+        """Disconnect a data port"""
+        info(f"Dettach intf {intf} from {self.name} - nothing to do")
 
     def get_all_of_ports(self):
         """Get all OpenFlow port numbers."""
