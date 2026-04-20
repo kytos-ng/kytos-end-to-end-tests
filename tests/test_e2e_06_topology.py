@@ -280,13 +280,13 @@ class TestE2ETopology:
         api_url = f'{KYTOS_API}/topology/v3/'
         response = requests.get(api_url)
         data = response.json()
-        memo_intfs_before = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+        memo_intfs_before = data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"]
 
         s1_db = self.net.db.switches.find({"id":"00:00:00:00:00:00:00:01"})
         s1_docu = list(s1_db)
         assert len(s1_docu) == 1, "Switch 1 not found"
         db_intfs_before = len(s1_docu[0]["interfaces"])
-        assert memo_intfs_before == db_intfs_before
+        assert len(memo_intfs_before) == db_intfs_before
 
         # Add interface to s1 and s3
         S1, S3 = self.net.net.get('s1', 's3')
@@ -300,13 +300,35 @@ class TestE2ETopology:
         s1_docu = list(s1_db)
         assert len(s1_docu) == 1, "Switch 1 not found"
         db_intfs_after = len(s1_docu[0]["interfaces"])
-        assert db_intfs_after == db_intfs_before + 1
+
+        # Noviflow and P4OfSwitch switches does not actually create a new
+        # interface here. They will create a new interface when adding a LAG
+        # logical port or creating a breakdown, but we will have another test
+        # for that
+        if os.environ.get("SWITCH_CLASS") not in ("NoviSwitch", "P4OfSwitch"):
+            assert db_intfs_after == db_intfs_before + 1
 
         # Look for new interface in the memory
         api_url = f'{KYTOS_API}/topology/v3/'
         response = requests.get(api_url)
         data = response.json()
-        memo_intfs_after = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+        memo_intfs_after = data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"]
 
-        assert memo_intfs_after == memo_intfs_before + 1
-        assert db_intfs_after == memo_intfs_after
+        # Noviflow and P4OfSwitch switches does not create a new interface, but
+        # port 20 should be active now.
+        if os.environ.get("SWITCH_CLASS") in ("NoviSwitch", "P4OfSwitch"):
+            for intf in memo_intfs_before:
+                if intf["id"] == "00:00:00:00:00:00:00:01:20":
+                    assert intf["active"] == False, f"should be down: {intf}"
+                    break
+            else:
+                pytest.fail(f"intf not found on sw1 before {memo_intfs_after}")
+            for intf in memo_intfs_after:
+                if intf["id"] == "00:00:00:00:00:00:00:01:20":
+                    assert intf["active"] == True, f"should be up: {intf}"
+                    break
+            else:
+                pytest.fail(f"intf not found on sw1 after {memo_intfs_after}")
+        else:
+            assert len(memo_intfs_after) == len(memo_intfs_before) + 1
+        assert db_intfs_after == len(memo_intfs_after)
