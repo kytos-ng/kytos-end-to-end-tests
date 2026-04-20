@@ -317,14 +317,14 @@ class TestE2ETopology:
         # Noviflow and P4OfSwitch switches does not create a new interface, but
         # port 20 should be active now.
         if os.environ.get("SWITCH_CLASS") in ("NoviSwitch", "P4OfSwitch"):
-            for intf in memo_intfs_before:
-                if intf["id"] == "00:00:00:00:00:00:00:01:20":
+            for intf_id, intf in memo_intfs_before.items():
+                if intf_id == "00:00:00:00:00:00:00:01:20":
                     assert intf["active"] == False, f"should be down: {intf}"
                     break
             else:
                 pytest.fail(f"intf not found on sw1 before {memo_intfs_after}")
-            for intf in memo_intfs_after:
-                if intf["id"] == "00:00:00:00:00:00:00:01:20":
+            for intf_id, intf in memo_intfs_after.items():
+                if intf_id == "00:00:00:00:00:00:00:01:20":
                     assert intf["active"] == True, f"should be up: {intf}"
                     break
             else:
