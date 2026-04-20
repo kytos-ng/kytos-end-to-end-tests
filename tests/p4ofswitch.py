@@ -5,6 +5,7 @@ import re
 import time
 from mininet.nodelib import DockerSwitch
 from mininet.log import error, info
+from mininet.util import quietRun
 
 P4OFSWITCH_ARCH = os.environ.get("P4OFSWITCH_ARCH", "tf1")
 
@@ -173,3 +174,10 @@ class P4OfSwitch(DockerSwitch):
         """Get all OpenFlow port numbers."""
         ports = self.dpctl("dump-ports --no-names")
         return list(map(int, re.findall(r"\sport\s+([0-9]+):\s", ports)))
+
+    @classmethod
+    def batchShutdown( cls, switches, run=errRun ):
+        """Shut down a list of P4OfSwitch switches"""
+        quietRun("docker rm -f " + " ".join([sw.name for sw in switches]))
+        for sw in switches:
+            sw.terminate()
