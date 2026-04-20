@@ -176,8 +176,8 @@ class P4OfSwitch(DockerSwitch):
         return list(map(int, re.findall(r"\sport\s+([0-9]+):\s", ports)))
 
     @classmethod
-    def batchShutdown( cls, switches, run=errRun ):
+    def batchShutdown( cls, switches, run=quietRun ):
         """Shut down a list of P4OfSwitch switches"""
-        quietRun("docker rm -f " + " ".join([sw.name for sw in switches]))
+        run("docker rm -f " + " ".join([sw.name for sw in switches]))
         for sw in switches:
             sw.terminate()
