@@ -181,3 +181,4 @@ class P4OfSwitch(DockerSwitch):
         run("docker rm -f " + " ".join([sw.name for sw in switches]))
         for sw in switches:
             sw.terminate()
+        return switches
