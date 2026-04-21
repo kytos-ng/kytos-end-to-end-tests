@@ -1,5 +1,6 @@
 import time
 import json
+import pytest
 
 from tests.helpers import NetworkTest
 import requests
@@ -117,11 +118,29 @@ class TestE2EKytosStats:
         # install a flow
         cookie = 5
         payload = {
-            "flows": [{
-                "cookie": cookie,
-                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
-                'actions': [{'action_type': 'output', 'port': 2}]
-            }]
+            "flows": [
+                {
+                    "table_id": 0,
+                    "cookie": 1000 + cookie,
+                    "match": {"in_port": 1, 'dl_type': 0x86dd},
+                    "instructions": [
+                        {
+                            "instruction_type": "goto_table",
+                            "table_id": 1,
+                        },
+                    ],
+                },
+                {
+                    "table_id": 1,
+                    "cookie": cookie,
+                    "match": {
+                        "in_port": 1,
+                        'dl_dst': '33:33:00:00:00:02',
+                        'dl_type': 0x86dd,
+                    },
+                    'actions': [{'action_type': 'output', 'port': 2}]
+                },
+            ]
         }
 
         api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
@@ -153,6 +172,8 @@ class TestE2EKytosStats:
                 assert packet_counter >= n, str(flow)
                 packet_per_second = packet_counter/flow['duration_sec']
                 break
+        else:
+            pytest.fail(f"Flow not found: {data_flow}")
         
         api_url = KYTOS_STATS + f'/packet_count/{flow_id}' 
         response = requests.get(api_url)
@@ -169,11 +190,29 @@ class TestE2EKytosStats:
         # install a flow
         cookie = 5
         payload = {
-            "flows": [{
-                "cookie": cookie,
-                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
-                'actions': [{'action_type': 'output', 'port': 2}]
-            }]
+            "flows": [
+                {
+                    "table_id": 0,
+                    "cookie": 1000 + cookie,
+                    "match": {"in_port": 1, 'dl_type': 0x86dd},
+                    "instructions": [
+                        {
+                            "instruction_type": "goto_table",
+                            "table_id": 1,
+                        },
+                    ],
+                },
+                {
+                    "table_id": 1,
+                    "cookie": cookie,
+                    "match": {
+                        "in_port": 1,
+                        'dl_dst': '33:33:00:00:00:02',
+                        'dl_type': 0x86dd,
+                    },
+                    'actions': [{'action_type': 'output', 'port': 2}]
+                },
+            ]
         }
 
         api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
@@ -205,6 +244,8 @@ class TestE2EKytosStats:
                 assert bytes_counter >= n*1500, str(flow)
                 bits_per_second = 8*bytes_counter/flow['duration_sec']
                 break
+        else:
+            pytest.fail(f"Flow not found: {data_flow}")
         
         api_url = KYTOS_STATS + f'/bytes_count/{flow_id}' 
         response = requests.get(api_url)
