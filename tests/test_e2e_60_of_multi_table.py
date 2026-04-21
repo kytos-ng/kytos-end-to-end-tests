@@ -48,9 +48,10 @@ class TestE2EOfMultiTable:
                 },
                 {
                     "table_id": 1,
-                    "description": "Second table for coloring",
+                    "description": "Second table for coloring and of_lldp",
                     "napps_table_groups": {
-                        "coloring": ["base"]
+                        "coloring": ["base"],
+                        "of_lldp": ["base"],
                     },
                     "table_miss_flow": {
                         "priority": 0,
@@ -62,9 +63,9 @@ class TestE2EOfMultiTable:
                 },
                 {
                     "table_id": 2,
-                    "description": "Third table for of_lldp",
+                    "description": "Third table for mef_eline evpl",
                     "napps_table_groups": {
-                        "of_lldp": ["base"]
+                        "mef_eline": ["evpl"],
                     },
                     "table_miss_flow": {
                         "priority": 0,
@@ -76,21 +77,7 @@ class TestE2EOfMultiTable:
                 },
                 {
                     "table_id": 3,
-                    "description": "Fourth table for mef_eline evpl",
-                    "napps_table_groups": {
-                        "mef_eline": ["evpl"],
-                    },
-                    "table_miss_flow": {
-                        "priority": 0,
-                        "instructions": [{
-                            "instruction_type": "goto_table",
-                            "table_id": 4
-                        }]
-                    },
-                },
-                {
-                    "table_id": 4,
-                    "description": "Fifth table for mef_eline epl",
+                    "description": "Fourth table for mef_eline epl",
                     "napps_table_groups": {
                         "mef_eline": ["epl"]
                     },
