@@ -662,10 +662,11 @@ class TestE2ESDNTrace:
                         "dl_vlan": 10
                     },
                     "actions": [
+                        {"action_type": "set_vlan", "vlan_id": 5 },
                         {
                             "action_type": "output",
                             "port": 2,
-                        }, {"action_type": "set_vlan", "vlan_id": 5 }
+                        },
                     ]
                 },
                 {
