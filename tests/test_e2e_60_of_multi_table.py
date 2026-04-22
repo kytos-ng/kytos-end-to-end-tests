@@ -170,7 +170,7 @@ class TestE2EOfMultiTable:
         # of_lldp and coloring have same priority and
         # order is not deterministic
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 5, flows_s1
+        assert len(flows_s1) == 5, str(flows_s1)
         expected_flows_single_table = [
             # coloring: 2 flows
             (r"cookie=0xac00000000000001.*table=0.*dl_src=ee:ee:ee:.*actions=CONTROLLER:65535", 2),
