@@ -1068,6 +1068,8 @@ class TestE2EFlowManager:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] in {"installed", "pending"}
 
+        time.sleep(5)
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -1107,6 +1109,8 @@ class TestE2EFlowManager:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] == "deleted"
 
+        time.sleep(5)
+
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
@@ -1129,6 +1133,8 @@ class TestE2EFlowManager:
                       headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
 
+        time.sleep(5)
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -1145,6 +1151,9 @@ class TestE2EFlowManager:
         response = requests.delete(api_url, data=json.dumps(payload),
                       headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
+
+        time.sleep(5)
+
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
@@ -1168,6 +1177,8 @@ class TestE2EFlowManager:
         response = requests.post(api_url, data=json.dumps(payload),
                                  headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
+
+        time.sleep(5)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -1230,6 +1241,8 @@ class TestE2EFlowManager:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] in {"installed", "pending"}
 
+        time.sleep(5)
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -1268,6 +1281,8 @@ class TestE2EFlowManager:
         for sw_flows, length in test_list:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] == "deleted", flow
+
+        time.sleep(5)
 
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
