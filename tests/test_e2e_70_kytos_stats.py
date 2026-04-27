@@ -317,7 +317,7 @@ class TestE2EKytosStats:
         data_flow = response.json()
         assert 'FlowMod Messages Sent' in data_flow['response']
 
-        time.sleep(10)
+        time.sleep(15)
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
@@ -356,7 +356,7 @@ class TestE2EKytosStats:
         data_flow = response.json()
         assert 'FlowMod Messages Sent' in data_flow['response']
 
-        time.sleep(10)
+        time.sleep(15)
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
