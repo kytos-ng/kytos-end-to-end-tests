@@ -290,6 +290,8 @@ class TestE2EOfLLDP:
         # Deactivate the interface for deletion
         self.net.net.configLinkStatus('s1', 'h11', 'down')
 
+        time.sleep(5)
+
         api_url = f'{KYTOS_API}/topology/v3/interfaces/{intf_id}'
         response = requests.delete(api_url)
         assert response.status_code == 200, response.text
