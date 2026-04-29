@@ -373,7 +373,7 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus('Ampath1', 'Ampath4', 'down')
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'down')
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
-        time.sleep(5)
+        time.sleep(10)
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
         time.sleep(5)
         evc_content = self.get_evc_data(evc)
