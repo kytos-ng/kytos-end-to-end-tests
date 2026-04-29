@@ -1,5 +1,6 @@
 import json
 import time
+import re
 
 import requests
 
@@ -831,6 +832,7 @@ class TestE2EFlowManager:
         payload = {
             "flows": [
                 {
+                    "cookie": 0x99,
                     "priority": 10,
                     "idle_timeout": 360,
                     "hard_timeout": 1200,
@@ -858,13 +860,15 @@ class TestE2EFlowManager:
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port=1' in flows_s1
+        assert len(re.findall("cookie=0x99.*in_port=1 .*output:2", flows_s1)) == 1, flows_s1
 
         # Modify the actions and verify its modification
-        s1.dpctl('mod-flows', 'actions=output:3')
+        # we use output:7 which is a port not in use, to avoid further
+        # problems with loop detection and mismatch links
+        s1.dpctl('mod-flows', 'actions=output:7')
         flows_s1 = s1.dpctl('dump-flows')
         assert 'actions=output:2' not in flows_s1
-        assert 'actions=output:3' in flows_s1
+        assert 'actions=output:7' in flows_s1
 
         if restart_kytos:
             # restart controller keeping configuration
@@ -879,8 +883,8 @@ class TestE2EFlowManager:
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
-        assert 'actions=output:3' not in flows_s1
-        assert 'in_port=1' in flows_s1
+        assert 'actions=output:7' not in flows_s1
+        assert len(re.findall("cookie=0x99.*in_port=1 .*output:2", flows_s1)) == 1, flows_s1
 
     def test_040_replace_action_flow(self):
         self.replace_action_flow()
