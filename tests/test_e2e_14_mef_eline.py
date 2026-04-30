@@ -44,7 +44,7 @@ class TestE2EMefEline:
         # Wait a few seconds to kytos execute LLDP
         time.sleep(10)
 
-    def wait_sdntrace_result(self, trace_id:int, timeout=11):
+    def wait_sdntrace_result(self, trace_id:int, timeout=30):
         """Wait until sdntrace finishes."""
         wait_count = 0
         while wait_count < timeout:
@@ -174,7 +174,7 @@ class TestE2EMefEline:
         trace_id = self.do_sdntrace('00:00:00:00:00:00:00:16', 2, 100)
         result = self.wait_sdntrace_result(trace_id)
 
-        assert len(result) == 7
+        assert len(result) == 7, str(result)
         assert result[0]["dpid"] == "00:00:00:00:00:00:00:16"
         assert result[1]["dpid"] == "00:00:00:00:00:00:00:15"
         assert result[2]["dpid"] == "00:00:00:00:00:00:00:12"

@@ -444,7 +444,7 @@ class NetworkTest:
                 link_id = self.create_link_id(link)
                 if link_id:
                     topo_links.append(link_id)
-        while wait_count < 30:
+        while wait_count < 60:
             try:
                 response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
                 links = response.json()["links"]

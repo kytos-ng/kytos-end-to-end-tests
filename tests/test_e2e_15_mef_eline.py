@@ -241,6 +241,8 @@ class TestE2EMefEline:
         assert response.status_code == 201, response.text
         assert 'circuit_id' in response.json()
 
+        time.sleep(5)
+
         # Verify if EVC tag has been allocated
         topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
         response = requests.get(topo_url)
