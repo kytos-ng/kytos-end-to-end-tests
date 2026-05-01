@@ -78,7 +78,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         # Make sure that the flow that was sent is on /v2/stored_flows
         dpid = "00:00:00:00:00:00:00:01"
@@ -139,7 +142,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
@@ -256,7 +262,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         for sw_name in ['s1', 's2', 's3']:
             sw = self.net.net.get(sw_name)
@@ -351,7 +360,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?dpids={switch_id}&cookie_range=1&cookie_range=3'
         response = requests.get(stored_flows)
@@ -406,7 +418,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -458,7 +473,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         # Make sure that flows are soft deleted on /v2/stored_flows
         response = requests.get(
@@ -482,13 +500,13 @@ class TestE2EFlowManager:
         for i in range(1, 4):
             dpid = f"00:00:00:00:00:00:00:0{i}"
             assert dpid in data
-            assert len(data[dpid]["flows"]) == BASIC_FLOWS, data[dpid]
+            assert len(data[dpid]["flows"]) == BASIC_FLOWS, f"dpid={dpid} data={data[dpid]}"
 
         for sw_name in ['s1', 's2', 's3']:
             sw = self.net.net.get(sw_name)
             flows_sw = sw.dpctl('dump-flows')
             assert len(flows_sw.splitlines()) == BASIC_FLOWS, flows_sw
-            assert 'actions=output:2' not in flows_sw
+            assert 'actions=output:2' not in flows_sw, flows_sw
 
     def test_026_delete_flows_cookie_mask_range(self):
         """Test deleting flows with cookie range mask and persistence."""""
@@ -558,7 +576,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         # Make sure that flows are soft deleted on /v2/stored_flows
         response = requests.get(
