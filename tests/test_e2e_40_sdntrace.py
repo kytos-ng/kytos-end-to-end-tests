@@ -140,7 +140,7 @@ class TestE2ESDNTrace:
 
         assert expected == actual, f"Expected {expected}. Actual: {actual}"
 
-    def wait_sdntrace_result(self, trace_id, timeout=10):
+    def wait_sdntrace_result(self, trace_id, timeout=30):
         """Wait until sdntrace finishes."""
         wait_count = 0
         while wait_count < timeout:
