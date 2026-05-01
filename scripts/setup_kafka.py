@@ -63,10 +63,15 @@ async def create_topic(admin: AIOKafkaAdminClient, brokers: int) -> None:
     """Attempt to delete and then create 'event_logs'"""
     # 1. Attempt to delete the topic first
     try:
+        print(f"Deleting topic {KAFKA_TOPIC}...")
         await admin.delete_topics([KAFKA_TOPIC])
         # Give broker time to update metadata (crucial step)
-        await asyncio.sleep(2)
-        print(f"Topic {KAFKA_TOPIC} deleted, proceeding to creation.")
+        for _ in range(30):
+            topics = await admin.list_topics()
+            if KAFKA_TOPIC not in topics:
+                print(f"Topic {KAFKA_TOPIC} deleted, proceeding to creation.")
+                break
+            await asyncio.sleep(1)
     except UnknownTopicOrPartitionError:
         pass
     except Exception as exc:
