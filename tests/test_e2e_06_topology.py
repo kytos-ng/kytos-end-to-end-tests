@@ -212,7 +212,7 @@ class TestE2ETopology:
         assert response.status_code == 409, response.text
 
         # Interface has a link
-        S2 = self.net.net.get('s2')
+        S2, S6 = self.net.net.get('s2', 's6')
         S2.detach('s2-eth4')
 
         api_url = f'{KYTOS_API}/topology/v3/interfaces/{intf_id}'
@@ -262,3 +262,51 @@ class TestE2ETopology:
         assert response.status_code == 200, response.text
         data = response.json()
         assert not intf_id in data["interfaces"]
+
+        # Delete link from mininet
+        n_links_before = len(self.net.net.links)
+        topo_links = self.net.net.linksBetween(S2, S6)
+        assert len(topo_links) == 1, f"In Multi topo, s2 and s6 only had 1 link now: {topo_links}"
+        self.net.net.delLink(topo_links[0])
+        assert n_links_before == len(self.net.net.links) + 1, "Link from s2 and s6 was not deleted."
+
+    def test_030_add_interface(self):
+        """Test adding an interface while kytos is running
+        Added:
+            - Link: 01:1 - 03:1
+            - Interface: 01:4 ('s1-eth4')
+        """
+        # Count how many interfaces does Switch 01
+        api_url = f'{KYTOS_API}/topology/v3/'
+        response = requests.get(api_url)
+        data = response.json()
+        memo_intfs_before = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+
+        s1_db = self.net.db.switches.find({"id":"00:00:00:00:00:00:00:01"})
+        s1_docu = list(s1_db)
+        assert len(s1_docu) == 1, "Switch 1 not found"
+        db_intfs_before = len(s1_docu[0]["interfaces"])
+        assert memo_intfs_before == db_intfs_before
+
+        # Add interface to s1 and s3
+        S1, S3 = self.net.net.get('s1', 's3')
+        self.net.net.addLink(S1, S3, port1=20, port2=20)
+        S1.attach('s1-eth20')
+        S3.attach('s3-eth20')
+        time.sleep(2)
+
+        # Look for new interface in the database
+        s1_db = self.net.db.switches.find({"id":"00:00:00:00:00:00:00:01"})
+        s1_docu = list(s1_db)
+        assert len(s1_docu) == 1, "Switch 1 not found"
+        db_intfs_after = len(s1_docu[0]["interfaces"])
+        assert db_intfs_after == db_intfs_before + 1
+
+        # Look for new interface in the memory
+        api_url = f'{KYTOS_API}/topology/v3/'
+        response = requests.get(api_url)
+        data = response.json()
+        memo_intfs_after = len(data["topology"]["switches"]["00:00:00:00:00:00:00:01"]["interfaces"])
+
+        assert memo_intfs_after == memo_intfs_before + 1
+        assert db_intfs_after == memo_intfs_after
