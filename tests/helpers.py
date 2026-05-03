@@ -459,6 +459,53 @@ class NetworkTest:
             msg = f"Timeout waiting for links. Last error: {last_error}"
             raise Exception(msg)
 
+    def wait_kytos_links2(self, a=None, b=None, port1=None, port2=None, status=None):
+        wait_count = 0
+        last_error = ""
+        topo_links = []
+        links = self.net.links
+        if a is not None:
+            node_a = self.net.nameToNode.get(a)
+            if not node_a:
+                raise ValueError(f"Invalid node {a}")
+            node_b = None
+            if b is not None:
+                node_b = self.net.nameToNode.get(b)
+                if not node_b:
+                    raise ValueError(f"Invalid node {b}")
+            node_a_links = set()
+            for intf in node_a.intfs.values():
+                if not intf.link:
+                    continue
+                if node_b and intf.link.intf1.node != node_b and intf.link.intf2.node != node_b:
+                    continue
+                # TODO: port1 and port2 ?
+                node_a_links.add(intf.link)
+            links = list(node_a_links)
+        for link in links:
+            if link.intf1.node in self.net.switches and link.intf2.node in self.net.switches:
+                link_id = self.create_link_id(link)
+                if link_id:
+                    topo_links.append(link_id)
+        while wait_count < 60:
+            try:
+                response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
+                links = response.json()["links"]
+                if a is not None:
+                    links = {lid: links[lid] for lid in topo_links if lid in links}
+                assert len(topo_links) == len(links), f"{topo_links=} {links=}"
+                assert all(link_id in links for link_id in topo_links), f"{topo_links=} {links=}"
+                if status is not None:
+                    assert all(links[lid]["status"] == status for lid in topo_links), f"{topo_links} {links=} {status=}"
+                break
+            except Exception as exc:
+                last_error = str(exc)
+            time.sleep(1)
+            wait_count += 1
+        else:
+            msg = f"Timeout waiting for links. Last error: {last_error}"
+            raise Exception(msg)
+
     def create_link_id(self, link):
         dpid1 = link.intf1.node.dpid
         dpid2 = link.intf2.node.dpid
