@@ -27,8 +27,11 @@ def parse_int_collector(data):
 
 
 @pytest.mark.skipif(
-    os.environ.get("SWITCH_CLASS") != "NoviSwitch"
-    or os.environ.get("NOVIVERSION") != "NW570.6.1",
+    os.environ.get("SWITCH_CLASS") not in ("NoviSwitch", "P4OfSwitch")
+    or (
+        os.environ.get("SWITCH_CLASS") == "NoviSwitch"
+        and os.environ.get("NOVIVERSION") != "NW570.6.1"
+    ),
     reason="NoviSwitch does not support interface removal",
 )
 class TestE2ETelemtryINT:
@@ -152,16 +155,28 @@ class TestE2ETelemtryINT:
         self.config_host_ip_vlan(h3, "10.1.98.3", 198)
 
         # enable INT Collector on switches
-        s1.novi_cmd(
-            "set config int monitor portno 3 ethdst 00:00:00:00:02:01 ethsrc 00:00:00:aa:aa:01 "
-            "ipv4src 10.255.255.1 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
-        )
-        s1.novi_cmd("set config int maxhopcount 10")
-        s6.novi_cmd(
-            "set config int monitor portno 3 ethdst 00:00:00:00:02:03 ethsrc 00:00:00:aa:aa:06 "
-            "ipv4src 10.255.255.6 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
-        )
-        s6.novi_cmd("set config int maxhopcount 10")
+        if os.environ.get("SWITCH_CLASS") == "NoviSwitch":
+            s1.novi_cmd(
+                "set config int monitor portno 3 ethdst 00:00:00:00:02:01 ethsrc 00:00:00:aa:aa:01 "
+                "ipv4src 10.255.255.1 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
+            )
+            s1.novi_cmd("set config int maxhopcount 10")
+            s6.novi_cmd(
+                "set config int monitor portno 3 ethdst 00:00:00:00:02:03 ethsrc 00:00:00:aa:aa:06 "
+                "ipv4src 10.255.255.6 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
+            )
+            s6.novi_cmd("set config int maxhopcount 10")
+        elif os.environ.get("SWITCH_CLASS") == "P4OfSwitch":
+            s1.cmd(
+                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:01 --dst_mac 00:00:00:00:02:01 "
+                "--src_ip 10.255.255.1 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
+            )
+            s6.cmd(
+                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:06 --dst_mac 00:00:00:00:02:03 "
+                "--src_ip 10.255.255.6 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
+            )
+        else:
+            pytest.fail("Unsupported SWITCH_CLASS. Supported values: NoviSwitch, P4OfSwitch")
 
         # start int collector
         h2.cmd(
@@ -255,8 +270,9 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s1:7 -- s6:7
         #####################################################
         self.net.net.configLinkStatus("s1", "s6", "down")
+        self.net.net.wait_kytos_links("s1", "s6", status="DOWN")
 
-        time.sleep(15)
+        time.sleep(5)
 
         expected_current = [
             ["00:00:00:00:00:00:00:01:5", "00:00:00:00:00:00:00:05:5"],
@@ -317,8 +333,9 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s1:5 -- s5:5
         #####################################################
         self.net.net.configLinkStatus("s1", "s5", "down")
+        self.net.net.wait_kytos_links("s1", "s5", status="DOWN")
 
-        time.sleep(15)
+        time.sleep(5)
 
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
@@ -380,8 +397,9 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s2:5 -- s6:5
         #####################################################
         self.net.net.configLinkStatus("s2", "s6", "down")
+        self.net.net.wait_kytos_links("s2", "s6", status="DOWN")
 
-        time.sleep(15)
+        time.sleep(5)
 
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
@@ -456,8 +474,9 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s5:8 -- s6:8
         #####################################################
         self.net.net.configLinkStatus("s5", "s6", "down", port1=8, port2=8)
+        self.net.net.wait_kytos_links("s5", "s6", port1=8, port2=8, status="DOWN")
 
-        time.sleep(15)
+        time.sleep(5)
 
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
@@ -540,8 +559,9 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s2:4 -- s3:4
         #####################################################
         self.net.net.configLinkStatus("s2", "s3", "down")
+        self.net.net.wait_kytos_links("s2", "s3", status="DOWN")
 
-        time.sleep(15)
+        time.sleep(5)
 
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
@@ -604,8 +624,9 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s5:9 -- s6:9
         #####################################################
         self.net.net.configLinkStatus("s5", "s6", "down", port1=9, port2=9)
+        self.net.net.wait_kytos_links("s2", "s3", port1=9, port2=9, status="DOWN")
 
-        time.sleep(15)
+        time.sleep(5)
 
         self.validate_evc_paths(evc_id, [], [])
 
@@ -622,8 +643,9 @@ class TestE2ETelemtryINT:
         ## simulate link UP on s1 -- s6 to check if the EVC will recover
         #####################################################
         self.net.net.configLinkStatus("s1", "s6", "up")
+        self.net.net.wait_kytos_links("s1", "s6", status="UP")
 
-        time.sleep(15)
+        time.sleep(5)
 
         expected_current = [
             ["00:00:00:00:00:00:00:01:7", "00:00:00:00:00:00:00:06:7"],

@@ -454,9 +454,14 @@ class NetworkTest:
             for intf in node_a.intfs.values():
                 if not intf.link:
                     continue
-                if node_b and intf.link.intf1.node != node_b and intf.link.intf2.node != node_b:
+                intf2 = intf.link.intf2 if intf.link.intf1 == intf else intf.link.intf1
+                if node_b and intf2.node != node_b:
                     continue
-                # TODO: port1 and port2 ?
+                if (
+                    port1 is not None and intf.name.endswith(f"eth{port1}") and
+                    port2 is not None and intf2.name.endswith(f"eth{port2}")
+                ):
+                    continue
                 node_a_links.add(intf.link)
             links = list(node_a_links)
         for link in links:
