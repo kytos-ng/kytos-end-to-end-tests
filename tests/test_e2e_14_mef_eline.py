@@ -35,15 +35,6 @@ class TestE2EMefEline:
     def teardown_class(cls):
         cls.net.stop()
 
-    def restart(self, _clean_config=False, _enable_all=True):
-        # Start the controller setting an environment in which the setting is
-        # preserved (persistence) and avoid the default enabling of all elements
-        self.net.start_controller(clean_config=_clean_config, enable_all=_enable_all)
-        self.net.wait_switches_connect()
-
-        # Wait a few seconds to kytos execute LLDP
-        time.sleep(10)
-
     def wait_sdntrace_result(self, trace_id:int, timeout=30):
         """Wait until sdntrace finishes."""
         wait_count = 0
@@ -350,10 +341,9 @@ class TestE2EMefEline:
         assert not evc_content["current_path"]
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'down')
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
-        time.sleep(5)
+        self.net.net.wait_kytos_links('Ampath1', 'Ampath3', status="DOWN")
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
-        #time.sleep(5)
-        self.net.net.wait_kytos_links2('Ampath1', 'Ampath3', status="UP")
+        self.net.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         primary_path = evc_content['primary_path']
@@ -376,7 +366,7 @@ class TestE2EMefEline:
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
         time.sleep(10)
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
-        time.sleep(5)
+        self.net.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         backup_path = evc_content['backup_path']
@@ -390,8 +380,7 @@ class TestE2EMefEline:
     def test_030_EVC_path_disjointness(self):
         """Testing disjointness by expecting a specific failover_path."""
         self.net.net.configLinkStatus('Ampath1', 'SoL2', 'down')
-        #time.sleep(5)
-        self.net.net.wait_kytos_links2('Ampath1', 'SoL2', status="DOWN")
+        self.net.net.wait_kytos_links('Ampath1', 'SoL2', status="DOWN")
 
         evc = self.create_evc(uni_a='00:00:00:00:00:00:00:15:16',
                        uni_z='00:00:00:00:00:00:00:11:16',
@@ -420,4 +409,3 @@ class TestE2EMefEline:
         ]
         assert len(failover_path) == len(expected_failover_path)
         assert failover_path == expected_failover_path
-        self.net.net.configLinkStatus('Ampath1', 'SoL2', 'up')

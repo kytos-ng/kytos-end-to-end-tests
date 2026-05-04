@@ -435,31 +435,8 @@ class NetworkTest:
                 status = [(sw.name, sw.connected()) for sw in self.net.switches]
                 raise Exception('Timeout: timed out waiting switches reconnect. Status %s' % status)
 
-    def wait_kytos_links(self):
-        wait_count = 0
-        last_error = ""
-        topo_links = []
-        for link in self.net.links:
-            if link.intf1.node in self.net.switches and link.intf2.node in self.net.switches:
-                link_id = self.create_link_id(link)
-                if link_id:
-                    topo_links.append(link_id)
-        while wait_count < 60:
-            try:
-                response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
-                links = response.json()["links"]
-                assert len(topo_links) == len(links), f"{topo_links=} {links=}"
-                assert all(link_id in links for link_id in topo_links), f"{topo_links=} {links=}"
-                break
-            except Exception as exc:
-                last_error = str(exc)
-            time.sleep(1)
-            wait_count += 1
-        else:
-            msg = f"Timeout waiting for links. Last error: {last_error}"
-            raise Exception(msg)
 
-    def wait_kytos_links2(self, a=None, b=None, port1=None, port2=None, status=None):
+    def wait_kytos_links(self, a=None, b=None, port1=None, port2=None, status=None):
         wait_count = 0
         last_error = ""
         topo_links = []
