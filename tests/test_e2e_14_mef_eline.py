@@ -22,7 +22,7 @@ class TestE2EMefEline:
         # which all elements are disabled in a clean setting
         self.net.restart_kytos_clean()
         self.net.wait_kytos_links(status="UP")
-        #time.sleep(10)
+        time.sleep(5)
 
     @classmethod
     def setup_class(cls):
@@ -343,8 +343,10 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'down')
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
         self.net.wait_kytos_links('Ampath1', 'Ampath3', status="DOWN")
+        time.sleep(5)
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
         self.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
+        time.sleep(5)
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         primary_path = evc_content['primary_path']
@@ -368,6 +370,7 @@ class TestE2EMefEline:
         time.sleep(10)
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
         self.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
+        time.sleep(5)
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         backup_path = evc_content['backup_path']
@@ -383,6 +386,7 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus('Ampath1', 'SoL2', 'down')
         self.net.wait_kytos_links('Ampath1', 'SoL2', status="DOWN")
         self.net.wait_kytos_buff_low_qsize()
+        time.sleep(5)
 
         evc = self.create_evc(uni_a='00:00:00:00:00:00:00:15:16',
                        uni_z='00:00:00:00:00:00:00:11:16',
