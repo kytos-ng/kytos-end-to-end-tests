@@ -523,6 +523,7 @@ class NetworkTest:
                     else:
                         moving_avg[name] = qsize_limit+1
                 assert all([size <= qsize_limit for size in moving_avg.values()]), f"{moving_avg=} {buf_qsize=}"
+                break
             except Exception as exc:
                 last_error = str(exc)
             time.sleep(1)
