@@ -460,8 +460,8 @@ class NetworkTest:
                 if node_b and intf2.node != node_b:
                     continue
                 if any([
-                    (port1 is not None and not intf.name.endswith(f"eth{port1}"))
-                    (port2 is not None and not intf2.name.endswith(f"eth{port2}"))
+                    port1 is not None and not intf.name.endswith(f"eth{port1}"),
+                    port2 is not None and not intf2.name.endswith(f"eth{port2}"),
                 ]):
                     continue
                 node_a_links.add(intf.link)
