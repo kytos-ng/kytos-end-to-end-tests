@@ -1,6 +1,7 @@
 """End-to-end tests for telemetry_int Napp."""
 
 import os
+import re
 import time
 from pathlib import Path
 
@@ -116,9 +117,8 @@ class TestE2ETelemtryINT:
         expected_counts: list[tuples] (switch_obj, expected_int)
         """
         for switch, count in expected_counts:
-            flows = switch.dpctl(
-                "dump-flows", f"cookie=0xa0{evc_id}/0xf0ffffffffffffff"
-            ).splitlines()
+            flows = switch.dpctl("dump-flows").splitlines()
+            flows = [flow for flow in flows if re.search(rf"cookie=0xa.{evc_id}", flow)]
             assert len(flows) == count, f"Wrong flows length for {switch}: {flows}"
 
     def validate_traffic(self, src, dst):
@@ -270,7 +270,7 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s1:7 -- s6:7
         #####################################################
         self.net.net.configLinkStatus("s1", "s6", "down")
-        self.net.net.wait_kytos_links("s1", "s6", status="DOWN")
+        self.net.wait_kytos_links("s1", "s6", status="DOWN")
 
         time.sleep(5)
 
@@ -333,7 +333,7 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s1:5 -- s5:5
         #####################################################
         self.net.net.configLinkStatus("s1", "s5", "down")
-        self.net.net.wait_kytos_links("s1", "s5", status="DOWN")
+        self.net.wait_kytos_links("s1", "s5", status="DOWN")
 
         time.sleep(5)
 
@@ -397,7 +397,7 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s2:5 -- s6:5
         #####################################################
         self.net.net.configLinkStatus("s2", "s6", "down")
-        self.net.net.wait_kytos_links("s2", "s6", status="DOWN")
+        self.net.wait_kytos_links("s2", "s6", status="DOWN")
 
         time.sleep(5)
 
@@ -474,7 +474,7 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s5:8 -- s6:8
         #####################################################
         self.net.net.configLinkStatus("s5", "s6", "down", port1=8, port2=8)
-        self.net.net.wait_kytos_links("s5", "s6", port1=8, port2=8, status="DOWN")
+        self.net.wait_kytos_links("s5", "s6", port1=8, port2=8, status="DOWN")
 
         time.sleep(5)
 
@@ -559,7 +559,7 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s2:4 -- s3:4
         #####################################################
         self.net.net.configLinkStatus("s2", "s3", "down")
-        self.net.net.wait_kytos_links("s2", "s3", status="DOWN")
+        self.net.wait_kytos_links("s2", "s3", status="DOWN")
 
         time.sleep(5)
 
@@ -624,7 +624,7 @@ class TestE2ETelemtryINT:
         ## simulate link down on current path: s5:9 -- s6:9
         #####################################################
         self.net.net.configLinkStatus("s5", "s6", "down", port1=9, port2=9)
-        self.net.net.wait_kytos_links("s2", "s3", port1=9, port2=9, status="DOWN")
+        self.net.wait_kytos_links("s2", "s3", port1=9, port2=9, status="DOWN")
 
         time.sleep(5)
 
@@ -643,7 +643,7 @@ class TestE2ETelemtryINT:
         ## simulate link UP on s1 -- s6 to check if the EVC will recover
         #####################################################
         self.net.net.configLinkStatus("s1", "s6", "up")
-        self.net.net.wait_kytos_links("s1", "s6", status="UP")
+        self.net.wait_kytos_links("s1", "s6", status="UP")
 
         time.sleep(5)
 

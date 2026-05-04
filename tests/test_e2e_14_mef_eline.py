@@ -341,9 +341,9 @@ class TestE2EMefEline:
         assert not evc_content["current_path"]
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'down')
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
-        self.net.net.wait_kytos_links('Ampath1', 'Ampath3', status="DOWN")
+        self.net.wait_kytos_links('Ampath1', 'Ampath3', status="DOWN")
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
-        self.net.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
+        self.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         primary_path = evc_content['primary_path']
@@ -366,7 +366,7 @@ class TestE2EMefEline:
         Ampath1.vsctl(f"set-controller {Ampath1.name} tcp:127.0.0.1:6653")
         time.sleep(10)
         self.net.net.configLinkStatus('Ampath1', 'Ampath3', 'up')
-        self.net.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
+        self.net.wait_kytos_links('Ampath1', 'Ampath3', status="UP")
         evc_content = self.get_evc_data(evc)
         current_path = evc_content['current_path' ]
         backup_path = evc_content['backup_path']
@@ -380,7 +380,7 @@ class TestE2EMefEline:
     def test_030_EVC_path_disjointness(self):
         """Testing disjointness by expecting a specific failover_path."""
         self.net.net.configLinkStatus('Ampath1', 'SoL2', 'down')
-        self.net.net.wait_kytos_links('Ampath1', 'SoL2', status="DOWN")
+        self.net.wait_kytos_links('Ampath1', 'SoL2', status="DOWN")
 
         evc = self.create_evc(uni_a='00:00:00:00:00:00:00:15:16',
                        uni_z='00:00:00:00:00:00:00:11:16',
