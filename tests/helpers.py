@@ -9,6 +9,8 @@ import os
 import requests
 import hashlib
 
+from collections import defaultdict
+
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
@@ -505,6 +507,29 @@ class NetworkTest:
         else:
             raw_str = ":".join(sorted((intf1, intf2)))
         return hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
+
+    def wait_kytos_buff_low_qsize(self, max_wait=60, qsize_limit=100):
+        wait_count = 0
+        queue_sizes = defaultdict(list)
+        while wait_count < max_wait+5:
+            try:
+                response = requests.get("http://127.0.0.1:8181/api/kytos/core/status/", timeout=3)
+                buf_qsize = response.json()["buffers_qsize"]
+                moving_avg = {}
+                for name, size in buf_qsize.items():
+                    queue_sizes[name].append(size)
+                    if len(queue_sizes[name]) > 5:
+                        moving_avg[name] = sum(queue_sizes[name][-5:]) / 5
+                    else:
+                        moving_avg[name] = qsize_limit+1
+                assert all([size <= qsize_limit for size in moving_avg.values()]), f"{moving_avg=} {buf_qsize=}"
+            except Exception as exc:
+                last_error = str(exc)
+            time.sleep(1)
+            wait_count += 1
+        else:
+            msg = f"Timeout waiting for low buffer queue sizes. Last error: {last_error}"
+            raise Exception(msg)
 
     def restart_kytos_clean(self):
         self.start_controller(clean_config=True, enable_all=True)

@@ -21,7 +21,8 @@ class TestE2EMefEline:
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
         self.net.restart_kytos_clean()
-        time.sleep(10)
+        self.net.wait_kytos_links(status="UP")
+        #time.sleep(10)
 
     @classmethod
     def setup_class(cls):
@@ -381,6 +382,7 @@ class TestE2EMefEline:
         """Testing disjointness by expecting a specific failover_path."""
         self.net.net.configLinkStatus('Ampath1', 'SoL2', 'down')
         self.net.wait_kytos_links('Ampath1', 'SoL2', status="DOWN")
+        self.net.wait_kytos_buff_low_qsize()
 
         evc = self.create_evc(uni_a='00:00:00:00:00:00:00:15:16',
                        uni_z='00:00:00:00:00:00:00:11:16',
