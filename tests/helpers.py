@@ -345,9 +345,10 @@ class NetworkTest:
         self.net.orig_configLinkStatus = self.net.configLinkStatus
         self.net.configLinkStatus = self.configLinkStatus
 
-    def start(self):
+    def start(self, start_controller=True):
         self.net.start()
-        self.start_controller(clean_config=True)
+        if start_controller:
+            self.start_controller(clean_config=True)
 
     def drop_database(self):
         """Drop database."""
@@ -535,7 +536,7 @@ class NetworkTest:
     def restart_kytos_clean(self):
         self.start_controller(clean_config=True, enable_all=True)
         self.wait_switches_connect()
-        self.wait_kytos_links(status="UP")
+        self.wait_kytos_links()
 
     def reconnect_switches(self, target="tcp:127.0.0.1:6653",
                            temp_target="tcp:127.0.0.1:6654", wait=True):

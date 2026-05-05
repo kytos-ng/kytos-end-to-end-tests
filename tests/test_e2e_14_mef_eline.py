@@ -21,13 +21,14 @@ class TestE2EMefEline:
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
         self.net.restart_kytos_clean()
+        self.net.wait_kytos_links(status="UP")
         self.net.wait_kytos_buff_low_usage()
         time.sleep(5)
 
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name='amlight')
-        cls.net.start()
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):

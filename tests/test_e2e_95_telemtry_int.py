@@ -54,7 +54,7 @@ class TestE2ETelemtryINT:
     def setup_class(cls):
         """Called once before all test methods within a class are run."""
         cls.net = NetworkTest(CONTROLLER, topo_name="amlight_intlab")
-        cls.net.start()
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
