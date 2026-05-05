@@ -508,34 +508,34 @@ class NetworkTest:
             raw_str = ":".join(sorted((intf1, intf2)))
         return hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
 
-    def wait_kytos_buff_low_qsize(self, max_wait=60, qsize_limit=100):
+    def wait_kytos_buff_low_usage(self, max_wait=60, usage_limit=50, period=5):
         wait_count = 0
-        queue_sizes = defaultdict(list)
-        while wait_count < max_wait+5:
+        q_usage = defaultdict(list)
+        while wait_count < max_wait+period:
             try:
                 response = requests.get("http://127.0.0.1:8181/api/kytos/core/status/", timeout=3)
-                buf_qsize = response.json()["buffers_qsize"]
+                buf_usage = response.json()["buffers_usage"]
                 moving_avg = {}
-                for name, size in buf_qsize.items():
-                    queue_sizes[name].append(size)
-                    if len(queue_sizes[name]) > 5:
-                        moving_avg[name] = sum(queue_sizes[name][-5:]) / 5
+                for name, size in buf_usage.items():
+                    q_usage[name].append(size)
+                    if len(q_usage[name]) > period:
+                        moving_avg[name] = sum(q_usage[name][-period:]) / period
                     else:
-                        moving_avg[name] = qsize_limit+1
-                assert all([size <= qsize_limit for size in moving_avg.values()]), f"{moving_avg=} {buf_qsize=}"
+                        moving_avg[name] = usage_limit+1
+                assert all([usage <= usage_limit for usage in moving_avg.values()]), f"{moving_avg=} {buf_usage=}"
                 break
             except Exception as exc:
                 last_error = str(exc)
             time.sleep(1)
             wait_count += 1
         else:
-            msg = f"Timeout waiting for low buffer queue sizes. Last error: {last_error}"
+            msg = f"Timeout waiting for low buffer queue usage. Last error: {last_error}"
             raise Exception(msg)
 
     def restart_kytos_clean(self):
         self.start_controller(clean_config=True, enable_all=True)
         self.wait_switches_connect()
-        self.wait_kytos_links()
+        self.wait_kytos_links(status="UP")
 
     def reconnect_switches(self, target="tcp:127.0.0.1:6653",
                            temp_target="tcp:127.0.0.1:6654", wait=True):
