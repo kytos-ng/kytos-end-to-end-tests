@@ -515,7 +515,7 @@ class NetworkTest:
         while wait_count < max_wait+period:
             try:
                 response = requests.get("http://127.0.0.1:8181/api/kytos/core/status/", timeout=3)
-                buf_usage = response.json()["buffers_usage"]
+                buf_usage = response.json()["buffers_qsize"]
                 moving_avg = {}
                 for name, size in buf_usage.items():
                     q_usage[name].append(size)
