@@ -55,6 +55,7 @@ class TestE2ETopologyDupDpid:
         assert sw1_dpid in switches, f"sw1 ({sw1_dpid}) not found in topology"
         assert switches[sw1_dpid]["enabled"]
         assert switches[sw1_dpid]["active"]
+        initial_conn = switches[sw1_dpid]["connection"]
 
         original_interfaces = set(switches[sw1_dpid]["interfaces"].keys())
         expected_interfaces = {
@@ -84,6 +85,11 @@ class TestE2ETopologyDupDpid:
             assert sw1_dpid in switches, (
                 f"sw1 ({sw1_dpid}) disappeared from topology after "
                 "duplicate DPID switch connected"
+            )
+
+            assert switches[sw1_dpid]["connection"] == initial_conn, (
+                f"sw1 {sw1_dpid} initial conn: {initial_conn} != "
+                f"current conn: {switches[sw1_dpid]['connection']}"
             )
 
             current_interfaces = set(switches[sw1_dpid]["interfaces"].keys())
