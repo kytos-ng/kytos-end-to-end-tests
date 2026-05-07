@@ -431,6 +431,10 @@ class NetworkTest:
 
     def wait_switches_connect(self):
         max_wait = 0
+        # update controller UUIDs for OVSSwitch to avoid errors while changing
+        # the controller: no row "xyz" in table Controller
+        for sw in self.net.switches:
+            sw.controllerUUIDs(update=True)
         while any(not sw.connected() for sw in self.net.switches):
             time.sleep(1)
             max_wait += 1
