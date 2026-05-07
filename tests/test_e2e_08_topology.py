@@ -56,6 +56,7 @@ class TestE2ETopologyDupDpid:
         assert switches[sw1_dpid]["enabled"]
         assert switches[sw1_dpid]["active"]
         initial_conn = switches[sw1_dpid]["connection"]
+        assert initial_conn
 
         original_interfaces = set(switches[sw1_dpid]["interfaces"].keys())
         expected_interfaces = {
