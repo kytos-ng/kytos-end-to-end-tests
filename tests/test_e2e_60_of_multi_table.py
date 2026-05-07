@@ -1,4 +1,5 @@
 import time
+import re
 
 from tests.helpers import NetworkTest
 import requests
@@ -48,9 +49,10 @@ class TestE2EOfMultiTable:
                 },
                 {
                     "table_id": 1,
-                    "description": "Second table for coloring",
+                    "description": "Second table for coloring and of_lldp",
                     "napps_table_groups": {
-                        "coloring": ["base"]
+                        "coloring": ["base"],
+                        "of_lldp": ["base"],
                     },
                     "table_miss_flow": {
                         "priority": 0,
@@ -62,9 +64,9 @@ class TestE2EOfMultiTable:
                 },
                 {
                     "table_id": 2,
-                    "description": "Third table for of_lldp",
+                    "description": "Third table for mef_eline evpl",
                     "napps_table_groups": {
-                        "of_lldp": ["base"]
+                        "mef_eline": ["evpl"],
                     },
                     "table_miss_flow": {
                         "priority": 0,
@@ -76,21 +78,7 @@ class TestE2EOfMultiTable:
                 },
                 {
                     "table_id": 3,
-                    "description": "Fourth table for mef_eline evpl",
-                    "napps_table_groups": {
-                        "mef_eline": ["evpl"],
-                    },
-                    "table_miss_flow": {
-                        "priority": 0,
-                        "instructions": [{
-                            "instruction_type": "goto_table",
-                            "table_id": 4
-                        }]
-                    },
-                },
-                {
-                    "table_id": 4,
-                    "description": "Fifth table for mef_eline epl",
+                    "description": "Fourth table for mef_eline epl",
                     "napps_table_groups": {
                         "mef_eline": ["epl"]
                     },
@@ -141,52 +129,36 @@ class TestE2EOfMultiTable:
         # Assert installed flows
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 9, flows_s1
-        assert "table=0" in flows_s1[0]
-        assert 'priority=0 actions=goto_table:1' in flows_s1[0]
-        assert "table=1" in flows_s1[1]
-        assert 'actions=CONTROLLER:65535' in flows_s1[1]
-        assert "table=1" in flows_s1[2]
-        assert 'actions=CONTROLLER:65535' in flows_s1[2]
-        assert "table=1" in flows_s1[3]
-        assert 'priority=0 actions=goto_table:2' in flows_s1[3]
-        assert "table=2" in flows_s1[4]
-        assert 'dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
-        assert "table=2" in flows_s1[5]
-        assert 'priority=0 actions=goto_table:3' in flows_s1[5]
-        assert "table=3" in flows_s1[6]
-        assert 'dl_vlan=100 actions=output:2' in flows_s1[6]
-        assert "table=3" in flows_s1[7]
-        assert 'priority=0 actions=goto_table:4' in flows_s1[7]
-        assert "table=4" in flows_s1[8]
-        assert 'actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1' in flows_s1[8]
+        assert len(flows_s1) == 8, str(flows_s1)
+        expected_flows = [
+            # of_multi_table: 3 flows (tables 1, 2 and 3)
+            (r"cookie=0xad00000000000001.*table=0.*priority=0 actions=goto_table:1", 1),
+            (r"cookie=0xad00000000000001.*table=1.*priority=0 actions=goto_table:2", 1),
+            (r"cookie=0xad00000000000001.*table=2.*priority=0 actions=goto_table:3", 1),
+            # coloring: 2 flows (table 1)
+            (r"cookie=0xac00000000000001.*table=1.*dl_src=ee:ee:ee:.*actions=CONTROLLER:65535", 2),
+            # of_lldp: 1 flow (table 1)
+            (r"cookie=0xab00000000000001.*table=1.*dl_vlan=3799.*actions=CONTROLLER:65535", 1),
+            # mef_eline: 2 flows (table 2 and 3)
+            (r"cookie=0xaa.*table=2.*dl_vlan=100 actions=output:2", 1),
+            (r"cookie=0xaa.*table=3.*actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1", 1),
+        ]
+        for pattern, matches in expected_flows:
+            assert sum(
+                len(re.findall(pattern, flow)) for flow in flows_s1
+            ) == matches, f"{matches=} {pattern=} {flows_s1=}"
 
         self.net.start_controller(clean_config=False)
         self.net.wait_switches_connect()
         time.sleep(10)
 
         # Assert installed flows
-        s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 9, flows_s1
-        assert "table=0" in flows_s1[0]
-        assert 'priority=0 actions=goto_table:1' in flows_s1[0]
-        assert "table=1" in flows_s1[1]
-        assert 'actions=CONTROLLER:65535' in flows_s1[1]
-        assert "table=1" in flows_s1[2]
-        assert 'actions=CONTROLLER:65535' in flows_s1[2]
-        assert "table=1" in flows_s1[3]
-        assert 'priority=0 actions=goto_table:2' in flows_s1[3]
-        assert "table=2" in flows_s1[4]
-        assert 'dl_type=0x88cc actions=CONTROLLER:65535' in flows_s1[4]
-        assert "table=2" in flows_s1[5]
-        assert 'priority=0 actions=goto_table:3' in flows_s1[5]
-        assert "table=3" in flows_s1[6]
-        assert 'dl_vlan=100 actions=output:2' in flows_s1[6]
-        assert "table=3" in flows_s1[7]
-        assert 'priority=0 actions=goto_table:4' in flows_s1[7]
-        assert "table=4" in flows_s1[8]
-        assert 'actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1' in flows_s1[8]
+        assert len(flows_s1) == 8, str(flows_s1)
+        for pattern, matches in expected_flows:
+            assert sum(
+                len(re.findall(pattern, flow)) for flow in flows_s1
+            ) == matches, f"{matches=} {pattern=} {flows_s1=}"
 
         # Return to default pipeline
         # Disabled pipeline
@@ -197,16 +169,21 @@ class TestE2EOfMultiTable:
 
         # of_lldp and coloring have same priority and
         # order is not deterministic
-        s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows').splitlines()
-        assert len(flows_s1) == 5, flows_s1
-        for flow in flows_s1:
-            assert 'table=0' in flow
-        assert 'actions=CONTROLLER:65535' in flows_s1[0]
-        assert 'actions=CONTROLLER:65535' in flows_s1[1]
-        assert 'actions=CONTROLLER:65535' in flows_s1[2]
-        assert 'dl_vlan=100 actions=output:2' in flows_s1[3]
-        assert 'actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1' in flows_s1[4]
+        assert len(flows_s1) == 5, str(flows_s1)
+        expected_flows_single_table = [
+            # coloring: 2 flows
+            (r"cookie=0xac00000000000001.*table=0.*dl_src=ee:ee:ee:.*actions=CONTROLLER:65535", 2),
+            # of_lldp: 1 flow (table 1)
+            (r"cookie=0xab00000000000001.*table=0.*dl_vlan=3799.*actions=CONTROLLER:65535", 1),
+            # mef_eline: 2 flows
+            (r"cookie=0xaa.*table=0.*dl_vlan=100 actions=output:2", 1),
+            (r"cookie=0xaa.*table=0.*actions=push_vlan:0x8100,set_field:4196->vlan_vid,output:1", 1),
+        ]
+        for pattern, matches in expected_flows_single_table:
+            assert sum(
+                len(re.findall(pattern, flow)) for flow in flows_s1
+            ) == matches, f"{matches=} {pattern=} {flows_s1=}"
 
         # Delete disabled pipeline
         api_url = f"{KYTOS_API}{OF_MULTI_TABLE_API}/{data['id']}"

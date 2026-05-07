@@ -56,14 +56,24 @@ class TestE2EOfLLDP:
         # s1 lo:  s1-eth1:h11-eth0 s1-eth2:h12-eth0 s1-eth3:s2-eth2 s1-eth4:s3-eth3
         # s2 lo:  s2-eth1:h2-eth0 s2-eth2:s1-eth3 s2-eth3:s3-eth2
         # s3 lo:  s3-eth1:h3-eth0 s3-eth2:s2-eth3 s3-eth3:s1-eth4
-        expected_interfaces = [
+        expected_interfaces = set([
                 "00:00:00:00:00:00:00:01:1", "00:00:00:00:00:00:00:01:2", "00:00:00:00:00:00:00:01:3",
                 "00:00:00:00:00:00:00:01:4", "00:00:00:00:00:00:00:01:4294967294",
                 "00:00:00:00:00:00:00:02:1", "00:00:00:00:00:00:00:02:2", "00:00:00:00:00:00:00:02:3",
                 "00:00:00:00:00:00:00:02:4294967294",
                 "00:00:00:00:00:00:00:03:1", "00:00:00:00:00:00:00:03:2", "00:00:00:00:00:00:00:03:3",
                 "00:00:00:00:00:00:00:03:4294967294"
-        ]
+        ])
+        # some switches have more interfaces than the ones configured by
+        # mininet (ex: Noviflow switches, P4OfSwitch)
+        for sw_name in ["s1", "s2", "s3"]:
+            sw = self.net.net.get(sw_name)
+            if hasattr(sw, "get_all_of_ports"):
+                ports = sw.get_all_of_ports()
+                dpid = ":".join([sw.dpid[i:i+2] for i in range(0, 16, 2)])
+                intf_ids = [f"{dpid}:{port}" for port in ports]
+                expected_interfaces.update(intf_ids)
+
         assert set(data["interfaces"]) == set(expected_interfaces)
 
         # make sure the interfaces are actually receiving LLDP
@@ -103,6 +113,22 @@ class TestE2EOfLLDP:
                 "00:00:00:00:00:00:00:02:2", "00:00:00:00:00:00:00:02:3",
                 "00:00:00:00:00:00:00:03:2", "00:00:00:00:00:00:00:03:3"
         ]
+        # some switches have more interfaces than the ones configured by
+        # mininet (ex: Noviflow switches, P4OfSwitch)
+        extra_intfs = []
+        for sw_name in ["s1", "s2", "s3"]:
+            sw = self.net.net.get(sw_name)
+            if hasattr(sw, "get_all_of_ports"):
+                ports = sw.get_all_of_ports()
+                dpid = ":".join([sw.dpid[i:i+2] for i in range(0, 16, 2)])
+                for port in ports:
+                    intf_id = f"{dpid}:{port}"
+                    if intf_id in expected_interfaces:
+                        continue
+                    if intf_id in payload["interfaces"]:
+                        continue
+                    extra_intfs.append(intf_id)
+        payload["interfaces"].extend(extra_intfs)
 
         api_url = KYTOS_API + '/of_lldp/v1/interfaces/disable/'
         response = requests.post(api_url, json=payload)
@@ -113,21 +139,24 @@ class TestE2EOfLLDP:
         data = response.json()
         assert set(data["interfaces"]) == set(expected_interfaces)
 
+        # wait LLDP message that were being sent before disabling
+        time.sleep(5)
+
         h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
         rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
         rx_stats_h12 = self.get_iface_stats_rx_pkt(h12)
         rx_stats_h2 = self.get_iface_stats_rx_pkt(h2)
         rx_stats_h3 = self.get_iface_stats_rx_pkt(h3)
-        time.sleep(10)
+        time.sleep(15)
         rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
         rx_stats_h12_2 = self.get_iface_stats_rx_pkt(h12)
         rx_stats_h2_2 = self.get_iface_stats_rx_pkt(h2)
         rx_stats_h3_2 = self.get_iface_stats_rx_pkt(h3)
 
-        assert rx_stats_h11_2 == rx_stats_h11 \
-            and rx_stats_h12_2 == rx_stats_h12 \
-            and rx_stats_h2_2 == rx_stats_h2 \
-            and rx_stats_h3_2 == rx_stats_h3
+        assert rx_stats_h11_2 == rx_stats_h11
+        assert rx_stats_h12_2 == rx_stats_h12
+        assert rx_stats_h2_2 == rx_stats_h2
+        assert rx_stats_h3_2 == rx_stats_h3
 
         # restart kytos and check if lldp remains disabled
         self.net.start_controller(clean_config=False, enable_all=False)
@@ -222,4 +251,4 @@ class TestE2EOfLLDP:
         delta_pps_2 = rx_stats_h11_2 - rx_stats_h11
 
         # the delta pps now should be around 30, because the interval is every 1s
-        assert delta_pps_2 > delta_pps + 15
+        assert delta_pps_2 > 2*delta_pps
