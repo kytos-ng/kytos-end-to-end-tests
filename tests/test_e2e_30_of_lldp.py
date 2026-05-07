@@ -139,6 +139,9 @@ class TestE2EOfLLDP:
         data = response.json()
         assert set(data["interfaces"]) == set(expected_interfaces)
 
+        # wait LLDP message that were being sent before disabling
+        time.sleep(5)
+
         h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
         rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
         rx_stats_h12 = self.get_iface_stats_rx_pkt(h12)
