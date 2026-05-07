@@ -78,6 +78,10 @@ class TestE2EOfLLDP:
 
         # make sure the interfaces are actually receiving LLDP
         h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
+        # disable ipv6 router solicitation to avoid interfere with LLDP stats
+        for host in (h11, h12, h2, h3):
+            host.cmd("sysctl net.ipv6.conf.all.accept_ra=0")
+            host.cmd("sysctl net.ipv6.conf.default.accept_ra=0")
         rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
         rx_stats_h12 = self.get_iface_stats_rx_pkt(h12)
         rx_stats_h2 = self.get_iface_stats_rx_pkt(h2)
@@ -143,6 +147,10 @@ class TestE2EOfLLDP:
         time.sleep(5)
 
         h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
+        # disable ipv6 router solicitation to avoid interfere with LLDP stats
+        for host in (h11, h12, h2, h3):
+            host.cmd("sysctl net.ipv6.conf.all.accept_ra=0")
+            host.cmd("sysctl net.ipv6.conf.default.accept_ra=0")
         rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
         rx_stats_h12 = self.get_iface_stats_rx_pkt(h12)
         rx_stats_h2 = self.get_iface_stats_rx_pkt(h2)
@@ -195,6 +203,9 @@ class TestE2EOfLLDP:
         assert set(data["interfaces"]) == set(expected_interfaces)
 
         h11 = self.net.net.get('h11')
+        # disable ipv6 router solicitation to avoid interfere with LLDP stats
+        h11.cmd("sysctl net.ipv6.conf.all.accept_ra=0")
+        h11.cmd("sysctl net.ipv6.conf.default.accept_ra=0")
         rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
         time.sleep(10)
         rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
@@ -225,6 +236,9 @@ class TestE2EOfLLDP:
         assert data["polling_time"] == default_polling_time
 
         h11 = self.net.net.get('h11')
+        # disable ipv6 router solicitation to avoid interfere with LLDP stats
+        h11.cmd("sysctl net.ipv6.conf.all.accept_ra=0")
+        h11.cmd("sysctl net.ipv6.conf.default.accept_ra=0")
         rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
         lldp_wait = 31
         time.sleep(lldp_wait)
