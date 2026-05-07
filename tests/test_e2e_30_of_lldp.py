@@ -1,5 +1,5 @@
 import requests
-from tests.helpers import NetworkTest
+from .helpers import NetworkTest
 import time
 
 CONTROLLER = '127.0.0.1'
@@ -21,9 +21,44 @@ class TestE2EOfLLDP:
     def teardown_class(cls):
         cls.net.stop()
 
-    def get_iface_stats_rx_pkt(self, host):
-        rx_pkts = host.cmd("ip -s link show dev %s | grep RX: -A 1 | tail -n1 | awk '{print $2}'" % (host.intfNames()[0]))
-        return int(rx_pkts.strip())
+    def capture_lldp_packets(self, node_names: list[str], sleep_time=10):
+
+        nodes = [
+            self.net.net.get(name)
+            for name in node_names
+        ]
+
+        for node, name in zip(nodes, node_names):
+            pcap_file = f'/tmp/lldp-{node.intfNames()[0]}.pcap'
+            node.cmd(f'rm {pcap_file}')
+
+        lldp_packet_monitors = [
+            node.popen(
+                [
+                    'tcpdump',
+                    '-U',
+                    '-i', node.intfNames()[0],
+                    '-w', f'/tmp/lldp-{node.intfNames()[0]}.pcap',
+                    'ether proto 0x88cc',
+                ]
+            )
+            for node in nodes
+        ]
+
+        time.sleep(sleep_time)
+
+        for monitor in lldp_packet_monitors:
+            monitor.terminate()
+            monitor.wait()
+
+        results = {}
+
+        for name, node in zip(node_names, nodes):
+            pcap_file = f'/tmp/lldp-{node.intfNames()[0]}.pcap'
+            count = int(node.cmd(f'tcpdump -r {pcap_file} 2> /dev/null | wc -l'))
+            results[name] = count
+
+        return results
 
     def enable_all_interfaces(self):
         api_url = KYTOS_API + '/topology/v3/switches/'
@@ -67,21 +102,10 @@ class TestE2EOfLLDP:
         assert set(data["interfaces"]) == set(expected_interfaces)
 
         # make sure the interfaces are actually receiving LLDP
-        h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
-        rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
-        rx_stats_h12 = self.get_iface_stats_rx_pkt(h12)
-        rx_stats_h2 = self.get_iface_stats_rx_pkt(h2)
-        rx_stats_h3 = self.get_iface_stats_rx_pkt(h3)
-        time.sleep(10)
-        rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
-        rx_stats_h12_2 = self.get_iface_stats_rx_pkt(h12)
-        rx_stats_h2_2 = self.get_iface_stats_rx_pkt(h2)
-        rx_stats_h3_2 = self.get_iface_stats_rx_pkt(h3)
+        results = self.capture_lldp_packets(['h11', 'h12', 'h2', 'h3'], sleep_time=10)
 
-        assert rx_stats_h11_2 > rx_stats_h11 \
-            and rx_stats_h12_2 > rx_stats_h12 \
-            and rx_stats_h2_2 > rx_stats_h2 \
-            and rx_stats_h3_2 > rx_stats_h3
+        for packet_count in results.values():
+            assert packet_count > 0
 
     def test_010_disable_of_lldp(self):
         """ Test if the disabling OF LLDP in an interface worked properly. """
@@ -113,21 +137,10 @@ class TestE2EOfLLDP:
         data = response.json()
         assert set(data["interfaces"]) == set(expected_interfaces)
 
-        h11, h12, h2, h3 = self.net.net.get('h11', 'h12', 'h2', 'h3')
-        rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
-        rx_stats_h12 = self.get_iface_stats_rx_pkt(h12)
-        rx_stats_h2 = self.get_iface_stats_rx_pkt(h2)
-        rx_stats_h3 = self.get_iface_stats_rx_pkt(h3)
-        time.sleep(10)
-        rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
-        rx_stats_h12_2 = self.get_iface_stats_rx_pkt(h12)
-        rx_stats_h2_2 = self.get_iface_stats_rx_pkt(h2)
-        rx_stats_h3_2 = self.get_iface_stats_rx_pkt(h3)
+        results = self.capture_lldp_packets(['h11', 'h12', 'h2', 'h3'], sleep_time=10)
 
-        assert rx_stats_h11_2 == rx_stats_h11 \
-            and rx_stats_h12_2 == rx_stats_h12 \
-            and rx_stats_h2_2 == rx_stats_h2 \
-            and rx_stats_h3_2 == rx_stats_h3
+        for packet_count in results.values():
+            assert packet_count == 0
 
         # restart kytos and check if lldp remains disabled
         self.net.start_controller(clean_config=False, enable_all=False)
@@ -165,12 +178,17 @@ class TestE2EOfLLDP:
         data = response.json()
         assert set(data["interfaces"]) == set(expected_interfaces)
 
-        h11 = self.net.net.get('h11')
-        rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
-        time.sleep(10)
-        rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
+        results = self.capture_lldp_packets(['h11', 'h12', 'h2', 'h3'], sleep_time=10)
 
-        assert rx_stats_h11_2 > rx_stats_h11
+        enabled_nodes = ['h11']
+
+        disabled_nodes = ['h12', 'h2', 'h3']
+
+        for node in enabled_nodes:
+            assert results[node] > 0
+
+        for node in disabled_nodes:
+            assert results[node] == 0
 
         # restart kytos and check if lldp remains disabled
         self.net.start_controller(clean_config=False, enable_all=False)
@@ -195,14 +213,8 @@ class TestE2EOfLLDP:
         assert "polling_time" in data
         assert data["polling_time"] == default_polling_time
 
-        h11 = self.net.net.get('h11')
-        rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
         lldp_wait = 31
-        time.sleep(lldp_wait)
-        rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
-
-        # the delta pps should be around 10, because the interface is every 3s
-        delta_pps = rx_stats_h11_2 - rx_stats_h11
+        delta_pps = self.capture_lldp_packets(['h11'], sleep_time=lldp_wait)['h11']
 
         api_url = KYTOS_API + '/of_lldp/v1/polling_time'
         response = requests.post(api_url, json={"polling_time": 1})
@@ -215,11 +227,7 @@ class TestE2EOfLLDP:
         # wait a few seconds to let the last polling time schedule finish
         time.sleep(default_polling_time)
 
-        rx_stats_h11 = self.get_iface_stats_rx_pkt(h11)
-        time.sleep(lldp_wait)
-        rx_stats_h11_2 = self.get_iface_stats_rx_pkt(h11)
-
-        delta_pps_2 = rx_stats_h11_2 - rx_stats_h11
+        delta_pps_2 = self.capture_lldp_packets(['h11'], sleep_time=lldp_wait)['h11']
 
         # the delta pps now should be around 30, because the interval is every 1s
         assert delta_pps_2 > delta_pps + 15
