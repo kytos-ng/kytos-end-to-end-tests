@@ -104,7 +104,7 @@ class P4OfSwitch(DockerSwitch):
                 error(
                     f"\nFailed to run node={self.name} cmd={cmd_str}: {output}"
                 )
-        
+
     def connected(self):
         output = self.cmd("p4ofagent show config controller")
         return "Is connected: True" in output
