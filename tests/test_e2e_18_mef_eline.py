@@ -145,7 +145,7 @@ class TestE2EMefEline:
         data = response.json()
         assert data["uni_a"]["interface_id"] != "00:00:00:00:00:00:00:01:1"
 
-    def test_020_patch_intra_evc(self):
+    def test_020_patch_inter_to_intra_evc(self):
         payload = {
             "name": "Test EVC",
             "uni_a": {
@@ -357,3 +357,83 @@ class TestE2EMefEline:
         data = response.json()
         assert not data["active"]
         assert data['current_path']
+
+    def test_060_patch_intra_to_inter_evc(self):
+        payload = {
+            "name": "Test EVC",
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:01:2",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                },
+            },
+            "enabled": True,
+            "dynamic_backup_path": True,
+        }
+        api_url = KYTOS_API + "/kytos/mef_eline/v2/evc/"
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+        data = response.json()
+        evc_id = data["circuit_id"]
+        time.sleep(10)
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/stored_flows?state=installed'
+        response = requests.get(api_url)
+        flows = response.json()
+        total_flows_prev = 0
+        for _, flow_list in flows.items():
+            for flow in flow_list:
+                if flow["flow"]["owner"] == "mef_eline":
+                    total_flows_prev += 1
+        assert total_flows_prev == 2
+
+        # Try to patch to new uni_z
+        payload = {
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:02:1",
+                "tag": {
+                    "tag_type": "vlan",
+                    "value": 100,
+                }
+            }
+        }
+        api_url = KYTOS_API + f"/kytos/mef_eline/v2/evc/{evc_id}"
+        response = requests.patch(api_url, json=payload)
+        assert response.status_code == 200, response.text
+        time.sleep(10)
+
+        # Check old uni_z
+        self.assert_tag_not_used_by_interface(
+            "00:00:00:00:00:00:00:01:2",
+            "vlan",
+            100
+        )
+        self.assert_tag_used_by_interface(
+            "00:00:00:00:00:00:00:02:1",
+            "vlan",
+            100
+        )
+
+        api_url = KYTOS_API + f"/kytos/mef_eline/v2/evc/{evc_id}"
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["uni_z"]["interface_id"] != "00:00:00:00:00:00:00:01:2"
+
+        api_url = KYTOS_API + '/kytos/flow_manager/v2/stored_flows?state=installed'
+        response = requests.get(api_url)
+        flows = response.json()
+        total_flows_later = 0
+        for _, flow_list in flows.items():
+            for flow in flow_list:
+                if flow["flow"]["owner"] == "mef_eline":
+                    total_flows_later += 1
+
+        assert total_flows_later == 8
