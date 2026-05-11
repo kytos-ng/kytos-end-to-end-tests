@@ -835,7 +835,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -898,7 +900,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         # Check that the flow keeps the original setting
         s1 = self.net.net.get('s1')
@@ -953,7 +957,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
@@ -979,7 +985,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -1005,7 +1013,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
