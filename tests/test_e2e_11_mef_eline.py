@@ -4,7 +4,9 @@ import time
 import pytest
 import requests
 
-from tests.helpers import NetworkTest
+from kytos.core.id import LinkID
+
+from .helpers import NetworkTest
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % (CONTROLLER)
@@ -418,8 +420,13 @@ class TestE2EMefEline:
         assert response.status_code == 400, response.text
 
         # Check for VLAN 999
-        api_url = f'{KYTOS_API}/topology/v3/interfaces/tag_ranges'
+        api_url = f'{KYTOS_API}/topology/v3/links/tag_ranges'
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
-        available_vlans = response.json()["00:00:00:00:00:00:00:03:1"]["available_tags"]["vlan"]
+
+        link_id = LinkID(
+            "00:00:00:00:00:00:00:03:1",
+            "00:00:00:00:00:00:00:02:4"
+        )
+        available_vlans = response.json()[link_id]["available_tags"]["vlan"]
         assert available_vlans == [[1, 3798], [3800, 4094]]
