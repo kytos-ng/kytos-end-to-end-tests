@@ -19,9 +19,11 @@ class TestE2EKytosStats:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.restart_kytos_clean()
-        time.sleep(10)
+        cls.net.start(start_controller=False)
+        # disable ipv6 router solicitation to avoid interfere with stats
+        for host in cls.net.net.hosts:
+            host.cmd("sysctl net.ipv6.conf.all.accept_ra=0")
+            host.cmd("sysctl net.ipv6.conf.default.accept_ra=0")
 
     @classmethod
     def teardown_class(cls):
