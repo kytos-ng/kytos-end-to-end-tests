@@ -223,3 +223,50 @@ class TestE2EOfLLDP:
 
         # the delta pps now should be around 30, because the interval is every 1s
         assert delta_pps_2 > delta_pps + 15
+
+    def test_040_new_interface_allocated_lldp_vlan(self):
+        """New interface hot-added to ring topology must be picked up by of_lldp
+        within 5s, with VLAN 3799 absent from available_tags (reserved by of_lldp)."""
+        self.net.restart_kytos_clean()
+        time.sleep(5)
+
+        new_intf_s1 = "00:00:00:00:00:00:00:01:5"
+        new_intf_s2 = "00:00:00:00:00:00:00:02:4"
+
+        api_url = KYTOS_API + "/of_lldp/v1/interfaces/"
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        intfs_before = set(response.json()["interfaces"])
+        assert new_intf_s1 not in intfs_before
+        assert new_intf_s2 not in intfs_before
+
+        # Add a new link between s1 (port 5) and s2 (port 4)
+        S1, S2 = self.net.net.get("s1", "s2")
+        self.net.net.addLink(S1, S2, port1=5, port2=4)
+        S1.attach("s1-eth5")
+        S2.attach("s2-eth4")
+        try:
+            time.sleep(5)
+
+            response = requests.get(api_url)
+            assert response.status_code == 200, response.text
+            intfs_after = set(response.json()["interfaces"])
+            assert new_intf_s1 in intfs_after, f"{intfs_after}"
+            assert new_intf_s2 in intfs_after, f"{intfs_after}"
+
+            # Assert VLAN 3799 is NOT in available_tags
+            expected_available = [[1, 3798], [3800, 4094]]
+            topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+            response = requests.get(topo_url)
+            assert response.status_code == 200, response.text
+            data = response.json()
+            for intf_id in (new_intf_s1, new_intf_s2):
+                actual = data[intf_id]["available_tags"]["vlan"]
+                assert actual == expected_available, f"{intf_id} available_tags: {actual}"
+        finally:
+            S1.detach("s1-eth5")
+            S2.detach("s2-eth4")
+            for link in self.net.net.linksBetween(S1, S2):
+                if link.intf1.name == "s1-eth5" or link.intf2.name == "s1-eth5":
+                    self.net.net.delLink(link)
+                    break
