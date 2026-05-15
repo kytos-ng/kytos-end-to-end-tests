@@ -134,10 +134,12 @@ In the command above _ring_ is the name of the topology. To see all available to
 
   $ grep "lambda.*Topo" tests/helpers.py
 
-Noviflow backend and Telemetry INT tests
+Noviflow and P4OfSwitch backend and Telemetry INT tests
 ########################################
 
 Please refer to the `Noviflow backend integration into Kytos-ng end-to-end tests <misc/README-NoviSwitch.md>`__ for more information.
+
+If you are insterested in the `P4OfSwitch backend integration with Kytos-ng end-to-end tests, click here <misc/README-P4OfSwitch.md>`__.
 
 Requirements
 ############

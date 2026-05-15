@@ -417,6 +417,8 @@ class TestE2EMefEline:
         response = requests.patch(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
+        time.sleep(5)
+
         # Check for VLAN 999
         api_url = f'{KYTOS_API}/topology/v3/interfaces/tag_ranges'
         response = requests.get(api_url)

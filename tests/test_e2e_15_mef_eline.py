@@ -241,6 +241,8 @@ class TestE2EMefEline:
         assert response.status_code == 201, response.text
         assert 'circuit_id' in response.json()
 
+        time.sleep(5)
+
         # Verify if EVC tag has been allocated
         topo_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
         response = requests.get(topo_url)
@@ -345,6 +347,8 @@ class TestE2EMefEline:
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
 
+        time.sleep(5)
+
         intf_id = '00:00:00:00:00:00:00:01:1'
         api_url = KYTOS_API + f'/topology/v3/interfaces/{intf_id}/tag_ranges'
         response = requests.get(api_url)
@@ -444,6 +448,8 @@ class TestE2EMefEline:
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
         circuit_id = response.json()["circuit_id"]
+
+        time.sleep(5)
 
         expected = [[1, 9], [16, 3798], [3800, 4094]]
         intf_id = '00:00:00:00:00:00:00:01:1'

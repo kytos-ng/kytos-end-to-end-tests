@@ -9,10 +9,13 @@ import os
 import requests
 import hashlib
 
+from collections import defaultdict
+
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
 from tests.noviswitch import NoviSwitch
+from tests.p4ofswitch import P4OfSwitch
 
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
@@ -25,12 +28,16 @@ NoviSwitch.orig_dpctl = NoviSwitch.dpctl
 NoviSwitch.dpctl = dpctl_wrapper
 OVSSwitch.orig_dpctl = OVSSwitch.dpctl
 OVSSwitch.dpctl = dpctl_wrapper
+P4OfSwitch.orig_dpctl = P4OfSwitch.dpctl
+P4OfSwitch.dpctl = dpctl_wrapper
 
 class SwitchFactory:
     def __new__(cls, *args, **kwargs):
         cls_name = os.environ.get('SWITCH_CLASS')
         if cls_name == "NoviSwitch" and NoviSwitch.is_available():
             return NoviSwitch(*args, **kwargs)
+        if cls_name == "P4OfSwitch":
+            return P4OfSwitch(*args, **kwargs)
         return OVSSwitch(*args, **kwargs)
 
 
@@ -338,9 +345,10 @@ class NetworkTest:
         self.net.orig_configLinkStatus = self.net.configLinkStatus
         self.net.configLinkStatus = self.configLinkStatus
 
-    def start(self):
+    def start(self, start_controller=True):
         self.net.start()
-        self.start_controller(clean_config=True)
+        if start_controller:
+            self.start_controller(clean_config=True)
 
     def drop_database(self):
         """Drop database."""
@@ -423,6 +431,10 @@ class NetworkTest:
 
     def wait_switches_connect(self):
         max_wait = 0
+        # update controller UUIDs for OVSSwitch to avoid errors while changing
+        # the controller: no row "xyz" in table Controller
+        for sw in self.net.switches:
+            sw.controllerUUIDs(update=True)
         while any(not sw.connected() for sw in self.net.switches):
             time.sleep(1)
             max_wait += 1
@@ -430,21 +442,50 @@ class NetworkTest:
                 status = [(sw.name, sw.connected()) for sw in self.net.switches]
                 raise Exception('Timeout: timed out waiting switches reconnect. Status %s' % status)
 
-    def wait_kytos_links(self):
+
+    def wait_kytos_links(self, a=None, b=None, port1=None, port2=None, status=None):
         wait_count = 0
         last_error = ""
         topo_links = []
-        for link in self.net.links:
+        links = self.net.links
+        if a is not None:
+            node_a = self.net.nameToNode.get(a)
+            if not node_a:
+                raise ValueError(f"Invalid node {a}")
+            node_b = None
+            if b is not None:
+                node_b = self.net.nameToNode.get(b)
+                if not node_b:
+                    raise ValueError(f"Invalid node {b}")
+            node_a_links = set()
+            for intf in node_a.intfs.values():
+                if not intf.link:
+                    continue
+                intf2 = intf.link.intf2 if intf.link.intf1 == intf else intf.link.intf1
+                if node_b and intf2.node != node_b:
+                    continue
+                if any([
+                    port1 is not None and not intf.name.endswith(f"eth{port1}"),
+                    port2 is not None and not intf2.name.endswith(f"eth{port2}"),
+                ]):
+                    continue
+                node_a_links.add(intf.link)
+            links = list(node_a_links)
+        for link in links:
             if link.intf1.node in self.net.switches and link.intf2.node in self.net.switches:
                 link_id = self.create_link_id(link)
                 if link_id:
                     topo_links.append(link_id)
-        while wait_count < 30:
+        while wait_count < 60:
             try:
                 response = requests.get("http://127.0.0.1:8181/api/kytos/topology/v3/links/", timeout=3)
                 links = response.json()["links"]
+                if a is not None:
+                    links = {lid: links[lid] for lid in topo_links if lid in links}
                 assert len(topo_links) == len(links), f"{topo_links=} {links=}"
                 assert all(link_id in links for link_id in topo_links), f"{topo_links=} {links=}"
+                if status is not None:
+                    assert all(links[lid]["status"] == status for lid in topo_links), f"{topo_links} {links=} {status=}"
                 break
             except Exception as exc:
                 last_error = str(exc)
@@ -471,6 +512,30 @@ class NetworkTest:
         else:
             raw_str = ":".join(sorted((intf1, intf2)))
         return hashlib.sha256(raw_str.encode('utf-8')).hexdigest()
+
+    def wait_kytos_buff_low_usage(self, max_wait=60, usage_limit=50, period=5):
+        wait_count = 0
+        q_usage = defaultdict(list)
+        while wait_count < max_wait+period:
+            try:
+                response = requests.get("http://127.0.0.1:8181/api/kytos/core/status/", timeout=3)
+                buf_usage = response.json()["buffers_qsize"]
+                moving_avg = {}
+                for name, size in buf_usage.items():
+                    q_usage[name].append(size)
+                    if len(q_usage[name]) > period:
+                        moving_avg[name] = sum(q_usage[name][-period:]) / period
+                    else:
+                        moving_avg[name] = usage_limit+1
+                assert all([usage <= usage_limit for usage in moving_avg.values()]), f"{moving_avg=} {buf_usage=}"
+                break
+            except Exception as exc:
+                last_error = str(exc)
+            time.sleep(1)
+            wait_count += 1
+        else:
+            msg = f"Timeout waiting for low buffer queue usage. Last error: {last_error}"
+            raise Exception(msg)
 
     def restart_kytos_clean(self):
         self.start_controller(clean_config=True, enable_all=True)
@@ -514,7 +579,7 @@ class NetworkTest:
         else:
             connections = node_a.connectionsTo(node_b)
         if len(connections) == 0:
-            error(f"src and dst not connected: {src} {dst}\n")
+            error(f"src and dst not connected: {a} {b}\n")
             return
         # for NoviSwitch hosts, before changing the status of the veth interfaces
         # we need to actually change the status of the interface on the switch to
