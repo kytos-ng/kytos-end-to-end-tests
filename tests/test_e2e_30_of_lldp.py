@@ -270,3 +270,51 @@ class TestE2EOfLLDP:
                 if link.intf1.name == "s1-eth5" or link.intf2.name == "s1-eth5":
                     self.net.net.delLink(link)
                     break
+
+    def test_041_lldp_flow_installed_after_switch_enable(self):
+        """of_lldp must not install the VLAN 3799 flow while switches are
+        disabled on every interface that exposes tag ranges."""
+        self.net.start_controller(clean_config=True, enable_all=False)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        api_url = KYTOS_API + '/topology/v3/switches'
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        switches = response.json().get("switches", {})
+        assert switches, "no switches found in topology"
+        dpids = list(switches.keys())
+        for dpid in dpids:
+            assert switches[dpid]["enabled"] is False, dpid
+
+        def has_lldp_flow(dpid):
+            stored_url = f"{KYTOS_API}/flow_manager/v2/stored_flows/?dpid={dpid}"
+            stored = requests.get(stored_url)
+            assert stored.status_code == 200, stored.text
+            flows = stored.json().get(dpid, [])
+            return any(
+                f["flow"].get("match", {}).get("dl_vlan") == 3799
+                for f in flows
+            )
+
+        for dpid in dpids:
+            assert not has_lldp_flow(dpid), f"unexpected LLDP flow on {dpid}"
+
+        self.enable_all_interfaces()
+        time.sleep(10)
+
+        for dpid in dpids:
+            assert has_lldp_flow(dpid), f"missing LLDP flow on {dpid}"
+
+        tags_url = KYTOS_API + "/topology/v3/interfaces/tag_ranges"
+        response = requests.get(tags_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        for intf_id, intf_data in data.items():
+            available = intf_data.get("available_tags", {}).get("vlan")
+            if not available:
+                continue
+            for start, end in available:
+                assert not (start <= 3799 <= end), (
+                    f"{intf_id} still has VLAN 3799 in available_tags: {available}"
+                )
