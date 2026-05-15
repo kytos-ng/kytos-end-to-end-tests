@@ -224,6 +224,10 @@ class TestE2EOfLLDP:
         # the delta pps now should be around 30, because the interval is every 1s
         assert delta_pps_2 > delta_pps + 15
 
+    @pytest.mark.skipif(
+        os.environ.get("SWITCH_CLASS") in ("NoviSwitch", "P4OfSwitch"),
+        reason="NoviSwitch/P4OfSwitch already include all interface when connecting",
+    )
     def test_040_new_interface_allocated_lldp_vlan(self):
         """New interface hot-added to ring topology must be picked up by of_lldp
         within 5s, with VLAN 3799 absent from available_tags (reserved by of_lldp)."""
