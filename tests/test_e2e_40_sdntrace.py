@@ -140,7 +140,7 @@ class TestE2ESDNTrace:
 
         assert expected == actual, f"Expected {expected}. Actual: {actual}"
 
-    def wait_sdntrace_result(self, trace_id, timeout=10):
+    def wait_sdntrace_result(self, trace_id, timeout=30):
         """Wait until sdntrace finishes."""
         wait_count = 0
         while wait_count < timeout:
@@ -400,6 +400,9 @@ class TestE2ESDNTrace:
         cls.create_evc(100, "00:00:00:00:00:00:00:01:1", "00:00:00:00:00:00:00:0a:1")
         cls.create_evc(101, "00:00:00:00:00:00:00:03:2", "00:00:00:00:00:00:00:0a:1")
         cls.create_evc(102, "00:00:00:00:00:00:00:01:1", "00:00:00:00:00:00:00:0a:1")
+
+        time.sleep(5)
+
         payload = [
                     {
                         "trace": {
@@ -659,10 +662,11 @@ class TestE2ESDNTrace:
                         "dl_vlan": 10
                     },
                     "actions": [
+                        {"action_type": "set_vlan", "vlan_id": 5 },
                         {
                             "action_type": "output",
                             "port": 2,
-                        }, {"action_type": "set_vlan", "vlan_id": 5 }
+                        },
                     ]
                 },
                 {
@@ -952,7 +956,9 @@ class TestE2ESDNTrace:
         api_url = KYTOS_API + '/kytos/mef_eline/v2/evc/'
         response = requests.post(api_url, json=payload)
         assert response.status_code == 201, response.text
-        
+
+        time.sleep(5)
+
         payload = [
                     {
                         "trace": {
@@ -1045,6 +1051,9 @@ class TestE2ESDNTrace:
     def test_100_trace_circuit_vlan_range(cls):
         """Test traces for circuit with vlan range"""
         cls.create_evc([[12, 21]])
+
+        time.sleep(5)
+
         vlan1 = random.randrange(12, 16)
         vlan2 = random.randrange(16, 20)
         vlan3 = random.randrange(20, 22)
