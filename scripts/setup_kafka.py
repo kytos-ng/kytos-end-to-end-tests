@@ -10,7 +10,7 @@ from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import KafkaConnectionError
 
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_HOST_ADDR", "localhost:29092")
-KAFKA_TOPIC = "event_logs"
+KAFKA_TOPIC = os.environ.get("KAFKA_TOPIC", "event_logs")
 
 def bootstrap_servers_list(bootstrap_servers: str) -> list[str]:
     """Format the given bootstrap servers into ip:port"""
@@ -30,7 +30,7 @@ async def create_admin_client(bootstrap_servers: list[str]) -> AIOKafkaAdminClie
         print("An unknown error has occurred.")
         raise exc
 
-async def validate_cluster(admin: AIOKafkaAdminClient) -> None:
+async def validate_cluster(admin: AIOKafkaAdminClient) -> int:
     """
     Using an admin client, validate that the cluster is healthy and all the nodes are operational.
 
@@ -40,6 +40,7 @@ async def validate_cluster(admin: AIOKafkaAdminClient) -> None:
     try:
         cluster_metadata: dict[str, Any] = await admin.describe_cluster()
         print(f"Cluster info: {cluster_metadata}")
+        return len(cluster_metadata["brokers"])
     except KafkaConnectionError as exc:
         print("Unable to connect to cluster for validation.")
         raise exc
@@ -58,13 +59,36 @@ async def shutdown(admin: AIOKafkaAdminClient) -> None:
         print("An unknown issue occurred while shutting down.")
         raise exc
 
-async def create_topic(admin: AIOKafkaAdminClient) -> None:
-    """Attempt to create 'event_logs'"""
+async def create_topic(admin: AIOKafkaAdminClient, brokers: int) -> None:
+    """Attempt to delete and then create 'event_logs'"""
+    # 1. Attempt to delete the topic first
     try:
-        await admin.create_topics(
-            [NewTopic(KAFKA_TOPIC, num_partitions=3, replication_factor=3)],
+        print(f"Deleting topic {KAFKA_TOPIC}...")
+        await admin.delete_topics([KAFKA_TOPIC])
+        # Give broker time to update metadata (crucial step)
+        for _ in range(30):
+            topics = await admin.list_topics()
+            if KAFKA_TOPIC not in topics:
+                print(f"Topic {KAFKA_TOPIC} deleted, proceeding to creation.")
+                break
+            await asyncio.sleep(1)
+    except UnknownTopicOrPartitionError:
+        pass
+    except Exception as exc:
+        print(f"Error deleting topic: {e}")
+        raise exc
+
+    try:
+        res = await admin.create_topics(
+            [NewTopic(KAFKA_TOPIC, num_partitions=8, replication_factor=brokers)],
             timeout_ms=5000
         )
+        for name, code, msg in res.topic_errors:
+            if code != 0:
+                raise Exception(
+                    f"Topic creation failed for '{name}' err={code}: {msg}"
+                )
+            print(f"Topic {name} created successfully.")
         await asyncio.sleep(2) # Let the topic propagate
     except KafkaConnectionError as exc:
         print("Unable to create topic.")
@@ -84,10 +108,10 @@ async def main() -> None:
     admin = await create_admin_client(bootstrap_servers)
     print("Admin client was successful! Attempting to validate cluster...")
 
-    await validate_cluster(admin)
+    brokers = await validate_cluster(admin)
     print(f"Cluster was successfully validated! Attempting to create topic '{KAFKA_TOPIC}'...")
 
-    await create_topic(admin)
+    await create_topic(admin, brokers)
     print(f"Topic '{KAFKA_TOPIC}' was created! Attempting to close the admin client...")
 
     await shutdown(admin)
