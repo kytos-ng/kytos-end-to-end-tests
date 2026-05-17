@@ -28,7 +28,7 @@ class TestE2ETopologyDupDpid:
 
     @pytest.mark.skipif(
         os.environ.get("SWITCH_CLASS") in ("NoviSwitch", "P4OfSwitch"),
-        reason="No need to repeat for NoviFlow",
+        reason="No need to repeat for NoviFlow/P4OfSwitch",
     )
     def test_dup_dpid_does_not_overwrite_sw1_interfaces(self):
         """Test that a switch with a duplicate DPID connecting later does not
