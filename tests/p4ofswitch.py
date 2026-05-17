@@ -9,6 +9,8 @@ from mininet.util import quietRun
 
 P4OFSWITCH_ARCH = os.environ.get("P4OFSWITCH_ARCH", "tf1")
 
+P4OFSWITCH_IMAGE = os.environ.get("P4OFSWITCH_IMAGE", "amlight/p4ofswitch:latest")
+
 MYLOCALIP = os.environ.get("MYLOCALIP")
 if os.environ.get("SWITCH_CLASS") == "P4OfSwitch" and not MYLOCALIP:
     try:
@@ -33,7 +35,7 @@ class P4OfSwitch(DockerSwitch):
         self.controllers = []
         super().__init__(
             name,
-            image="amlight/p4ofswitch:latest",
+            image=P4OFSWITCH_IMAGE,
             pull="always",
             env=[
                 f"ARCH={self.arch}",
