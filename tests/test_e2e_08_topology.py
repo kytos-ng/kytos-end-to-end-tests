@@ -27,7 +27,7 @@ class TestE2ETopologyDupDpid:
         cls.net.stop()
 
     @pytest.mark.skipif(
-        os.environ.get("SWITCH_CLASS") == "NoviSwitch",
+        os.environ.get("SWITCH_CLASS") in ("NoviSwitch", "P4OfSwitch"),
         reason="No need to repeat for NoviFlow",
     )
     def test_dup_dpid_does_not_overwrite_sw1_interfaces(self):
