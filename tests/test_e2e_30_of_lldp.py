@@ -2,6 +2,7 @@ import requests
 from tests.helpers import NetworkTest
 import time
 import pytest
+import os
 
 CONTROLLER = '127.0.0.1'
 KYTOS_API = 'http://%s:8181/api/kytos' % CONTROLLER
