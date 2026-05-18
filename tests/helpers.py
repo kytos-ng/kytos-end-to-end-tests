@@ -14,8 +14,10 @@ from collections import defaultdict
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
-from tests.noviswitch import NoviSwitch
-from tests.p4ofswitch import P4OfSwitch
+if os.environ.get('SWITCH_CLASS') == "NoviSwitch":
+    from tests.noviswitch import NoviSwitch
+if os.environ.get('SWITCH_CLASS') == "P4OfSwitch":
+    from tests.p4ofswitch import P4OfSwitch
 
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
@@ -24,12 +26,14 @@ def dpctl_wrapper(obj, *args):
         return obj.orig_dpctl(*args, "--no-names", "--protocols=OpenFlow13", "|grep -v OFPST_FLOW")
     return obj.orig_dpctl(*args)
 
-NoviSwitch.orig_dpctl = NoviSwitch.dpctl
-NoviSwitch.dpctl = dpctl_wrapper
 OVSSwitch.orig_dpctl = OVSSwitch.dpctl
 OVSSwitch.dpctl = dpctl_wrapper
-P4OfSwitch.orig_dpctl = P4OfSwitch.dpctl
-P4OfSwitch.dpctl = dpctl_wrapper
+if os.environ.get('SWITCH_CLASS') == "NoviSwitch":
+    NoviSwitch.orig_dpctl = NoviSwitch.dpctl
+    NoviSwitch.dpctl = dpctl_wrapper
+if os.environ.get('SWITCH_CLASS') == "P4OfSwitch":
+    P4OfSwitch.orig_dpctl = P4OfSwitch.dpctl
+    P4OfSwitch.dpctl = dpctl_wrapper
 
 class SwitchFactory:
     def __new__(cls, *args, **kwargs):
