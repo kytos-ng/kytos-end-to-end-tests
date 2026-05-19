@@ -14,10 +14,14 @@ from collections import defaultdict
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
+HAS_NOVISWITCH = False
 if os.environ.get('SWITCH_CLASS') == "NoviSwitch":
     from tests.noviswitch import NoviSwitch
+    HAS_NOVISWITCH = True
+HAS_P4OFSWITCH = False
 if os.environ.get('SWITCH_CLASS') == "P4OfSwitch":
     from tests.p4ofswitch import P4OfSwitch
+    HAS_P4OFSWITCH = True
 
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
@@ -588,9 +592,9 @@ class NetworkTest:
         # for NoviSwitch hosts, before changing the status of the veth interfaces
         # we need to actually change the status of the interface on the switch to
         # trigger the OpenFlow PortStatus message on Noviflow NOS
-        if isinstance(node_a, NoviSwitch):
+        if HAS_NOVISWITCH and isinstance(node_a, NoviSwitch):
             node_a.configLinkStatus([c[0] for c in connections], status)
-        if isinstance(node_b, NoviSwitch):
+        if HAS_NOVISWITCH and isinstance(node_b, NoviSwitch):
             node_b.configLinkStatus([c[1] for c in connections], status)
         # now we change the status on veth interfaces
         for srcIntf, dstIntf in connections:
