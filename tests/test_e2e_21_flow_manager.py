@@ -73,6 +73,7 @@ class TestE2EFlowManager:
 
         # make sure flow was installed and get initial time duration
         s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
         flows_s1 = s1.dpctl('dump-flows')
         initial_duration = 0
