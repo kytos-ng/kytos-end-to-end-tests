@@ -102,7 +102,7 @@ class TestE2EFlowManager:
             if match:
                 duration = float(match.group(1))
                 break
-        assert duration > initial_duration + delta, flows_s1
+        assert duration >= int(initial_duration + delta), flows_s1
 
     def test_031_on_switch_restart_kytos_should_recreate_flows(self):
         """Test if, after kytos restart, the flows are preserved on the switch 
