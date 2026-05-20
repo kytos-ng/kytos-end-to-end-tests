@@ -69,8 +69,20 @@ class TestE2EFlowManager:
         assert 'FlowMod Messages Sent' in data['response']
 
         # wait for the flow to be installed
-        wait_time = 20
-        time.sleep(wait_time)
+        time.sleep(10)
+
+        # make sure flow was installed and get initial time duration
+        s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        flows_s1 = s1.dpctl('dump-flows')
+        initial_duration = 0
+        for flow in flows_s1.splitlines():
+            match = re.search("duration=([0-9.]+).*dl_vlan=999", flow)
+            if match:
+                initial_duration = float(match.group(1))
+                break
+        assert initial_duration > 0, flows_s1
 
         # restart controller keeping configuration
         t1 = time.time()
@@ -78,19 +90,19 @@ class TestE2EFlowManager:
         self.net.wait_switches_connect()
         delta = time.time() - t1
 
-        # wait for the flow to be installed
-        time.sleep(wait_time)
-        wait_time += wait_time
+        # wait a few seconds to allow consistency check to run
+        time.sleep(20)
+        initial_duration += 20
 
-        s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
+        duration  = 0
         for flow in flows_s1.splitlines():
-            # Check all flows but the of_lldp, which is reinstalled
-            if 'dl_vlan=999' not in flow: continue
-            match = re.search("duration=([0-9.]+)", flow)
-            duration = float(match.group(1))
-            assert duration + 1 >= wait_time + delta
+            match = re.search("duration=([0-9.]+).*dl_vlan=999", flow)
+            if match:
+                duration = float(match.group(1))
+                break
+        assert duration >= int(initial_duration + delta), flows_s1
 
     def test_031_on_switch_restart_kytos_should_recreate_flows(self):
         """Test if, after kytos restart, the flows are preserved on the switch 
