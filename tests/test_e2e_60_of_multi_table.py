@@ -1,6 +1,7 @@
 import time
 import re
 
+import pytest
 from tests.helpers import NetworkTest
 import requests
 
@@ -32,7 +33,8 @@ class TestE2EOfMultiTable:
         self.net.start_controller(clean_config=_clean_config, enable_all=_enable_all)
         self.net.wait_switches_connect()
 
-    def test_005_enable_pipeline(self):
+    @pytest.mark.parametrize("run", range(30))
+    def test_005_enable_pipeline(self, run):
         """Test if there is any error with enabling and disabling pipeline"""
         pipeline = {
             "multi_table": [
