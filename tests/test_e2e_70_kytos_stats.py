@@ -22,8 +22,10 @@ class TestE2EKytosStats:
         cls.net.start(start_controller=False)
         # disable ipv6 router solicitation to avoid interfere with stats
         for host in cls.net.net.hosts:
-            host.cmd("sysctl net.ipv6.conf.all.accept_ra=0")
-            host.cmd("sysctl net.ipv6.conf.default.accept_ra=0")
+            host.cmd("echo 0 | tee /proc/sys/net/ipv6/conf/*/router_solicitations")
+        for sw in cls.net.net.switches:
+            for intf in sw.intfNames():
+                sw.cmd(f"echo 0 | tee /proc/sys/net/ipv6/conf/{intf}/router_solicitations")
 
     @classmethod
     def teardown_class(cls):
