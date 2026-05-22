@@ -1,4 +1,5 @@
 import json
+import os
 import time
 import re
 
@@ -1325,3 +1326,81 @@ class TestE2EFlowManager:
         assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
         assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
         assert len(flows_s3.splitlines()) == BASIC_FLOWS, flows_s3
+
+    def test_120_install_and_delete_ipv6_flow(self):
+        """Tests if, after kytos restart, a flow deleted
+        from a switch will still be deleted."""
+        consistency_counter = 0
+        if os.path.exists("/var/log/syslog"):
+            with open("/var/log/syslog", "r") as f:
+               consistency_counter = len(re.findall(r'flow_manager.*Consistency check', f.read()))
+
+        payload = {
+            "flows": [
+                {
+                    "table_id": 0,
+                    "cookie": 20120,
+                    "match": {"in_port": 1, 'dl_type': 0x86dd},
+                    "instructions": [
+                        {
+                            "instruction_type": "goto_table",
+                            "table_id": 3,
+                        },
+                    ],
+                },
+                {
+                    "table_id": 3,
+                    "cookie": 20120,
+                    "match": {
+                        "in_port": 1,
+                        "ipv6_dst": "2001:db8:0:100::1",
+                        'dl_type': 0x86dd,
+                    },
+                    'actions': [{'action_type': 'output', 'port': 2}]
+                },
+            ]
+        }
+
+        api_url = KYTOS_API + '/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        requests.post(api_url, json=payload)
+
+        # wait for the flow to be installed and flow_manager's MIN veridict timer
+        time.sleep(16)
+
+        # make sure the flows were installed
+        s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert '2001:db8:0:100' in flows_s1
+
+        # del flows from table 3 and wait for consistency check to reinstall
+        # them. STATS_INTERVAL is 7 sec, so we wait at least 2 cycles
+        s1.dpctl("del-flows table=3")
+        time.sleep(15)
+
+        # make sure consistency check will push the flows back
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert '2001:db8:0:100' in flows_s1
+
+        if os.path.exists("/var/log/syslog"):
+            with open("/var/log/syslog", "r") as f:
+               entries = re.findall(r'flow_manager.*Consistency check', f.read())
+            assert len(entries) == consistency_counter, str(entries)
+
+        # delete the flows
+        payload["flows"][0]["cookie_mask"] = 18446744073709551615
+        payload["flows"][1]["cookie_mask"] = 18446744073709551615
+        api_url = KYTOS_API + '/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        response = requests.delete(api_url, json=payload)
+        assert response.status_code == 202, response.text
+        data = response.json()
+        assert 'FlowMod Messages Sent' in data['response']
+
+        # wait for the flow to be deleted
+        time.sleep(10)
+
+        # make sure flows were deleted
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
+        assert '2001:db8:0:100' not in flows_s1
