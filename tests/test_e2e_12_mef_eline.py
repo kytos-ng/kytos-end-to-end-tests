@@ -23,22 +23,19 @@ class TestE2EMefEline:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.wait_switches_connect()
-        time.sleep(10)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
         cls.net.stop()
 
-    @pytest.fixture()
-    def kytos_clean(self):
+    def setup_method(self, method):
         self.net.restart_kytos_clean()
         self.net.wait_switches_connect()
         time.sleep(10)
 
     @pytest.fixture()
-    def circuit_id(self, kytos_clean):
+    def circuit_id(self):
         created_id = self._create_circuit()
         return created_id
 

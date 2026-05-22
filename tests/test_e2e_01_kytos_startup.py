@@ -32,8 +32,7 @@ class TestE2EKytosServer:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.wait_switches_connect()
+        cls.net.start(start_controller=False)
         # rotate logfile (copy/truncate strategy)
         try:
             cls.logfile = '/var/log/syslog'
