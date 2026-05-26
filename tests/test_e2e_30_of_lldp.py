@@ -14,7 +14,7 @@ class TestE2EOfLLDP:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
+        cls.net.start(start_controller=False)
         cls.net.restart_kytos_clean()
         cls.net.wait_switches_connect()
         # disable ipv6 router solicitation to avoid interfere with stats

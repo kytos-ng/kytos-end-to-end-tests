@@ -19,8 +19,7 @@ class TestE2ETopologyDupDpid:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name="ring")
-        cls.net.start()
-        cls.net.wait_switches_connect()
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):

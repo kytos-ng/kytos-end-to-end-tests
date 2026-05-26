@@ -24,9 +24,7 @@ class TestE2ETopology:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name="multi")
-        cls.net.start()
-        cls.net.wait_switches_connect()
-        time.sleep(10)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
