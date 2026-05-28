@@ -79,7 +79,7 @@ kubectl --kubeconfig $KUBECONFIG rollout status deployment/kytos-regression-test
 
 kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container mongo1 -- mongosh --eval 'db.getSiblingDB("kytosdb").createUser({user: "kytosuser", pwd: "kytospass", roles: [ { role: "dbAdmin", db: "kytosdb" } ]})'
 
-kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- bash -c "sysctl vm.nr_hugepages=1024; service rsyslog start;"
+kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- bash -c "sysctl vm.nr_hugepages=2048; service rsyslog start;"
 
 kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- git clone --branch $E2E_BRANCH https://github.com/kytos-ng/kytos-end-to-end-tests
 
