@@ -36,10 +36,7 @@ class TestE2EMefEline:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name='ring4')
-        cls.net.start()
-        cls.net.restart_kytos_clean()
-        cls.net.wait_switches_connect()
-        time.sleep(10)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
@@ -418,6 +415,8 @@ class TestE2EMefEline:
         api_url = f'{KYTOS_API}/mef_eline/v2/evc/{circuit_id}'
         response = requests.patch(api_url, data=json.dumps(payload), headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
+
+        time.sleep(5)
 
         # Check for VLAN 999
         api_url = f'{KYTOS_API}/topology/v3/links/tag_ranges'

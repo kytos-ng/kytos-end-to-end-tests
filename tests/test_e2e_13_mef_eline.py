@@ -32,10 +32,7 @@ class TestE2EMefEline:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.restart_kytos_clean()
-        cls.net.wait_switches_connect()
-        time.sleep(5)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
@@ -137,7 +134,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
     def test_030_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, but invalid tag_type (invalid value) """
 
@@ -159,7 +155,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.skip(reason="still needs validaton for negative values")
     def test_035_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -202,7 +197,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.skip(reason="still needs validation for overflowed values")
     def test_045_patch_an_inconsistent_uni_a(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -297,7 +291,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.xfail
     def test_080_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, but invalid tag_type (invalid value) """
 
@@ -319,7 +312,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.skip(reason="still needs validation for negative values")
     def test_085_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -362,7 +354,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    @pytest.mark.skip(reason="still needs validation for overflowed values")
     def test_095_patch_an_inconsistent_uni_z(self):
         """ Valid switch, valid Interface ID, valid tag_type, but invalid tag """
 
@@ -405,8 +396,6 @@ class TestE2EMefEline:
                                   headers={'Content-type': 'application/json'})
         assert response.status_code == 400, response.text
 
-    """It is returning Response [200], should be 400"""
-    @pytest.mark.xfail
     def test_105_patch_an_inconsistent_primary_path(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
@@ -453,8 +442,6 @@ class TestE2EMefEline:
         assert paths == payload1["primary_path"]
         assert data['active'] is True
 
-    """It is returning Response [200], should be 400"""
-    @pytest.mark.xfail
     def test_110_patch_an_unrelated_primary_path(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
@@ -501,7 +488,6 @@ class TestE2EMefEline:
         assert data['active'] is True
 
     """It is returning Response [200], should be 400"""
-    @pytest.mark.xfail
     def test_115_patch_an_empty_primary_path(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload = {
@@ -516,11 +502,12 @@ class TestE2EMefEline:
             },
             "primary_path": [
                 {"endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
-                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:3"}}
+                 "endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"}}
             ]
         }
         response = requests.post(api_url, data=json.dumps(payload),
                                  headers={'Content-type': 'application/json'})
+        assert response.status_code == 201, response.text
         data = response.json()
         evc1 = data['circuit_id']
 
@@ -541,8 +528,6 @@ class TestE2EMefEline:
         assert data['primary_path'] != []
         assert data['active'] is True
 
-    """It is returning Response [200], should be 400"""
-    @pytest.mark.xfail
     def test_120_patch_an_inconsistent_backup_path(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
@@ -567,6 +552,7 @@ class TestE2EMefEline:
         }
         response = requests.post(api_url, data=json.dumps(payload1),
                                  headers={'Content-type': 'application/json'})
+        assert response.status_code == 201, response.text
         data = response.json()
         evc1 = data['circuit_id']
 
@@ -647,8 +633,7 @@ class TestE2EMefEline:
         assert paths == payload1["backup_path"]
         assert data['active'] is True
 
-    """It is returning Response [500], should be 400"""
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="we dont support primary_links/backup_links")
     def test_130_patch_an_inconsistent_primary_links(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
@@ -695,8 +680,7 @@ class TestE2EMefEline:
         assert paths == payload1["primary_links"]
         assert data['active'] is True
 
-    """It is returning Response [500], should be 400"""
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="we dont support primary_links/backup_links")
     def test_135_patch_an_unrelated_primary_links(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
@@ -743,8 +727,7 @@ class TestE2EMefEline:
         assert paths == payload1["primary_links"]
         assert data['active'] is True
 
-    """It is returning Response [500], should be 400"""
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="we dont support primary_links/backup_links")
     def test_140_patch_an_inconsistent_backup_links(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
@@ -797,8 +780,7 @@ class TestE2EMefEline:
         assert paths == payload1["backup_links"]
         assert data['active'] is True
 
-    """It is returning Response [500], should be 400"""
-    @pytest.mark.xfail
+    @pytest.mark.skip(reason="we dont support primary_links/backup_links")
     def test_145_patch_an_unrelated_backup_links(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         payload1 = {
@@ -895,8 +877,6 @@ class TestE2EMefEline:
         data = response.json()
         assert data['active'] is True
 
-    """It is returning Response 200, should be 400"""
-    @pytest.mark.xfail
     def test_160_patch_request_time(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
         evc1 = self.create_evc(100)

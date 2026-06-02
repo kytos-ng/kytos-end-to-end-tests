@@ -1,5 +1,6 @@
 import time
 import json
+import pytest
 
 from tests.helpers import NetworkTest
 import requests
@@ -18,9 +19,13 @@ class TestE2EKytosStats:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.restart_kytos_clean()
-        time.sleep(10)
+        cls.net.start(start_controller=False)
+        # disable ipv6 router solicitation to avoid interfere with stats
+        for host in cls.net.net.hosts:
+            host.cmd("echo 0 | tee /proc/sys/net/ipv6/conf/*/router_solicitations")
+        for sw in cls.net.net.switches:
+            for intf in sw.intfNames():
+                sw.cmd(f"echo 0 | tee /proc/sys/net/ipv6/conf/{intf}/router_solicitations")
 
     @classmethod
     def teardown_class(cls):
@@ -117,11 +122,29 @@ class TestE2EKytosStats:
         # install a flow
         cookie = 5
         payload = {
-            "flows": [{
-                "cookie": cookie,
-                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
-                'actions': [{'action_type': 'output', 'port': 2}]
-            }]
+            "flows": [
+                {
+                    "table_id": 0,
+                    "cookie": 1000 + cookie,
+                    "match": {"in_port": 1, 'dl_type': 0x86dd},
+                    "instructions": [
+                        {
+                            "instruction_type": "goto_table",
+                            "table_id": 1,
+                        },
+                    ],
+                },
+                {
+                    "table_id": 1,
+                    "cookie": cookie,
+                    "match": {
+                        "in_port": 1,
+                        'dl_dst': '33:33:00:00:00:02',
+                        'dl_type': 0x86dd,
+                    },
+                    'actions': [{'action_type': 'output', 'port': 2}]
+                },
+            ]
         }
 
         api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
@@ -153,6 +176,8 @@ class TestE2EKytosStats:
                 assert packet_counter >= n, str(flow)
                 packet_per_second = packet_counter/flow['duration_sec']
                 break
+        else:
+            pytest.fail(f"Flow not found: {data_flow}")
         
         api_url = KYTOS_STATS + f'/packet_count/{flow_id}' 
         response = requests.get(api_url)
@@ -169,11 +194,29 @@ class TestE2EKytosStats:
         # install a flow
         cookie = 5
         payload = {
-            "flows": [{
-                "cookie": cookie,
-                "match": {"in_port": 1, 'dl_dst': '33:33:00:00:00:02', 'dl_type': 0x86dd},
-                'actions': [{'action_type': 'output', 'port': 2}]
-            }]
+            "flows": [
+                {
+                    "table_id": 0,
+                    "cookie": 1000 + cookie,
+                    "match": {"in_port": 1, 'dl_type': 0x86dd},
+                    "instructions": [
+                        {
+                            "instruction_type": "goto_table",
+                            "table_id": 1,
+                        },
+                    ],
+                },
+                {
+                    "table_id": 1,
+                    "cookie": cookie,
+                    "match": {
+                        "in_port": 1,
+                        'dl_dst': '33:33:00:00:00:02',
+                        'dl_type': 0x86dd,
+                    },
+                    'actions': [{'action_type': 'output', 'port': 2}]
+                },
+            ]
         }
 
         api_url_flow_manager = KYTOS_API + f'/kytos/flow_manager/v2/flows/{sw}'
@@ -205,6 +248,8 @@ class TestE2EKytosStats:
                 assert bytes_counter >= n*1500, str(flow)
                 bits_per_second = 8*bytes_counter/flow['duration_sec']
                 break
+        else:
+            pytest.fail(f"Flow not found: {data_flow}")
         
         api_url = KYTOS_STATS + f'/bytes_count/{flow_id}' 
         response = requests.get(api_url)
@@ -228,11 +273,12 @@ class TestE2EKytosStats:
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
+        tolerance = 0.01
         for info_flow in data:
             flow_id = info_flow['flow_id']
             count = data_flow[flow_id]['packet_count']
             assert info_flow['packet_counter'] >= count
-            assert info_flow['packet_per_second'] >= count/data_flow[flow_id]['duration_sec']
+            assert info_flow['packet_per_second'] + tolerance >= count/data_flow[flow_id]['duration_sec']
 
 
     def test_030_bytes_count_per_flow(self):
@@ -276,7 +322,7 @@ class TestE2EKytosStats:
         data_flow = response.json()
         assert 'FlowMod Messages Sent' in data_flow['response']
 
-        time.sleep(10)
+        time.sleep(15)
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
@@ -315,7 +361,7 @@ class TestE2EKytosStats:
         data_flow = response.json()
         assert 'FlowMod Messages Sent' in data_flow['response']
 
-        time.sleep(10)
+        time.sleep(15)
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text

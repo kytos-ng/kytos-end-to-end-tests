@@ -1,5 +1,7 @@
 import json
+import os
 import time
+import re
 
 import requests
 
@@ -30,9 +32,7 @@ class TestE2EFlowManager:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.wait_switches_connect()
-        time.sleep(10)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
@@ -77,7 +77,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         # Make sure that the flow that was sent is on /v2/stored_flows
         dpid = "00:00:00:00:00:00:00:01"
@@ -138,7 +141,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         sw = self.net.net.get("s1")
         flows_sw = sw.dpctl("dump-flows")
@@ -255,7 +261,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         for sw_name in ['s1', 's2', 's3']:
             sw = self.net.net.get(sw_name)
@@ -350,7 +359,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         stored_flows = f'{KYTOS_API}/flow_manager/v2/stored_flows/?dpids={switch_id}&cookie_range=1&cookie_range=3'
         response = requests.get(stored_flows)
@@ -405,7 +417,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -457,7 +472,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         # Make sure that flows are soft deleted on /v2/stored_flows
         response = requests.get(
@@ -481,13 +499,13 @@ class TestE2EFlowManager:
         for i in range(1, 4):
             dpid = f"00:00:00:00:00:00:00:0{i}"
             assert dpid in data
-            assert len(data[dpid]["flows"]) == BASIC_FLOWS, data[dpid]
+            assert len(data[dpid]["flows"]) == BASIC_FLOWS, f"dpid={dpid} data={data[dpid]}"
 
         for sw_name in ['s1', 's2', 's3']:
             sw = self.net.net.get(sw_name)
             flows_sw = sw.dpctl('dump-flows')
             assert len(flows_sw.splitlines()) == BASIC_FLOWS, flows_sw
-            assert 'actions=output:2' not in flows_sw
+            assert 'actions=output:2' not in flows_sw, flows_sw
 
     def test_026_delete_flows_cookie_mask_range(self):
         """Test deleting flows with cookie range mask and persistence."""""
@@ -557,7 +575,10 @@ class TestE2EFlowManager:
         self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        # specially because we used "del_flows=True"
+        time.sleep(15)
 
         # Make sure that flows are soft deleted on /v2/stored_flows
         response = requests.get(
@@ -813,7 +834,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -831,6 +854,7 @@ class TestE2EFlowManager:
         payload = {
             "flows": [
                 {
+                    "cookie": 0x99,
                     "priority": 10,
                     "idle_timeout": 360,
                     "hard_timeout": 1200,
@@ -858,13 +882,15 @@ class TestE2EFlowManager:
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
-        assert 'in_port=1' in flows_s1
+        assert len(re.findall("cookie=0x99.*in_port=1 .*output:2", flows_s1)) == 1, flows_s1
 
         # Modify the actions and verify its modification
-        s1.dpctl('mod-flows', 'actions=output:3')
+        # we use output:7 which is a port not in use, to avoid further
+        # problems with loop detection and mismatch links
+        s1.dpctl('mod-flows', 'actions=output:7')
         flows_s1 = s1.dpctl('dump-flows')
         assert 'actions=output:2' not in flows_s1
-        assert 'actions=output:3' in flows_s1
+        assert 'actions=output:7' in flows_s1
 
         if restart_kytos:
             # restart controller keeping configuration
@@ -873,14 +899,16 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         # Check that the flow keeps the original setting
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
-        assert 'actions=output:3' not in flows_s1
-        assert 'in_port=1' in flows_s1
+        assert 'actions=output:7' not in flows_s1
+        assert len(re.findall("cookie=0x99.*in_port=1 .*output:2", flows_s1)) == 1, flows_s1
 
     def test_040_replace_action_flow(self):
         self.replace_action_flow()
@@ -928,7 +956,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         flows_s1 = s1.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS + 1, flows_s1
@@ -954,7 +984,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -980,7 +1012,9 @@ class TestE2EFlowManager:
         else:
             self.net.reconnect_switches()
 
-        time.sleep(10)
+        # STATS_INTERVAL is set to 7 seconds, we should wait at least
+        # two cycles to account for possible Overlapping requests
+        time.sleep(15)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -1068,6 +1102,8 @@ class TestE2EFlowManager:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] in {"installed", "pending"}
 
+        time.sleep(5)
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -1107,6 +1143,8 @@ class TestE2EFlowManager:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] == "deleted"
 
+        time.sleep(5)
+
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
@@ -1129,6 +1167,8 @@ class TestE2EFlowManager:
                       headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
 
+        time.sleep(5)
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -1145,6 +1185,9 @@ class TestE2EFlowManager:
         response = requests.delete(api_url, data=json.dumps(payload),
                       headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
+
+        time.sleep(5)
+
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
@@ -1168,6 +1211,8 @@ class TestE2EFlowManager:
         response = requests.post(api_url, data=json.dumps(payload),
                                  headers={'Content-type': 'application/json'})
         assert response.status_code == 202, response.text
+
+        time.sleep(5)
 
         s1 = self.net.net.get('s1')
         flows_s1 = s1.dpctl('dump-flows')
@@ -1230,6 +1275,8 @@ class TestE2EFlowManager:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] in {"installed", "pending"}
 
+        time.sleep(5)
+
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
@@ -1269,9 +1316,89 @@ class TestE2EFlowManager:
             for flow in sw_flows[BASIC_FLOWS: BASIC_FLOWS + length]:
                 assert flow["state"] == "deleted", flow
 
+        time.sleep(5)
+
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
         assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
         assert len(flows_s2.splitlines()) == BASIC_FLOWS, flows_s2
         assert len(flows_s3.splitlines()) == BASIC_FLOWS, flows_s3
+
+    def test_120_install_and_delete_ipv6_flow(self):
+        """Tests if, after kytos restart, a flow deleted
+        from a switch will still be deleted."""
+        consistency_counter = 0
+        if os.path.exists("/var/log/syslog"):
+            with open("/var/log/syslog", "r") as f:
+               consistency_counter = len(re.findall(r'flow_manager.*Consistency check', f.read()))
+
+        payload = {
+            "flows": [
+                {
+                    "table_id": 0,
+                    "cookie": 20120,
+                    "match": {"in_port": 1, 'dl_type': 0x86dd},
+                    "instructions": [
+                        {
+                            "instruction_type": "goto_table",
+                            "table_id": 3,
+                        },
+                    ],
+                },
+                {
+                    "table_id": 3,
+                    "cookie": 20120,
+                    "match": {
+                        "in_port": 1,
+                        "ipv6_dst": "2001:db8:0:100::1",
+                        'dl_type': 0x86dd,
+                    },
+                    'actions': [{'action_type': 'output', 'port': 2}]
+                },
+            ]
+        }
+
+        api_url = KYTOS_API + '/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        requests.post(api_url, json=payload)
+
+        # wait for the flow to be installed and flow_manager's MIN veridict timer
+        time.sleep(16)
+
+        # make sure the flows were installed
+        s1 = self.net.net.get('s1')
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert '2001:db8:0:100' in flows_s1
+
+        # del flows from table 3 and wait for consistency check to reinstall
+        # them. STATS_INTERVAL is 7 sec, so we wait at least 2 cycles
+        s1.dpctl("del-flows table=3")
+        time.sleep(15)
+
+        # make sure consistency check will push the flows back
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert '2001:db8:0:100' in flows_s1
+
+        if os.path.exists("/var/log/syslog"):
+            with open("/var/log/syslog", "r") as f:
+               entries = re.findall(r'flow_manager.*Consistency check', f.read())
+            assert len(entries) == consistency_counter, str(entries)
+
+        # delete the flows
+        payload["flows"][0]["cookie_mask"] = 18446744073709551615
+        payload["flows"][1]["cookie_mask"] = 18446744073709551615
+        api_url = KYTOS_API + '/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        response = requests.delete(api_url, json=payload)
+        assert response.status_code == 202, response.text
+        data = response.json()
+        assert 'FlowMod Messages Sent' in data['response']
+
+        # wait for the flow to be deleted
+        time.sleep(10)
+
+        # make sure flows were deleted
+        flows_s1 = s1.dpctl('dump-flows')
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS, flows_s1
+        assert '2001:db8:0:100' not in flows_s1

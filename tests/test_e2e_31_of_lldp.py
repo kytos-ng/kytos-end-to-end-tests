@@ -19,9 +19,7 @@ class TestE2EOfLLDP:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.wait_switches_connect()
-        time.sleep(10)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
@@ -289,6 +287,8 @@ class TestE2EOfLLDP:
 
         # Deactivate the interface for deletion
         self.net.net.configLinkStatus('s1', 'h11', 'down')
+
+        time.sleep(5)
 
         api_url = f'{KYTOS_API}/topology/v3/interfaces/{intf_id}'
         response = requests.delete(api_url)

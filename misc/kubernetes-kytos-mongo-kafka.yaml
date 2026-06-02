@@ -21,10 +21,11 @@ spec:
       containers:
       - name: kytos
         image: amlight/kytos:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8181
         - containerPort: 6653
-        command: ["/usr/bin/tail", "-f", "/dev/null"]
+        command: ["/usr/bin/tini", "--", "/usr/bin/tail", "-f", "/dev/null"]
         env:
         - name: MONGO_HOST_SEEDS
           value: "127.0.0.1:27017"
@@ -41,15 +42,21 @@ spec:
             type: Unconfined
           capabilities:
             add: ["NET_ADMIN", "SYS_MODULE", "SYS_ADMIN"]
+          privileged: true
         volumeMounts:
         - name: lib-modules
           mountPath: /lib/modules
+        volumeMounts:
+        - name: docker-storage
+          mountPath: /var/lib/docker
       - name: mongo1
         image: mongo:7
+        imagePullPolicy: Always
         ports:
         - containerPort: 27017
       - name: kafka1
         image: apache/kafka:4.0.0
+        imagePullPolicy: Always
         ports:
         - containerPort: 9092
         env:
@@ -76,3 +83,5 @@ spec:
         hostPath:
           path: /lib/modules
           type: Directory
+      - name: docker-storage
+        emptyDir: {}
