@@ -1,17 +1,34 @@
 """P4OfSwitch"""
 
+import json
 import os
 import re
+import subprocess
 import time
 from mininet.nodelib import DockerSwitch
 from mininet.log import error, info
 from mininet.util import quietRun
 
+
 P4OFSWITCH_ARCH = os.environ.get("P4OFSWITCH_ARCH", "tf1")
 
 P4OFSWITCH_IMAGE = os.environ.get("P4OFSWITCH_IMAGE", "amlight/p4ofswitch:latest")
 
+DOCKER_NETWORK = os.environ.get("MININET_DOCKER_NETWORK")
+
 MYLOCALIP = os.environ.get("MYLOCALIP")
+
+if os.environ.get("SWITCH_CLASS") == "P4OfSwitch" and not MYLOCALIP and DOCKER_NETWORK:
+    with open("/etc/hostname") as hostname_file:
+        cid = hostname_file.read().strip()
+    data = json.loads(
+        subprocess.check_output(
+            ["docker", "inspect", cid],
+            text=True
+        )
+    )
+    MYLOCALIP = data[0]["NetworkSettings"]["Networks"][DOCKER_NETWORK]["IPAddress"]
+
 if os.environ.get("SWITCH_CLASS") == "P4OfSwitch" and not MYLOCALIP:
     try:
         stream = os.popen("ip -j route get 8.8.8.8 | jq -r '.[0].prefsrc'")

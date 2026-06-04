@@ -22,6 +22,7 @@ HAS_P4OFSWITCH = False
 if os.environ.get('SWITCH_CLASS') == "P4OfSwitch":
     from tests.p4ofswitch import P4OfSwitch
     HAS_P4OFSWITCH = True
+DOCKER_NETWORK = os.environ.get("MININET_DOCKER_NETWORK")
 
 BASE_ENV = os.environ.get('VIRTUAL_ENV', None) or '/'
 
@@ -45,7 +46,7 @@ class SwitchFactory:
         if cls_name == "NoviSwitch" and NoviSwitch.is_available():
             return NoviSwitch(*args, **kwargs)
         if cls_name == "P4OfSwitch":
-            return P4OfSwitch(*args, **kwargs)
+            return P4OfSwitch(*args, docker_network=DOCKER_NETWORK, **kwargs)
         return OVSSwitch(*args, **kwargs)
 
 
