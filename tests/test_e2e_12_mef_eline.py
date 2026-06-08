@@ -85,15 +85,17 @@ class TestE2EMefEline:
 
         return
     
-    def get_mef_eline_flow_number(self):
-        api_url = KYTOS_API + '/flow_manager/v2/stored_flows?state=installed'
+    def get_mef_eline_flow_number(self, circuit_id=None):
+        mask = "ffffffffffffff"
+        if circuit_id is not None:
+            mask = circuit_id
+        cookie = int(f"0xaa{mask}", 16)
+        api_url = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}&state=installed'
         response = requests.get(api_url)
         flows = response.json()
         total_flows_prev = 0
-        for _, flow_list in flows.items():
-            for flow in flow_list:
-                if flow["flow"]["owner"] == "mef_eline":
-                    total_flows_prev += 1
+        for flow_list in flows.values():
+            total_flows_prev += len(flow_list)
         return total_flows_prev
 
     def test_create_schedule_by_frequency(self, disabled_circuit_id):
@@ -410,7 +412,7 @@ class TestE2EMefEline:
         data = response.json()
         assert data['enabled'] is True
         
-        assert self.get_mef_eline_flow_number() == 0
+        assert self.get_mef_eline_flow_number(circuit_id) == 0
 
         api_url = KYTOS_API + f'/topology/v3/switches/00:00:00:00:00:00:00:01/enable'
         response = requests.post(api_url)
@@ -420,13 +422,13 @@ class TestE2EMefEline:
             response = requests.post(api_url)
             assert response.status_code == 200, response.text
         time.sleep(10)
-        assert self.get_mef_eline_flow_number() == 2
+        assert self.get_mef_eline_flow_number(circuit_id) == 2
 
         api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
         response = requests.patch(api_url, json={"enabled": False})
         assert response.status_code == 200, response.text
 
-        assert self.get_mef_eline_flow_number() == 0
+        assert self.get_mef_eline_flow_number(circuit_id) == 0
 
         api_url = KYTOS_API + f'/topology/v3/switches/00:00:00:00:00:00:00:01/disable'
         response = requests.post(api_url)
@@ -436,7 +438,7 @@ class TestE2EMefEline:
         response = requests.patch(api_url, json={"enabled": True})
         assert response.status_code == 200, response.text
 
-        assert self.get_mef_eline_flow_number() == 0
+        assert self.get_mef_eline_flow_number(circuit_id) == 0
 
         api_url = KYTOS_API + f'/topology/v3/switches/00:00:00:00:00:00:00:01/enable'
         response = requests.post(api_url)
@@ -447,4 +449,4 @@ class TestE2EMefEline:
             assert response.status_code == 200, response.text
 
         time.sleep(10)
-        assert self.get_mef_eline_flow_number() == 2
+        assert self.get_mef_eline_flow_number(circuit_id) == 2
