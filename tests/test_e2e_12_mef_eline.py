@@ -86,11 +86,11 @@ class TestE2EMefEline:
         return
     
     def get_mef_eline_flow_number(self, circuit_id=None):
-        mask = "ffffffffffffff"
+        masks = ['ffffffffffffff', '00000000000000']
         if circuit_id is not None:
-            mask = circuit_id
-        cookie = int(f"0xaa{mask}", 16)
-        api_url = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookie}&cookie_range={cookie}&state=installed'
+            masks = [circuit_id, circuit_id]
+        cookies = [int(f"0xaa{mask}", 16) for mask in masks]
+        api_url = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookies[0]}&cookie_range={cookies[1]}&state=installed'
         response = requests.get(api_url)
         flows = response.json()
         total_flows_prev = 0
