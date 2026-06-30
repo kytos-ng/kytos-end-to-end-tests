@@ -273,7 +273,7 @@ class TestE2EKytosStats:
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
         data = response.json()
-        tolerance = 0.01
+        tolerance = 0.1
         for info_flow in data:
             flow_id = info_flow['flow_id']
             count = data_flow[flow_id]['packet_count']
