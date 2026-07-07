@@ -56,6 +56,8 @@ class TestE2ETopology:
         # Check persistence of removed vlans
 
         self.net.start_controller()
+        self.net.wait_switches_connect()
+        self.net.wait_kytos_links(status="UP")
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
@@ -78,6 +80,8 @@ class TestE2ETopology:
         # Check persistence of returned vlans
 
         self.net.start_controller()
+        self.net.wait_switches_connect()
+        self.net.wait_kytos_links(status="UP")
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
@@ -118,6 +122,8 @@ class TestE2ETopology:
         # Check persistence of removed vlans
 
         self.net.start_controller()
+        self.net.wait_switches_connect()
+        self.net.wait_kytos_links(status="UP")
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
@@ -140,6 +146,8 @@ class TestE2ETopology:
         # Check persistence of returned vlans
 
         self.net.start_controller()
+        self.net.wait_switches_connect()
+        self.net.wait_kytos_links(status="UP")
 
         response = requests.get(api_url)
         assert response.status_code == 200, response.text
