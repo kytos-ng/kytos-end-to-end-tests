@@ -3,7 +3,9 @@ from collections import defaultdict
 
 import requests
 
-from .helpers import NetworkTest, LinkID
+from .helpers import NetworkTest
+
+from kytos.core.id import LinkID
 
 CONTROLLER = "127.0.0.1"
 KYTOS_API = "http://%s:8181/api/kytos" % CONTROLLER
