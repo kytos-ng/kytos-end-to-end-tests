@@ -84,6 +84,19 @@ class TestE2EMefEline:
         assert response.status_code == 200, response.text
 
         return
+    
+    def get_mef_eline_flow_number(self, circuit_id=None):
+        masks = ['ffffffffffffff', '00000000000000']
+        if circuit_id is not None:
+            masks = [circuit_id, circuit_id]
+        cookies = [int(f"0xaa{mask}", 16) for mask in masks]
+        api_url = f'{KYTOS_API}/flow_manager/v2/stored_flows/?cookie_range={cookies[0]}&cookie_range={cookies[1]}&state=installed'
+        response = requests.get(api_url)
+        flows = response.json()
+        total_flows_prev = 0
+        for flow_list in flows.values():
+            total_flows_prev += len(flow_list)
+        return total_flows_prev
 
     def test_create_schedule_by_frequency(self, disabled_circuit_id):
         """ Test scheduler creation to enable the circuit by frequency, 
@@ -384,3 +397,56 @@ class TestE2EMefEline:
         api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
         response = requests.patch(api_url, json=payload)
         assert response.status_code == 404, response.text
+
+    def test_intra_evc_uni_enabled(self):
+        """ Test if the UNI of an intra-EVC circuit is enabled. """
+        api_url = KYTOS_API + f'/topology/v3/switches/00:00:00:00:00:00:00:01/disable'
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
+
+        circuit_id = self._create_circuit()
+
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data['enabled'] is True
+        
+        assert self.get_mef_eline_flow_number(circuit_id) == 0
+
+        api_url = KYTOS_API + f'/topology/v3/switches/00:00:00:00:00:00:00:01/enable'
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
+        for i in [1, 2]:
+            api_url = KYTOS_API + f'/topology/v3/interfaces/00:00:00:00:00:00:00:01:{i}/enable'
+            response = requests.post(api_url)
+            assert response.status_code == 200, response.text
+        time.sleep(10)
+        assert self.get_mef_eline_flow_number(circuit_id) == 2
+
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
+        response = requests.patch(api_url, json={"enabled": False})
+        assert response.status_code == 200, response.text
+
+        assert self.get_mef_eline_flow_number(circuit_id) == 0
+
+        api_url = KYTOS_API + f'/topology/v3/switches/00:00:00:00:00:00:00:01/disable'
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
+
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
+        response = requests.patch(api_url, json={"enabled": True})
+        assert response.status_code == 200, response.text
+
+        assert self.get_mef_eline_flow_number(circuit_id) == 0
+
+        api_url = KYTOS_API + f'/topology/v3/switches/00:00:00:00:00:00:00:01/enable'
+        response = requests.post(api_url)
+        assert response.status_code == 201, response.text
+        for i in [1, 2]:
+            api_url = KYTOS_API + f'/topology/v3/interfaces/00:00:00:00:00:00:00:01:{i}/enable'
+            response = requests.post(api_url)
+            assert response.status_code == 200, response.text
+
+        time.sleep(10)
+        assert self.get_mef_eline_flow_number(circuit_id) == 2
