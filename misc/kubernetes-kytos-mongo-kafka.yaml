@@ -46,7 +46,6 @@ spec:
         volumeMounts:
         - name: lib-modules
           mountPath: /lib/modules
-        volumeMounts:
         - name: docker-storage
           mountPath: /var/lib/docker
       - name: mongo1
