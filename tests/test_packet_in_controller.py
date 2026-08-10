@@ -14,14 +14,18 @@ import select
 
 # OpenFlow protocol constants
 OFP_VERSION = 0x01
-OFP_PACKET_IN = 10
-OFP_PACKET_OUT = 13
-OFP_FLOW_MOD = 9
-OFP_FLOW_REMOVED = 11
-OFP_FEATURES_REPLY = 5
 OFP_HELLO = 0
 OFP_ERROR = 1
-OFP_BARRIER_REPLY = 15
+
+OFP_FEATURES_REPLY = 6
+
+OFP_PACKET_IN = 10
+OFP_FLOW_REMOVED = 11
+OFP_PORT_STATUS = 12
+OFP_PACKET_OUT = 13
+OFP_FLOW_MOD = 14
+OFP_BARRIER_REPLY = 21
+
 
 class OpenFlowController:
     def __init__(self, host='0.0.0.0', port=6653):
@@ -127,15 +131,11 @@ class OpenFlowController:
             
         # Parse OpenFlow header
         version, msg_type, length, xid = struct.unpack('!BBHI', data[:8])
+
+        handler_func = self.ofp_handlers.get(msg_type)
         
-        if msg_type == OFP_PACKET_IN:
-            self.handle_packet_in(data, switch_id, xid)
-        elif msg_type == OFP_HELLO:
-            self.handle_hello(data, switch_id)
-        elif msg_type == OFP_ERROR:
-            self.handle_error(data, switch_id)
-        elif msg_type == OFP_BARRIER_REPLY:
-            self.handle_barrier_reply(data, switch_id)
+        if handler_func is not None:
+            handler_func(self, data, switch_id, xid)
         else:
             print(f"Unknown message type received from switch {switch_id}")
     
@@ -160,32 +160,28 @@ class OpenFlowController:
         print("Total packet-ins so far: {}".format(self.packet_count))
         print("Reason distribution: {}".format(dict(self.packet_reasons)))
         
-        # Send back a flow mod reply to acknowledge (this is required by OpenFlow spec)
-        self.send_flow_mod_reply(switch_id, xid)
+        # # Send back a flow mod reply to acknowledge (this is required by OpenFlow spec)
+        # self.send_flow_mod_reply(switch_id, xid)
     
-    def handle_hello(self, data, switch_id):
+    def handle_hello(self, data, switch_id, xid):
         """Handle hello message."""
         print("Hello message received from switch {}".format(switch_id))
     
-    def handle_error(self, data, switch_id):
+    def handle_error(self, data, switch_id, xid):
         """Handle error message."""
         print("Error message received from switch {}".format(switch_id))
     
-    def handle_barrier_reply(self, data, switch_id):
+    def handle_barrier_reply(self, data, switch_id, xid):
         """Handle barrier reply message."""
         print("Barrier reply received from switch {}".format(switch_id))
-    
-    def send_flow_mod_reply(self, switch_id, xid):
-        """Send flow mod reply back to switch."""
-        try:
-            # Create a basic flow mod reply message
-            # Format: version(1) + type(1) + length(2) + xid(4) + padding(4)
-            reply_data = struct.pack('!BBHI', OFP_VERSION, OFP_FLOW_MOD, 16, xid)
-            if switch_id in self.clients:
-                self.clients[switch_id].send(reply_data)
-        except Exception as e:
-            print("Error sending flow mod reply: {}".format(e))
-    
+
+    ofp_handlers = {
+        OFP_HELLO: handle_hello,
+        OFP_ERROR: handle_error,
+        OFP_PACKET_IN: handle_packet_in,
+        OFP_BARRIER_REPLY: handle_barrier_reply,
+    }
+
     def stop(self):
         """Stop the controller."""
         self.running = False

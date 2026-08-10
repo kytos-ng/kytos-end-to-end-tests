@@ -36,6 +36,7 @@ class TestP4LocalForwarding:
         # time.sleep(10)
         
         for switch in self.net.net.switches:
+            # Clear local_forwarding config
             result: str = switch.cmd("p4ofagent show config p4 local_forwarding --command")
             result = result.splitlines()
             # Remove first line that contains comment
@@ -47,6 +48,14 @@ class TestP4LocalForwarding:
                 command = " ".join(command.split(" ")[:-1])
                 switch.cmd(command)
 
+            # Clear copy_to_cpu
+            result: str = switch.cmd("p4ofagent show config switch copy_to_cpu --command")
+            result = result.splitlines()
+            result = result[1:]
+            for command in result:
+                command = command.replace("set", "del")
+                switch.cmd(command)
+
         # delete vlan interfaces
         for host in self.net.net.hosts:
             result: str = host.cmd("ip --json link show")
@@ -55,6 +64,11 @@ class TestP4LocalForwarding:
                 # Check if link is a vlan interface
                 if "link" in interface:
                     host.cmd(f"ip link del {interface['ifname']}")
+
+        # # Undo IP assignments
+        # for host in self.net.net.hosts:
+        #     host.cmd(f"ip addr flush dev {host.defaultIntf().name}")
+        #     host.defaultIntf().updateIP()
 
         # Delete any openflow flows on the switches
         for switch in self.net.net.switches:
@@ -266,6 +280,7 @@ class TestP4LocalForwarding:
         # TODO: Test these actions
         # copy_to_cpu, drop, no_action, output, send_packet_in, set_vlan
 
+    # @pytest.mark.skip("Failing due to local_forwardint table not terminating as expected.")
     def test_004_local_forwarding_send_packet_in(self):
         """
         Description: Test if send_packet_in is working correctly.
@@ -275,6 +290,11 @@ class TestP4LocalForwarding:
         
         # Get switches and hosts
         h11, h12, s1 = self.net.net.get("h11", "h12", "s1")
+
+        # Set IPs of hosts.
+
+        h11.setIP("10.0.0.11", prefixLen=8)
+        h12.setIP("10.0.0.12", prefixLen=8)
 
         # Use dpctl on the switch to create connection between h11 and h12
         s1.dpctl("add-flow", "table=0,in_port=1,priority=100,actions=output:2")
@@ -335,6 +355,11 @@ class TestP4LocalForwarding:
         # Get switches and hosts
         h11, h12, s1 = self.net.net.get("h11", "h12", "s1")
 
+        # Set IPs of hosts.
+
+        h11.setIP("10.0.0.11", prefixLen=24)
+        h12.setIP("10.0.0.12", prefixLen=24)
+
         # Use dpctl on the switch to create connection between h11 and h12
         s1.dpctl("add-flow", "table=0,in_port=1,priority=100,actions=output:2")
         s1.dpctl("add-flow", "table=0,in_port=2,priority=100,actions=output:1")
@@ -349,38 +374,33 @@ class TestP4LocalForwarding:
             [
                 "tcpdump",
                 "-U",
-                "-i", "veth320",
-                # "-w", "/tmp/cpu_packets.pcap",
-                # Listen for ping packets to verify copy_to_cpu functionality
-                # f"icmp[0] == 8 and host {h12.IP()}",
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+                "-i", "veth165",
+                "-w", "/tmp/cpu_packets.pcap",
+            ]
         )
+
+        # Configure switch to send packet_in for specific traffic
+        s1.cmd("p4ofagent set config p4 local_forwarding in_port=1,priority=100 copy_to_cpu")
+        s1.cmd("p4ofagent set config switch copy_to_cpu 165")
         
         # Give the listener time to start
         time.sleep(4)
 
-        # Configure switch to send packet_in for specific traffic
-        s1.cmd("p4ofagent set config p4 local_forwarding in_port=1,priority=100 copy_to_cpu")
-        s1.cmd("p4ofagent set config switch copy_to_cpu 1")
-
         # Send a ping from h11 to h12 to check that the connection still works
-        result = h11.cmd(f"ping -c1 {h12.IP()}")
+        result = h11.cmd(f"ping -c10 {h12.IP()}")
         assert ', 0% packet loss,' in result
 
         # Wait a bit for the listener to receive the message
         time.sleep(4)
 
         # Stop the listener
-        cpu_listener.send_signal(signal.SIGINT)
+        cpu_listener.terminate()
         cpu_listener.wait()
 
         # Capture listener output
 
-        output = cpu_listener.communicate()[0].decode('utf-8')
+        output = s1.cmd(f"tcpdump -r /tmp/cpu_packets.pcap 2> /dev/null")
 
-        # Check if listener was able to receive the ping packets
+        # Check if listener was able to receive the ping packets destined for h12
         
-        assert "Packet-in received from switch" in output
+        assert "IP 10.0.0.11 > 10.0.0.12: ICMP echo request," in output
