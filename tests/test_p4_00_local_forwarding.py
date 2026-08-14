@@ -8,7 +8,11 @@ import time
 
 import pytest
 
+from pyof.v0x04.common.header import Type
+from pyof.v0x04.asynchronous.packet_in import PacketIn
+
 from .helpers import NetworkTest
+from .simple_of_controller import OpenFlowController
 
 CONTROLLER = "127.0.0.1"
 KYTOS_API = "http://%s:8181/api/kytos" % CONTROLLER
@@ -23,6 +27,7 @@ KYTOS_API = "http://%s:8181/api/kytos" % CONTROLLER
 )
 class TestP4LocalForwarding:
     net = None
+    of_controller = None
 
     def setup_method(self, method):
         """
@@ -56,6 +61,17 @@ class TestP4LocalForwarding:
                 command = command.replace("set", "del")
                 switch.cmd(command)
 
+            # Clear port quarantine
+            result: str = switch.cmd("p4ofagent show config port portno all --command")
+            result = result.splitlines()
+            result = result[1:]
+            for command in result:
+                if "quarantine" not in command:
+                    continue
+                command = command.replace("set", "del")
+                command = " ".join(command.split(" ")[:-1])
+                switch.cmd(command)
+
         # delete vlan interfaces
         for host in self.net.net.hosts:
             result: str = host.cmd("ip --json link show")
@@ -78,10 +94,13 @@ class TestP4LocalForwarding:
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name="ring")
         cls.net.start(start_controller=False)
+        cls.of_controller = OpenFlowController()
+        cls.of_controller.start()
 
     @classmethod
     def teardown_class(cls):
         cls.net.stop()
+        cls.of_controller.stop()
 
     def test_001_local_forwarding_ports(self):
         """
@@ -280,14 +299,12 @@ class TestP4LocalForwarding:
         # TODO: Test these actions
         # copy_to_cpu, drop, no_action, output, send_packet_in, set_vlan
 
-    # @pytest.mark.skip("Failing due to local_forwardint table not terminating as expected.")
+    # @pytest.mark.skip("Failing due to local_forwarding table not terminating as expected.")
     def test_004_local_forwarding_send_packet_in(self):
         """
         Description: Test if send_packet_in is working correctly.
         """
-        # Create a simple OpenFlow controller to receive packet_in messages
-        controller_script = "tests/test_packet_in_controller.py"
-        
+
         # Get switches and hosts
         h11, h12, s1 = self.net.net.get("h11", "h12", "s1")
 
@@ -304,49 +321,37 @@ class TestP4LocalForwarding:
         result = h11.cmd(f"ping -c1 {h12.IP()}")
         assert ', 0% packet loss,' in result
 
+        # Deleting flows allows for test to run without error due to local_forwarding not terminating.
         # s1.dpctl("del-flows")
 
-        # Reset the controller connection for all switches
-
-        for switch in self.net.net.switches:
-            switch.reset_controller()
-
-        # Start the controller in background
-        controller_process = subprocess.Popen(
-            [
-                "python3", 
-                controller_script
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
+        s1_connection = self.of_controller.get_switch_by_dpid("00:00:00:00:00:00:00:01")
+        assert s1_connection
         
-        # Give the controller time to start
-        time.sleep(4)
+        received_packet_in = False
 
-        # Configure switch to send packet_in for specific traffic
-        s1.cmd("p4ofagent set config p4 local_forwarding in_port=1,priority=100 send_packet_in")
+        def watcher_func(message: PacketIn) -> None:
+            nonlocal received_packet_in
+            received_packet_in = True
+        
+        with s1_connection.watch(
+            Type.OFPT_PACKET_IN,
+            watcher_func
+        ):
+            # Configure switch to send packet_in for specific traffic
+            s1.cmd("p4ofagent set config p4 local_forwarding in_port=1,priority=100 send_packet_in")
 
-        # Send a ping from h11 to h12 to trigger send_packet_in
-        result = h11.cmd(f"ping -c1 {h12.IP()}")
+            # Send a ping from h11 to h12 to trigger send_packet_in
+            result = h11.cmd(f"ping -c1 {h12.IP()}")
 
-        # All packets should be terminated at the send_packet_in rule
-        assert ', 100% packet loss,' in result
+            # All packets should be terminated at the send_packet_in rule
+            assert ', 100% packet loss,' in result
 
-        # Wait a bit for the controller to receive the message
-        time.sleep(4)
-
-        # Stop the controller
-        controller_process.send_signal(signal.SIGINT)
-        controller_process.wait()
-
-        # Capture controller output
-
-        output = controller_process.communicate()[0].decode('utf-8')
+            # Wait a bit for the controller to receive the message
+            time.sleep(4)
 
         # Check if controller was able to receive the packet_in
         
-        assert "Packet-in received from switch" in output
+        assert received_packet_in
 
     def test_005_local_forwarding_copy_to_cpu(self):
         """
