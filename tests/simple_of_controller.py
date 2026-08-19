@@ -21,7 +21,14 @@ from pyof.v0x04.common.header import Header, Type
 from pyof.v0x04.common.port import Port
 from pyof.v0x04.common.utils import unpack_message
 from pyof.v0x04.controller2switch.barrier_reply import BarrierReply
-from pyof.v0x04.controller2switch.common import MultipartType
+from pyof.v0x04.controller2switch.common import (
+    MultipartType,
+    TableFeaturePropType,
+    InstructionsProperty,
+    NextTablesProperty,
+    ActionsProperty,
+    OxmProperty,
+)
 from pyof.v0x04.controller2switch.features_reply import FeaturesReply
 from pyof.v0x04.controller2switch.features_request import FeaturesRequest
 from pyof.v0x04.controller2switch.multipart_reply import MultipartReply
@@ -66,10 +73,11 @@ class SwitchConnection:
         
         # Initialize switch info
         self.switch_info = {
+            'name': None,
             'dpid': None,
             'ports': [],
-            'name': None,
-            'features': {}
+            'tables': [],
+            'features': {},
         }
 
         # Message handlers
@@ -82,17 +90,22 @@ class SwitchConnection:
             Type.OFPT_ECHO_REQUEST: self.handle_echo_request,
             Type.OFPT_ECHO_REPLY: self.handle_echo_reply,
             Type.OFPT_MULTIPART_REPLY: self.handle_multipart_reply,
-            Type.OFPT_PORT_STATUS: self.handle_port_status
+            Type.OFPT_PORT_STATUS: self.handle_port_status,
         }
         
         self.ofpmp_handlers = {
             MultipartType.OFPMP_PORT_DESC: self.handle_port_desc_reply,
             MultipartType.OFPMP_PORT_STATS: self.handle_port_stats_reply,
+            MultipartType.OFPMP_TABLE_FEATURES: self.handle_table_features_reply,
         }
     
         # Watchers for specific message types
         self.watchers = defaultdict(list)
-        
+
+        # Handle replies
+        self.reply_locks = dict[int, threading.Lock]()
+        self.replies = dict[int, GenericMessage]()
+
     def start(self):
         """Start the connection thread."""
         self.running = True
@@ -124,6 +137,30 @@ class SwitchConnection:
         finally:
             self._cleanup()
     
+    def process_message(self, message: GenericMessage):
+        """Process a single OpenFlow message."""
+        message_type = message.header.message_type
+
+        if reply_lock := self.reply_locks.get(message.header.xid):
+            reply_lock.release()
+            del self.reply_locks[message.header.xid]
+
+        # Check if there are watchers for this message type
+        if message_type in self.watchers:
+            for watcher in self.watchers[message_type]:
+                try:
+                    watcher(message)
+                except Exception as e:
+                    print(f"Error in watcher for message type {message_type}: {e}")
+        
+        # Process normally with registered handlers
+        handler_func = self.ofp_handlers.get(message_type)
+        
+        if handler_func is not None:
+            handler_func(message)
+        else:
+            print(f"Unknown message type {message_type} received from switch {self.switch_id}")
+
     def _cleanup(self):
         """Clean up resources when connection closes."""
         self.running = False
@@ -145,57 +182,58 @@ class SwitchConnection:
             except:
                 pass
     
+    def send_and_wait_for_reply(
+        self,
+        message: GenericMessage,
+        timeout: float = -1
+    ) -> GenericMessage:
+        """Send a message and wait for reply."""
+        message_lock = threading.Lock()
+        message_lock.acquire()
+
+        self.reply_locks[int(message.header.xid)] = message_lock
+
+        self.send(message)
+
+        if not message_lock.acquire(timeout=timeout):
+            raise TimeoutError(f"Timeout waiting for reply to {message}")
+        message_lock.release()
+
+        return self.replies[int(message.header.xid)]
+
+    def send(self, message: GenericMessage):
+       """Send a message to the switch."""
+       self.conn.send(message.pack())
+
     def send_hello(self):
         """Send a Hello message to the switch."""
-        hello = Hello()
-        self.conn.send(hello.pack())
+        self.send(Hello())
         print("Sent Hello message to switch.")
     
     def send_features_request(self):
         """Send a Features Request message to the switch."""
-        features_request = FeaturesRequest(xid=0x87654321)
-        self.conn.send(features_request.pack())
+        self.send(FeaturesRequest())
         print("Sent Features Request to switch.")
     
-    def send_echo_request(self, data_to_echo: bytes = None):
+    def do_echo(
+        self,
+        data_to_echo: bytes = None,
+
+    ):
         """Send an Echo Request message to the switch."""
-        xid = 0x87654321
-        echo_request = EchoRequest(xid=xid)
-        if data_to_echo:
-            echo_request.data = data_to_echo
-        self.conn.send(echo_request.pack())
+        sent_echo = EchoRequest(data=data_to_echo)
+        reply = self.send_and_wait_for_reply(sent_echo)
+        reply.data
         print("Sent Echo Request to switch.")
 
     def send_multipart_request(self, req_type: MultipartType):
         """Send a multipart request to get port information."""
-        xid = 0x12345678
         multipart_request = MultipartRequest(
-            xid=xid,
             multipart_type=req_type,
             flags=0
         )
         self.conn.send(multipart_request.pack())
         print(f"Sent multipart request for type {req_type} to switch.")
-    
-    def process_message(self, message: GenericMessage):
-        """Process a single OpenFlow message."""
-        message_type = message.header.message_type
-        
-        # Check if there are watchers for this message type
-        if message_type in self.watchers:
-            for watcher in self.watchers[message_type]:
-                try:
-                    watcher(message)
-                except Exception as e:
-                    print(f"Error in watcher for message type {message_type}: {e}")
-        
-        # Process normally with registered handlers
-        handler_func = self.ofp_handlers.get(message_type)
-        
-        if handler_func is not None:
-            handler_func(message)
-        else:
-            print(f"Unknown message type {message_type} received from switch {self.switch_id}")
     
     def handle_packet_in(self, message: PacketIn):
         """Handle packet_in message."""
@@ -230,6 +268,8 @@ class SwitchConnection:
         self.send_features_request()
         # Send multipart request for port information after receiving hello
         self.send_multipart_request(MultipartType.OFPMP_PORT_DESC)
+        # Send multipart request for table features
+        self.send_multipart_request(MultipartType.OFPMP_TABLE_FEATURES)
     
     def handle_echo_request(self, message: EchoRequest):
         """Handle echo request message."""
@@ -268,7 +308,7 @@ class SwitchConnection:
         print(f"Port Description Reply received from switch {self.switch_id}")
         
         # Extract port information from the multipart reply
-        ports = []
+        ports = {}
         for port in message.body:
             port_info = {
                 'port_no': port.port_no,
@@ -283,13 +323,71 @@ class SwitchConnection:
                 'curr_speed': port.curr_speed,
                 'max_speed': port.max_speed
             }
-            ports.append(port_info)
+            ports[int(port.port_no)] = port_info
             print(f"Port {port.port_no}: {port.name} (MAC: {port.hw_addr})")
         
         # Store port information in switch info
         self.switch_info['ports'] = ports
         print(f"Total ports stored: {len(ports)}")
+
+    def handle_table_features_reply(self, message: MultipartReply):
+        """Handle table features reply message."""
+        print(f"Table Features Reply received from switch {self.switch_id}")
         
+        # Handle table features reply - store table information
+        tables = {}
+        for table in message.body:
+            table_info = {
+                'table_id': table.table_id,
+                'name': table.name,
+                'metadata_match': table.metadata_match,
+                'metadata_write': table.metadata_write,
+                'config': table.config,
+                'max_entries': table.max_entries,
+                'properties': []
+            }
+            
+            # Extract properties for each table
+            for table_property in table.properties:
+                property_info = {}
+                property_info['type'] = table_property.property_type
+                if isinstance(table_property, InstructionsProperty):
+                    property_info['instruction_ids'] = [inst.instruction_type for inst in table_property.instruction_ids]
+                elif isinstance(table_property, NextTablesProperty):
+                    property_info['next_table_ids'] = table_property.next_table_ids
+                elif isinstance(table_property, ActionsProperty):
+                    property_info['action_ids'] = [action.action_type for action in table_property.action_ids]
+                elif isinstance(table_property, OxmProperty):
+                    property_info['match_fields'] = [field.oxm_class for field in table_property.oxm_ids]
+                else:
+                    property_info['data'] = str(table_property)
+                
+                table_info['properties'].append(property_info)
+            
+            tables[int(table.table_id)] = table_info
+        
+        # Print detailed information about each table
+        for i, table in tables.items():
+            print(f"Table {i}:")
+            print(f"  ID: {table['table_id']}")
+            print(f"  Name: {table['name']}")
+            print(f"  Max Entries: {table['max_entries']}")
+            print(f"  Properties:")
+            for prop in table['properties']:
+                print(f"    Type: {prop['type']}")
+                if 'instruction_ids' in prop:
+                    print(f"      Instructions: {prop['instruction_ids']}")
+                if 'action_ids' in prop:
+                    print(f"      Actions: {prop['action_ids']}")
+                if 'match_fields' in prop:
+                    print(f"      Match Fields: {prop['match_fields']}")
+                if 'next_table_ids' in prop:
+                    print(f"      Next Tables: {prop['next_table_ids']}")
+        # Store table information in switch info
+        self.switch_info['tables'] = tables
+        print(f"Total tables stored: {len(tables)}")
+
+
     def handle_port_stats_reply(self, message: MultipartReply):
         """Handle port statistics reply message."""
         print(f"Port stats reply received from switch {self.switch_id}")
