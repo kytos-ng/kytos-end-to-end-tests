@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from collections import defaultdict
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 
 # Import pyof modules for OpenFlow v0x04
@@ -86,25 +87,21 @@ class SwitchConnection:
             Type.OFPT_ERROR: self.handle_error,
             Type.OFPT_PACKET_IN: self.handle_packet_in,
             Type.OFPT_BARRIER_REPLY: self.handle_barrier_reply,
-            Type.OFPT_FEATURES_REPLY: self.handle_features_reply,
             Type.OFPT_ECHO_REQUEST: self.handle_echo_request,
-            Type.OFPT_ECHO_REPLY: self.handle_echo_reply,
             Type.OFPT_MULTIPART_REPLY: self.handle_multipart_reply,
-            Type.OFPT_PORT_STATUS: self.handle_port_status,
         }
         
         self.ofpmp_handlers = {
-            MultipartType.OFPMP_PORT_DESC: self.handle_port_desc_reply,
-            MultipartType.OFPMP_PORT_STATS: self.handle_port_stats_reply,
-            MultipartType.OFPMP_TABLE_FEATURES: self.handle_table_features_reply,
         }
     
         # Watchers for specific message types
         self.watchers = defaultdict(list)
 
         # Handle replies
-        self.reply_locks = dict[int, threading.Lock]()
-        self.replies = dict[int, GenericMessage]()
+        self.reply_futures = dict[int, Future]()
+
+        # Executor
+        self.executor = ThreadPoolExecutor(max_workers=40)
 
     def start(self):
         """Start the connection thread."""
@@ -141,25 +138,27 @@ class SwitchConnection:
         """Process a single OpenFlow message."""
         message_type = message.header.message_type
 
-        if reply_lock := self.reply_locks.get(message.header.xid):
-            reply_lock.release()
-            del self.reply_locks[message.header.xid]
+        print(f"Switch {self.switch_id} received xid {int(message.header.xid)}")
+
+        if reply_future := self.reply_futures.get(int(message.header.xid)):
+            print(f"Completing future for {int(message.header.xid)}")
+            if reply_future.set_running_or_notify_cancel():
+                reply_future.set_result(message)
+            del self.reply_futures[int(message.header.xid)]
 
         # Check if there are watchers for this message type
         if message_type in self.watchers:
             for watcher in self.watchers[message_type]:
-                try:
-                    watcher(message)
-                except Exception as e:
-                    print(f"Error in watcher for message type {message_type}: {e}")
+                self.executor.submit(watcher, message)
         
         # Process normally with registered handlers
         handler_func = self.ofp_handlers.get(message_type)
         
         if handler_func is not None:
-            handler_func(message)
+            self.executor.submit(handler_func, message)
         else:
-            print(f"Unknown message type {message_type} received from switch {self.switch_id}")
+            pass
+            # print(f"Unknown message type {message_type} received from switch {self.switch_id}")
 
     def _cleanup(self):
         """Clean up resources when connection closes."""
@@ -172,6 +171,16 @@ class SwitchConnection:
         # Remove from controller's clients list
         if self.switch_id in self.controller.clients:
             del self.controller.clients[self.switch_id]
+
+        # Cancel all futures with an connection closed exception
+        for future in self.reply_futures.values():
+            future.set_exception(ConnectionError("Connection closed."))
+
+        self.executor.shutdown(
+            wait=True,
+            cancel_futures=True
+        )
+        self.reply_futures.clear()
     
     def stop(self):
         """Stop the connection."""
@@ -185,21 +194,17 @@ class SwitchConnection:
     def send_and_wait_for_reply(
         self,
         message: GenericMessage,
-        timeout: float = -1
+        timeout: float = None
     ) -> GenericMessage:
         """Send a message and wait for reply."""
-        message_lock = threading.Lock()
-        message_lock.acquire()
 
-        self.reply_locks[int(message.header.xid)] = message_lock
+        reply_future = Future()
+
+        self.reply_futures[int(message.header.xid)] = reply_future
 
         self.send(message)
 
-        if not message_lock.acquire(timeout=timeout):
-            raise TimeoutError(f"Timeout waiting for reply to {message}")
-        message_lock.release()
-
-        return self.replies[int(message.header.xid)]
+        return reply_future.result(timeout)
 
     def send(self, message: GenericMessage):
        """Send a message to the switch."""
@@ -209,107 +214,52 @@ class SwitchConnection:
         """Send a Hello message to the switch."""
         self.send(Hello())
         print("Sent Hello message to switch.")
-    
-    def send_features_request(self):
-        """Send a Features Request message to the switch."""
-        self.send(FeaturesRequest())
-        print("Sent Features Request to switch.")
-    
+
     def do_echo(
         self,
         data_to_echo: bytes = None,
-
+        timeout: float = None,
     ):
         """Send an Echo Request message to the switch."""
         sent_echo = EchoRequest(data=data_to_echo)
-        reply = self.send_and_wait_for_reply(sent_echo)
-        reply.data
-        print("Sent Echo Request to switch.")
-
-    def send_multipart_request(self, req_type: MultipartType):
-        """Send a multipart request to get port information."""
-        multipart_request = MultipartRequest(
-            multipart_type=req_type,
-            flags=0
+        reply: EchoReply = self.send_and_wait_for_reply(
+            sent_echo,
+            timeout
         )
-        self.conn.send(multipart_request.pack())
-        print(f"Sent multipart request for type {req_type} to switch.")
-    
-    def handle_packet_in(self, message: PacketIn):
-        """Handle packet_in message."""
-        self.controller.packet_count += 1
-        self.controller.packet_reasons[int(message.reason)] += 1
-        
-        print(f"Packet-in received from switch {self.switch_id}: buffer_id={message.buffer_id}, total_len={message.total_len}, table={message.table_id}, reason={message.reason}")
-        print(f"Total packet-ins so far: {self.controller.packet_count}")
-        print(f"Reason distribution: {dict(self.controller.packet_reasons)}")
-    
-    def handle_features_reply(self, message: FeaturesReply):
-        """Handle features reply message."""
+        assert reply.data == sent_echo.data
+
+    def do_features_request(self):
+        """Send a Features Request message to the switch."""
+        print(f"Sending features request to switch {self.switch_id}")
+        reply: FeaturesReply = self.send_and_wait_for_reply(FeaturesRequest())
         print(f"Features reply received from switch {self.switch_id}")
-        
+                
         # Store switch info
         switch_info = self.switch_info
-        switch_info['dpid'] = message.datapath_id
-        switch_info['n_buffers'] = message.n_buffers
-        switch_info['n_tables'] = message.n_tables
-        switch_info['auxiliary_id'] = message.auxiliary_id
-        switch_info['capabilities'] = message.capabilities
+        switch_info['dpid'] = reply.datapath_id
+        switch_info['n_buffers'] = reply.n_buffers
+        switch_info['n_tables'] = reply.n_tables
+        switch_info['auxiliary_id'] = reply.auxiliary_id
+        switch_info['capabilities'] = reply.capabilities
         
-        print(f"Switch DPID: {message.datapath_id}")
-        print(f"Buffers: {message.n_buffers}")
-        print(f"Tables: {message.n_tables}")
-        print(f"Auxiliary ID: {message.auxiliary_id}")
-        print(f"Capabilities: {message.capabilities}")
+        print(f"Switch DPID: {reply.datapath_id}")
+        print(f"Buffers: {reply.n_buffers}")
+        print(f"Tables: {reply.n_tables}")
+        print(f"Auxiliary ID: {reply.auxiliary_id}")
+        print(f"Capabilities: {reply.capabilities}")
 
-    def handle_hello(self, message: Hello):
-        """Handle hello message."""
-        print(f"Hello message received from switch {self.switch_id}")
-        self.send_features_request()
-        # Send multipart request for port information after receiving hello
-        self.send_multipart_request(MultipartType.OFPMP_PORT_DESC)
-        # Send multipart request for table features
-        self.send_multipart_request(MultipartType.OFPMP_TABLE_FEATURES)
-    
-    def handle_echo_request(self, message: EchoRequest):
-        """Handle echo request message."""
-        print(f"Echo request received from switch {self.switch_id}")
-        # Create and send echo reply with same data
-        echo_reply = EchoReply(xid=message.header.xid)
-        if hasattr(message, 'data') and message.data:
-            echo_reply.data = message.data
-        self.conn.send(echo_reply.pack())
-        print(f"Sent Echo Reply to switch {self.switch_id}")
-    
-    def handle_echo_reply(self, message: EchoReply):
-        """Handle echo reply message."""
-        print(f"Echo reply received from switch {self.switch_id}")
-    
-    def handle_error(self, message: Header):
-        """Handle error message."""
-        print(f"Error message received from switch {self.switch_id}")
-    
-    def handle_barrier_reply(self, message: BarrierReply):
-        """Handle barrier reply message."""
-        print(f"Barrier reply received from switch {self.switch_id}")
-
-    def handle_multipart_reply(self, message: MultipartReply):
-        """Handle multipart reply message."""
-        # Look up the specific handler for this multipart type
-        handler_func = self.ofpmp_handlers.get(message.multipart_type)
-        if handler_func is not None:
-            # Call handler with just the message parameter
-            handler_func(message)
-        else:
-            print(f"No handler for multipart type: {message.multipart_type}")
-
-    def handle_port_desc_reply(self, message: MultipartReply):
-        """Handle port description reply message."""
+    def do_port_desc_request(self):
+        """Send a port description request to the switch."""
+        print(f"Sending Port Description Request to switch {self.switch_id}")
+        reply: MultipartReply = self.send_and_wait_for_reply(
+            MultipartRequest(
+                multipart_type=MultipartType.OFPMP_PORT_DESC
+            )
+        )
         print(f"Port Description Reply received from switch {self.switch_id}")
-        
         # Extract port information from the multipart reply
         ports = {}
-        for port in message.body:
+        for port in reply.body:
             port_info = {
                 'port_no': port.port_no,
                 'hw_addr': port.hw_addr,
@@ -330,13 +280,19 @@ class SwitchConnection:
         self.switch_info['ports'] = ports
         print(f"Total ports stored: {len(ports)}")
 
-    def handle_table_features_reply(self, message: MultipartReply):
-        """Handle table features reply message."""
+    def do_table_features_request(self):
+        """Send a Table Features Request to get table features."""
+        print(f"Sending Table Features Request to switch {self.switch_id}")
+        reply: MultipartReply = self.send_and_wait_for_reply(
+            MultipartRequest(
+                multipart_type=MultipartType.OFPMP_TABLE_FEATURES
+            )
+        )
         print(f"Table Features Reply received from switch {self.switch_id}")
-        
+
         # Handle table features reply - store table information
         tables = {}
-        for table in message.body:
+        for table in reply.body:
             table_info = {
                 'table_id': table.table_id,
                 'name': table.name,
@@ -358,7 +314,10 @@ class SwitchConnection:
                 elif isinstance(table_property, ActionsProperty):
                     property_info['action_ids'] = [action.action_type for action in table_property.action_ids]
                 elif isinstance(table_property, OxmProperty):
-                    property_info['match_fields'] = [field.oxm_class for field in table_property.oxm_ids]
+                    property_info['match_fields'] = [
+                        (field.oxm_class, field.oxm_field_and_mask >> 1)
+                        for field in table_property.oxm_ids
+                    ]
                 else:
                     property_info['data'] = str(table_property)
                 
@@ -387,16 +346,47 @@ class SwitchConnection:
         self.switch_info['tables'] = tables
         print(f"Total tables stored: {len(tables)}")
 
+    def handle_packet_in(self, message: PacketIn):
+        """Handle packet_in message."""
+        self.controller.packet_count += 1
+        self.controller.packet_reasons[int(message.reason)] += 1
+        
+        print(f"Packet-in received from switch {self.switch_id}: buffer_id={message.buffer_id}, total_len={message.total_len}, table={message.table_id}, reason={message.reason}")
+        print(f"Total packet-ins so far: {self.controller.packet_count}")
+        print(f"Reason distribution: {dict(self.controller.packet_reasons)}")
 
-    def handle_port_stats_reply(self, message: MultipartReply):
-        """Handle port statistics reply message."""
-        print(f"Port stats reply received from switch {self.switch_id}")
+    def handle_hello(self, message: Hello):
+        """Handle hello message."""
+        print(f"Hello message received from switch {self.switch_id}")
+        self.do_features_request()
+        self.do_port_desc_request()
+        self.do_table_features_request()
     
-    def handle_port_status(self, message: PortStatus):
-        """Handle port status change message."""
-        print(f"Port status message received from switch {self.switch_id}")
-        # This is a generic handler that will be overridden by watchers
-        pass
+    def handle_echo_request(self, message: EchoRequest):
+        """Handle echo request message."""
+        print(f"Echo request received from switch {self.switch_id}")
+        # Create and send echo reply with same data
+        echo_reply = EchoReply(xid=message.header.xid, data=message.data)
+        self.conn.send(echo_reply.pack())
+        print(f"Sent Echo Reply to switch {self.switch_id}")
+    
+    def handle_error(self, message: Header):
+        """Handle error message."""
+        print(f"Error message received from switch {self.switch_id}")
+    
+    def handle_barrier_reply(self, message: BarrierReply):
+        """Handle barrier reply message."""
+        print(f"Barrier reply received from switch {self.switch_id}")
+
+    def handle_multipart_reply(self, message: MultipartReply):
+        """Handle multipart reply message."""
+        # Look up the specific handler for this multipart type
+        handler_func = self.ofpmp_handlers.get(message.multipart_type)
+        if handler_func is not None:
+            # Call handler with just the message parameter
+            handler_func(message)
+        else:
+            print(f"No handler for multipart type: {message.multipart_type}")
 
     @contextmanager
     def watch(self, message_type, listener_func=None):
