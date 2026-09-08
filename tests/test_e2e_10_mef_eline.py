@@ -592,17 +592,16 @@ class TestE2EMefEline:
 
         time.sleep(10)
 
-        # Each switch must have BASIC_FLOWS + 02 for the EVC:
-        #  - 2 for current path (ingress + egress)
-        #  - (there will be no failover path)
+        # The UNI switches (s1, s3) hold 3 EVC flows: ingress, egress and
+        # the pre-installed backup standby (EP041)
         s1, s2, s3 = self.net.net.get('s1', 's2', 's3')
         flows_s1 = s1.dpctl('dump-flows')
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
 
-        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 3, flows_s1
         assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
-        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 2, flows_s3
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 3, flows_s3
 
         # Command to up/down links to test if back-up path is taken
         self.net.net.configLinkStatus('s1', 's2', 'down')
@@ -633,9 +632,10 @@ class TestE2EMefEline:
         self.net.net.configLinkStatus('s1', 's2', 'up')
 
         assert ', 0% packet loss,' in result
-        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2
-        assert len(flows_s2.splitlines()) == BASIC_FLOWS
-        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 2
+        # the primary stays installed after the swap onto backup (EP041)
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 3
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2
+        assert len(flows_s3.splitlines()) == BASIC_FLOWS + 3
 
     def test_055_delete_evc_after_restart_kytos_and_no_switch_reconnected(self):
         api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -1331,14 +1331,21 @@ class TestE2EMefEline:
 
         assert data['active'] is False
         assert data['enabled'] is True
-        assert not data['current_path']
+        # kept on a full failure: only the ingress is dropped (EP041)
+        assert data['current_path']
+        assert data['current_path'][0]['status'] == 'DOWN'
 
         current_path = []
         for _path in data['current_path']:
             current_path.append({"endpoint_a": {"id": _path['endpoint_a']['id']},
                           "endpoint_b": {"id": _path['endpoint_b']['id']}})
     
-        expected_path = []
+        expected_path = [
+            {
+                "endpoint_a": {"id": "00:00:00:00:00:00:00:01:3"},
+                "endpoint_b": {"id": "00:00:00:00:00:00:00:02:2"}
+            }
+        ]
 
         assert current_path == expected_path
 
@@ -2178,13 +2185,13 @@ class TestE2EMefEline:
         assert not data["active"]
         assert data["current_path"]
 
-        # shutdown NNI too, current_path should be gone too
+        # shutdown NNI too, current_path is kept (EP041)
         self.net.net.configLinkStatus('s3', 's1', 'down')
         time.sleep(10)
         response = requests.get(api_url + evc1)
         data = response.json()
         assert not data["active"]
-        assert not data["current_path"]
+        assert data["current_path"]
 
         # bring up UNI a, it shouldn't activate yet, since NNI is down
         self.net.net.configLinkStatus('s1', 'h11', 'up')
@@ -2192,7 +2199,7 @@ class TestE2EMefEline:
         response = requests.get(api_url + evc1)
         data = response.json()
         assert not data["active"]
-        assert not data["current_path"]
+        assert data["current_path"]
 
         # bring up NNI, it should activate
         self.net.net.configLinkStatus('s3', 's1', 'up')
@@ -2209,7 +2216,7 @@ class TestE2EMefEline:
         response = requests.get(api_url + evc1)
         data = response.json()
         assert not data["active"]
-        assert not data["current_path"]
+        assert data["current_path"]
 
         # bring up NNI, it shouldn't activate since UNI is still down
         self.net.net.configLinkStatus('s3', 's1', 'up')

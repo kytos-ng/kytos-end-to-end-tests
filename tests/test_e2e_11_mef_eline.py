@@ -94,8 +94,9 @@ class TestE2EMefEline:
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
         flows_s4 = s4.dpctl('dump-flows')
-        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
-        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        # the UNI switches keep the old primary installed after the swap (EP041)
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 3, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 3, flows_s2
         assert len(flows_s3.splitlines()) == BASIC_FLOWS + 2, flows_s3
         assert len(flows_s4.splitlines()) == BASIC_FLOWS + 2, flows_s4
 
@@ -157,8 +158,9 @@ class TestE2EMefEline:
         flows_s2 = s2.dpctl('dump-flows')
         flows_s3 = s3.dpctl('dump-flows')
         flows_s4 = s4.dpctl('dump-flows')
-        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
-        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        # the UNI switches keep the old primary installed after the swap (EP041)
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 3, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 3, flows_s2
         assert len(flows_s3.splitlines()) == BASIC_FLOWS + 2, flows_s3
         assert len(flows_s4.splitlines()) == BASIC_FLOWS + 2, flows_s4
 
@@ -219,8 +221,9 @@ class TestE2EMefEline:
         flows_s3 = s3.dpctl('dump-flows')
         flows_s4 = s4.dpctl('dump-flows')
 
-        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 2, flows_s1
-        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 2, flows_s2
+        # the UNI switches keep the old primary installed after the swap (EP041)
+        assert len(flows_s1.splitlines()) == BASIC_FLOWS + 3, flows_s1
+        assert len(flows_s2.splitlines()) == BASIC_FLOWS + 3, flows_s2
         assert len(flows_s3.splitlines()) == BASIC_FLOWS + 2, flows_s3
         assert len(flows_s4.splitlines()) == BASIC_FLOWS + 2, flows_s4
 
