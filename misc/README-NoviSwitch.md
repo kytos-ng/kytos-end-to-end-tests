@@ -22,6 +22,8 @@ Before running the end-to-end tests, some environment variables need to be confi
 
 - ``NOVISETTINGS``: this variable is **optional** and when set should be a JSON encoded string or file containing more information about the switches, which allows for instance to have different names for each switch. Example: ``export NOVISETTINGS='{"vNovi01": {"ip": "192.168.56.101"}, "vNovi02": {"ip": "192.168.56.102"}}'``
 
+- ``CUSTOM_SLEEP_TIME``: use this variable to define a longer sleep delay time (in seconds) so that the virtual Noviflow switches can wait more. We've learn that virtual Noviflow switches take a long time to apply FlowMod remove operations, which could ended up impacting tests like `test_085_create_and_remove_ten_circuit_concurrently` and `test_080_create_and_remove_ten_circuits_ten_times`. Suggestion is to use `CUSTOM_SLEEP_TIME=60` when running with NoviSwitch
+
 ## Running end-to-end tests with NoviSwitch
 
 Overall steps are described below:
@@ -50,5 +52,5 @@ kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --co
 # temporary while fixing issues with Kafka events timeout
 kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- bash -c 'sed -ri "s/LINGER_MS = .*/LINGER_MS = 0/g; s/KAFKA_TIMELIMIT = .*/KAFKA_TIMELIMIT = 10/g" $NAPPS_PATH/var/lib/kytos/napps/kytos/kafka_events/settings.py'
 
-kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- tmux new-session -d -s kytos-tests -e SWITCH_CLASS=NoviSwitch -e NOVIPASS=noviflow -e NOVIUSER=superuser -e NOVISWITCHES="$NOVISWITCHES" -e RERUNS=4 bash -c 'cd kytos-end-to-end-tests/; ./kytos-init.sh 2>&1 | tee /results-kytos-e2e.txt'
+kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- tmux new-session -d -s kytos-tests -e SWITCH_CLASS=NoviSwitch -e NOVIPASS=noviflow -e NOVIUSER=superuser -e NOVISWITCHES="$NOVISWITCHES" -e CUSTOM_SLEEP_TIME=60 -e RERUNS=4 bash -c 'cd kytos-end-to-end-tests/; ./kytos-init.sh 2>&1 | tee /results-kytos-e2e.txt'
 ```
