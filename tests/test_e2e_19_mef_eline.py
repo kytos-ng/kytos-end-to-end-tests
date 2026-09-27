@@ -94,6 +94,13 @@ def assert_not_deployed(path: list[dict]) -> None:
     assert all(v is None for v in path_s_vlans(path)), path_s_vlans(path)
 
 
+def redeploy_evc(evc_id: str, wait: int = 10) -> None:
+    response = requests.patch(
+        KYTOS_API + "/mef_eline/v2/evc/" + evc_id + "/redeploy")
+    assert response.status_code == 202, response.text
+    time.sleep(wait)
+
+
 def update_evc(evc_id: str, payload: dict, wait: int = 10) -> None:
     response = requests.patch(
         KYTOS_API + "/mef_eline/v2/evc/" + evc_id, json=payload)
@@ -865,3 +872,171 @@ class TestE2EMefEline:
             "primary_path": new_primary, "backup_path": new_backup})
 
         self._assert_dual_redeployed(evc_id, baseline, new_primary, new_backup)
+
+    def test_028_single_dynamic_link_up_recovers_onto_escape(self):
+        """A deactivated EVC whose statics are still down recovers onto a
+        cold-computed escape when a link_up makes one reachable."""
+        evc_id = create_evc(self._static_payload(
+            "link up escape", self.PRIMARY_DISJOINT, dynamic=True))
+
+        # isolate s1: no path at all, the escape finds nothing
+        self.net.net.configLinkStatus("s1", "s2", "down")
+        self.net.net.configLinkStatus("s1", "s6", "down")
+        time.sleep(10)
+        data = get_evc(evc_id)
+        assert data["enabled"] and not data["active"], data
+        assert_deployed(data["primary_path"])
+
+        # only s1-s6 returns: primary stays down, but s1-s6-s5 is now usable
+        self.net.net.configLinkStatus("s1", "s6", "up")
+        time.sleep(10)
+
+        data = get_evc(evc_id)
+        assert data["active"], data
+        current = data["current_path"]
+        assert path_endpoint_ids(current) != \
+            path_endpoint_ids(self.PRIMARY_DISJOINT), data
+        assert self._uses(current, 1, 3), data      # s1-s6
+        assert not self._uses(current, 1, 2), data  # not s1-s2
+        assert not data["failover_path"], data
+        assert_deployed(data["primary_path"])
+        assert self._ping_h1_h5()
+
+    def test_029_dual_static_link_up_installs_missing_standby(self):
+        """A standby that could not be installed at deploy time (its links
+        were down) is installed when they come back up."""
+        self.net.net.configLinkStatus("s5", "s6", "down")
+        time.sleep(10)
+
+        evc_id = create_evc(self._static_payload(
+            "missing standby", self.PRIMARY_DISJOINT, self.BACKUP_DISJOINT))
+
+        data = get_evc(evc_id)
+        assert data["active"], data
+        assert path_endpoint_ids(data["current_path"]) == \
+            path_endpoint_ids(self.PRIMARY_DISJOINT)
+        assert_deployed(data["primary_path"])
+        assert_not_deployed(data["backup_path"])
+        before = flow_counts(evc_id)
+
+        self.net.net.configLinkStatus("s5", "s6", "up")
+        time.sleep(10)
+
+        data = get_evc(evc_id)
+        assert data["active"], data
+        assert path_endpoint_ids(data["current_path"]) == \
+            path_endpoint_ids(self.PRIMARY_DISJOINT)
+        assert_deployed(data["backup_path"])
+        assert sum(flow_counts(evc_id).values()) > sum(before.values())
+        assert self._ping_h1_h5()
+
+    def _restart_keeping_db(self):
+        """Restart kytosd without dropping the database, so the EVCs are
+        reloaded from storehouse instead of recreated."""
+        self.net.start_controller(clean_config=False, enable_all=True)
+        self.net.wait_switches_connect()
+        self.net.wait_kytos_links()
+        time.sleep(10)
+
+    def test_030_dual_static_restart_reloads_path_vlans(self):
+        """Both configured paths come back from the database still holding
+        their s_vlans, so the standby is recognized as installed and a link
+        down is still an ingress swap."""
+        baseline = all_available_tags()
+        evc_id = create_evc(self._static_payload(
+            "restart dual static",
+            self.PRIMARY_DISJOINT, self.BACKUP_DISJOINT))
+
+        data = get_evc(evc_id)
+        before_vlans = (path_s_vlans(data["primary_path"]),
+                        path_s_vlans(data["backup_path"]))
+        before_flows = flow_counts(evc_id)
+
+        self._restart_keeping_db()
+
+        data = get_evc(evc_id)
+        assert data["active"], data
+        assert path_endpoint_ids(data["current_path"]) == \
+            path_endpoint_ids(self.PRIMARY_DISJOINT), data
+        assert_deployed(data["primary_path"])
+        assert_deployed(data["backup_path"])
+        assert (path_s_vlans(data["primary_path"]),
+                path_s_vlans(data["backup_path"])) == before_vlans, data
+        assert flow_counts(evc_id) == before_flows
+        assert_only_paths_hold_vlans(
+            baseline, self.PRIMARY_DISJOINT, self.BACKUP_DISJOINT,
+            ignore={self.UNI_A, self.UNI_Z})
+        assert self._ping_h1_h5()
+
+        self.net.net.configLinkStatus("s1", "s2", "down")
+        time.sleep(10)
+
+        data = get_evc(evc_id)
+        assert data["active"], data
+        assert path_endpoint_ids(data["current_path"]) == \
+            path_endpoint_ids(self.BACKUP_DISJOINT), data
+        assert_deployed(data["primary_path"])
+        assert_deployed(data["backup_path"])
+        assert (path_s_vlans(data["primary_path"]),
+                path_s_vlans(data["backup_path"])) == before_vlans, data
+        assert self._ping_h1_h5()
+
+    def test_031_dual_static_redeploy_after_restart_frees_paths(self):
+        """A redeploy of a reloaded EVC tears down both configured paths and
+        allocates fresh s_vlans, with nothing left behind."""
+        baseline = all_available_tags()
+        evc_id = create_evc(self._static_payload(
+            "redeploy after restart",
+            self.PRIMARY_DISJOINT, self.BACKUP_DISJOINT))
+        data = get_evc(evc_id)
+        before_vlans = (path_s_vlans(data["primary_path"]),
+                        path_s_vlans(data["backup_path"]))
+
+        self._restart_keeping_db()
+        redeploy_evc(evc_id)
+
+        self._assert_dual_redeployed(
+            evc_id, baseline, self.PRIMARY_DISJOINT, self.BACKUP_DISJOINT)
+        data = get_evc(evc_id)
+        assert (path_s_vlans(data["primary_path"]),
+                path_s_vlans(data["backup_path"])) != before_vlans, data
+
+        # the reloaded paths held one tag each, not the old one too
+        delete_evc(evc_id)
+        assert all_available_tags() == baseline
+
+    def test_032_dual_static_uni_flap_while_parked_restores_forwarding(self):
+        """A UNI coming back while the EVC is parked reinstalls its ingress
+        rather than only flipping it back to active."""
+        evc_id = create_evc(self._static_payload(
+            "uni flap while parked",
+            self.PRIMARY_DISJOINT, self.BACKUP_DISJOINT))
+        assert self._ping_h1_h5()
+
+        # isolate s1: both configured paths go down and the EVC parks
+        self.net.net.configLinkStatus("s1", "s2", "down")
+        self.net.net.configLinkStatus("s1", "s6", "down")
+        time.sleep(10)
+        data = get_evc(evc_id)
+        assert not data["active"], data
+        assert_deployed(data["primary_path"])
+        assert_deployed(data["backup_path"])
+
+        # the UNI drops while parked, so the paths coming back cannot
+        # reactivate it yet
+        self.net.net.configLinkStatus("h1", "s1", "down")
+        time.sleep(10)
+        self.net.net.configLinkStatus("s1", "s2", "up")
+        self.net.net.configLinkStatus("s1", "s6", "up")
+        time.sleep(10)
+        data = get_evc(evc_id)
+        assert not data["active"], data
+
+        self.net.net.configLinkStatus("h1", "s1", "up")
+        time.sleep(10)
+
+        data = get_evc(evc_id)
+        assert data["active"], data
+        assert_deployed(data["primary_path"])
+        assert_deployed(data["backup_path"])
+        assert self._ping_h1_h5()
