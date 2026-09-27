@@ -1040,3 +1040,39 @@ class TestE2EMefEline:
         assert_deployed(data["primary_path"])
         assert_deployed(data["backup_path"])
         assert self._ping_h1_h5()
+
+    def test_033_dual_dynamic_escape_fails_swaps_to_recovered_backup(self):
+        """On an escape with the backup recovered and primary still down, the
+        escape failing swaps onto the kept backup, freeing the escape."""
+        baseline = all_available_tags()
+        evc_id = self._dual_dynamic_on_escape("dual dyn escape to backup")
+        data = get_evc(evc_id)
+        self._assert_on_escape(data)
+        # with s1-s2 and s5-s6 down the escape is s1-s6-s4-s5, s6-s4 being
+        # its only link on neither configured path
+        assert self._uses(data["current_path"], 6, 6) and \
+            self._uses(data["current_path"], 4, 4), data
+
+        # backup recovers: non-revertive, stays on the escape
+        self.net.net.configLinkStatus("s5", "s6", "up")
+        time.sleep(10)
+        escape = path_endpoint_ids(data["current_path"])
+        data = get_evc(evc_id)
+        assert data["active"], data
+        assert path_endpoint_ids(data["current_path"]) == escape, data
+
+        self.net.net.configLinkStatus("s4", "s6", "down")
+        time.sleep(10)
+
+        data = get_evc(evc_id)
+        assert data["active"], data
+        assert path_endpoint_ids(data["current_path"]) == \
+            path_endpoint_ids(self.BACKUP_DISJOINT), data
+        assert not data["failover_path"], data
+        assert_deployed(data["primary_path"])
+        assert_deployed(data["backup_path"])
+        # escape freed
+        assert_only_paths_hold_vlans(
+            baseline, self.PRIMARY_DISJOINT, self.BACKUP_DISJOINT,
+            ignore={self.UNI_A, self.UNI_Z})
+        assert self._ping_h1_h5()
