@@ -4,6 +4,7 @@ import os
 import re
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import requests
@@ -690,3 +691,147 @@ class TestE2ETelemtryINT:
         self.validate_switch_flows(
             evc_id, [(s1, 8), (s2, 0), (s3, 0), (s4, 0), (s5, 0), (s6, 8)]
         )
+
+    def config_int_collector_switches(self, s1, s6):
+        """Configure INT collector ports on s1 and s6."""
+        if os.environ.get("SWITCH_CLASS") == "NoviSwitch":
+            s1.novi_cmd(
+                "set config int monitor portno 3 ethdst 00:00:00:00:02:01 ethsrc 00:00:00:aa:aa:01 "
+                "ipv4src 10.255.255.1 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
+            )
+            s1.novi_cmd("set config int maxhopcount 10")
+            s6.novi_cmd(
+                "set config int monitor portno 3 ethdst 00:00:00:00:02:03 ethsrc 00:00:00:aa:aa:06 "
+                "ipv4src 10.255.255.6 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
+            )
+            s6.novi_cmd("set config int maxhopcount 10")
+        elif os.environ.get("SWITCH_CLASS") == "P4OfSwitch":
+            s1.cmd(
+                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:01 --dst_mac 00:00:00:00:02:01 "
+                "--src_ip 10.255.255.1 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
+            )
+            s6.cmd(
+                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:06 --dst_mac 00:00:00:00:02:03 "
+                "--src_ip 10.255.255.6 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
+            )
+        else:
+            pytest.fail(
+                "Unsupported SWITCH_CLASS. Supported values: NoviSwitch, P4OfSwitch"
+            )
+
+    def send_traffic_get_int(self, src, dst, collector_host):
+        """Ping, send TCP and UDP traffic from src to dst and return the INT
+        packets parsed from the collector running on collector_host."""
+        collector_host.cmd("truncate -s0 /tmp/int_collector.log")
+        result = src.cmd(f"ping -c1 {dst.test_ip}")
+        assert ", 0% packet loss," in result, result
+        for proto_flag in ("", "-u"):
+            src.cmd(
+                f"python3 {SCRIPTS_DIR}/sendp.py -i {src.test_intf} "
+                f"-s 127.0.0.1 -d {dst.test_ip} -c1 -p 80 {proto_flag}"
+            )
+        time.sleep(2)
+        output = collector_host.cmd("cat /tmp/int_collector.log")
+        return parse_int_collector(output), output
+
+    def assert_int_enabled(self, evc, h_a, h_z, collector_host):
+        """Assert INT data is being collected in both directions for an EVC."""
+        ip_a, ip_z = h_a.test_ip, h_z.test_ip
+        int_pkts, output = self.send_traffic_get_int(h_a, h_z, collector_host)
+        assert len(int_pkts) == 2, output
+        expected = ["sw_id=0x1,ig_port=1,eg_port=7,queue=0"]
+        assert int_pkts.get(f"ip_dst={ip_z} tcp_dport=80") == expected, evc + output
+        assert int_pkts.get(f"ip_dst={ip_z} udp_dport=80") == expected, evc + output
+        int_pkts, output = self.send_traffic_get_int(h_z, h_a, collector_host)
+        assert len(int_pkts) == 2, output
+        expected = ["sw_id=0x6,ig_port=1,eg_port=7,queue=0"]
+        assert int_pkts.get(f"ip_dst={ip_a} tcp_dport=80") == expected, evc + output
+        assert int_pkts.get(f"ip_dst={ip_a} udp_dport=80") == expected, evc + output
+
+    def assert_int_disabled(self, evc, h_a, h_z, collector_host):
+        """Assert traffic works but no INT data is collected for an EVC."""
+        for src, dst in ((h_a, h_z), (h_z, h_a)):
+            int_pkts, output = self.send_traffic_get_int(src, dst, collector_host)
+            assert len(int_pkts) == 0, evc + output
+
+    def test_002_enable_one_and_multiple_evc_ids(self):
+        # pylint: disable=too-many-locals
+        """Test POST v1/evc/enable with a payload with one and multiple evc_ids."""
+        h1, h2, h3 = self.net.net.get("h1", "h2", "h3")
+        s1, s2, s3, s4, s5, s6 = self.net.net.get("s1", "s2", "s3", "s4", "s5", "s6")
+
+        vlans = [198, 199, 200]
+        evc_ids = [self.create_evc(vlan) for vlan in vlans]
+
+        time.sleep(10)
+
+        # per EVC (h1, h3) host handles with their own vlan subinterface and IP
+        for vlan in vlans:
+            self.config_host_ip_vlan(h1, f"10.1.{vlan}.1", vlan)
+            self.config_host_ip_vlan(h3, f"10.1.{vlan}.3", vlan)
+        # config_host_ip_vlan stores the last test_ip/test_intf on the host obj,
+        # so keep lightweight per-vlan views to be used by the traffic helpers
+        views = {
+            vlan: (
+                SimpleNamespace(
+                    test_ip=f"10.1.{vlan}.1", test_intf=f"vlan{vlan}", cmd=h1.cmd
+                ),
+                SimpleNamespace(
+                    test_ip=f"10.1.{vlan}.3", test_intf=f"vlan{vlan}", cmd=h3.cmd
+                ),
+            )
+            for vlan in vlans
+        }
+
+        self.config_int_collector_switches(s1, s6)
+        h2.cmd(
+            f"python3 {SCRIPTS_DIR}/int_collector.py -i h2-eth1 -i h2-eth3 "
+            ">/tmp/int_collector.log 2>&1 &"
+        )
+
+        for evc_id in evc_ids:
+            self.validate_evc_paths(
+                evc_id,
+                [["00:00:00:00:00:00:00:01:7", "00:00:00:00:00:00:00:06:7"]],
+                [
+                    ["00:00:00:00:00:00:00:01:5", "00:00:00:00:00:00:00:05:5"],
+                    ["00:00:00:00:00:00:00:05:8", "00:00:00:00:00:00:00:06:8"],
+                ],
+            )
+            # mef_eline flows only
+            self.validate_switch_flows(
+                evc_id, [(s1, 3), (s2, 0), (s3, 0), (s4, 0), (s5, 2), (s6, 3)]
+            )
+
+        # no INT before enabling
+        for vlan in vlans:
+            self.assert_int_disabled(f"vlan {vlan}: ", *views[vlan], h2)
+
+        api_url = KYTOS_API + "/kytos/telemetry_int/v1/evc/enable"
+
+        # payload with just one evc id: only the first EVC has INT enabled
+        response = requests.post(api_url, json={"evc_ids": [evc_ids[0]]}, timeout=5)
+        assert response.status_code == 201, response.text
+
+        time.sleep(15)
+
+        self.assert_int_enabled("vlan 198: ", *views[198], h2)
+        self.assert_int_disabled("vlan 199: ", *views[199], h2)
+        self.assert_int_disabled("vlan 200: ", *views[200], h2)
+
+        int_flows = [(s1, 12), (s2, 0), (s3, 0), (s4, 0), (s5, 6), (s6, 12)]
+        mef_flows = [(s1, 3), (s2, 0), (s3, 0), (s4, 0), (s5, 2), (s6, 3)]
+        self.validate_switch_flows(evc_ids[0], int_flows)
+        self.validate_switch_flows(evc_ids[1], mef_flows)
+        self.validate_switch_flows(evc_ids[2], mef_flows)
+
+        # payload with multiple evc ids: the remaining EVCs get INT enabled
+        response = requests.post(api_url, json={"evc_ids": evc_ids[1:]}, timeout=5)
+        assert response.status_code == 201, response.text
+
+        time.sleep(15)
+
+        for vlan in vlans:
+            self.assert_int_enabled(f"vlan {vlan}: ", *views[vlan], h2)
+        for evc_id in evc_ids:
+            self.validate_switch_flows(evc_id, int_flows)
