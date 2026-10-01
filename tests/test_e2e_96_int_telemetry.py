@@ -190,11 +190,30 @@ class TestE2ETelemetryINTFlows:
                 )
                 assert response.status_code == 201, response.text
 
-        expected = [
-            f"{dpid}:{pp_src}"
-            for dpid, unis in PROXY_PORTS.items()
-            for pp_src, _ in unis.values()
-        ]
+        # the loops are ignored by of_lldp, so the "looped" metadata that
+        # telemetry_int needs to find the proxy port destination isn't set by it
+        # (unless the loop was detected before being ignored), set it here
+        response = requests.get(f"{KYTOS_API}/kytos/topology/v3/interfaces", timeout=5)
+        interfaces = response.json()["interfaces"]
+        expected = []
+        for dpid, unis in PROXY_PORTS.items():
+            for pp_src, pp_dst in unis.values():
+                intf_id = f"{dpid}:{pp_src}"
+                expected.append(intf_id)
+                if "looped" in interfaces[intf_id]["metadata"]:
+                    continue
+                response = requests.post(
+                    f"{KYTOS_API}/kytos/topology/v3/interfaces/{intf_id}/metadata",
+                    json={
+                        "looped": {
+                            "port_numbers": [pp_src, pp_dst],
+                            "detected_at": "2026-01-01T00:00:00",
+                        }
+                    },
+                    timeout=5,
+                )
+                assert response.status_code == 201, response.text
+
         data = {}
         for _ in range(30):
             response = requests.get(
@@ -207,7 +226,7 @@ class TestE2ETelemetryINTFlows:
             ):
                 return
             time.sleep(2)
-        pytest.fail(f"Proxy ports weren't detected as looped and active: {expected}")
+        pytest.fail(f"Proxy ports weren't looped and active: {expected}")
 
     def create_evc(self, vlan_id, uni_a, uni_z, **kwargs):
         """Create an EVC, return its ID."""
