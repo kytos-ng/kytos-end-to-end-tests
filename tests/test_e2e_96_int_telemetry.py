@@ -243,12 +243,13 @@ class TestE2ETelemetryINTFlows:
         assert response.status_code == 201, response.text
         return response.json()["circuit_id"]
 
-    def create_inter_evc(self, vlan_id):
-        """Create an inter-switch EVC s1:1 -- s6:1 over the direct s1:7 -- s6:7 link."""
+    def create_inter_evc(self, vlan_id, uni=1):
+        """Create an inter-switch EVC s1:uni -- s6:uni over the direct
+        s1:7 -- s6:7 link."""
         return self.create_evc(
             vlan_id,
-            f"{S1}:1",
-            f"{S6}:1",
+            f"{S1}:{uni}",
+            f"{S6}:{uni}",
             primary_path=[
                 {
                     "endpoint_a": {"id": f"{S1}:{INTER_LINK_PORT}"},
@@ -291,18 +292,18 @@ class TestE2ETelemetryINTFlows:
                 return match["dl_vlan"]
         pytest.fail(f"s-vlan of EVC {evc_id} on {dpid}:{nni_port} not found")
 
-    def expected_inter_int_flows(self, evc_id, vlan):
-        """Expected INT flows of an inter EVC s1:1 -- s6:1 without hops."""
+    def expected_inter_int_flows(self, evc_id, vlan, uni=1):
+        """Expected INT flows of an inter EVC s1:uni -- s6:uni without hops."""
         s_vlan = self.get_s_vlan(evc_id, S1, INTER_LINK_PORT)
         expected = {}
         for dpid in (S1, S6):
-            pp_src, pp_dst = PROXY_PORTS[dpid][1]
+            pp_src, pp_dst = PROXY_PORTS[dpid][uni]
             expected[dpid] = (
                 # INT source, from the UNI to the NNI
-                expected_source_flows(1, vlan, INTER_LINK_PORT)
+                expected_source_flows(uni, vlan, INTER_LINK_PORT)
                 # INT sink, from the NNI to the proxy port and then the UNI
                 + expected_pre_proxy_sink_flows(INTER_LINK_PORT, s_vlan, pp_src)
-                + expected_pos_proxy_sink_flows(pp_dst, vlan, 1)
+                + expected_pos_proxy_sink_flows(pp_dst, vlan, uni)
             )
         return expected
 
@@ -1081,3 +1082,136 @@ class TestE2ETelemetryINTFlows:
         self.disable_int([ids[1]], force=True)
         self.assert_int_flows(ids[1], {})
         self.wait_compare({})
+
+    #####################################################
+    ## Proxy port (external loop) down: fall back to mef_eline
+    #####################################################
+
+    def set_proxy_port_loop_status(self, dpid, uni_port, status):
+        """Set the status of the external loop used as proxy port by a UNI
+        and wait until the loop link is in this status on Kytos."""
+        pp_src, pp_dst = PROXY_PORTS[dpid][uni_port]
+        switch = f"s{int(dpid[-2:], 16)}"
+        self.net.configLinkStatus(switch, switch, status, port1=pp_src, port2=pp_dst)
+        self.net.wait_kytos_links(
+            switch, switch, port1=pp_src, port2=pp_dst, status=status.upper()
+        )
+
+    def wait_telemetry_metadata(self, evc_id, status, status_reason, timeout=60):
+        """Wait until the EVC telemetry metadata has the given status and reason."""
+        telemetry = None
+        for _ in range(timeout):
+            telemetry = self.get_telemetry_metadata(evc_id)
+            if (
+                telemetry
+                and telemetry["enabled"] is True
+                and telemetry["status"] == status
+                and telemetry["status_reason"] == status_reason
+            ):
+                return
+            time.sleep(1)
+        pytest.fail(
+            f"EVC {evc_id} telemetry metadata not {status} {status_reason}: {telemetry}"
+        )
+
+    def assert_fallback_to_mef_eline(self, evcs):
+        """Assert INT flows were removed and mef_eline flows are kept, with
+        INT still enabled but DOWN on the EVCs metadata."""
+        for evc_id in evcs:
+            self.wait_telemetry_metadata(evc_id, "DOWN", ["proxy_port_down"])
+            self.assert_int_flows(evc_id, {})
+            assert self.switches_int_flows([evc_id]) == {}
+            # mef_eline flows: 2 per switch on the path (inter), 2 (intra)
+            assert self.count_mef_eline_flows(evc_id) > 0
+
+    def assert_int_up(self, evc_id, expected):
+        """Assert INT flows are installed and the telemetry metadata is UP."""
+        self.wait_telemetry_metadata(evc_id, "UP", [])
+        self.assert_int_flows(evc_id, expected)
+
+    def test_050_inter_evcs_proxy_port_down_and_up(self):
+        """Test INT flows of the inter EVCs using a proxy port are removed when
+        the proxy port loop goes down (falling back to mef_eline) and installed
+        again when it goes up. EVCs using another proxy port aren't affected."""
+        # same UNIs (same proxy ports): affected. other UNIs: not affected
+        affected = [(self.create_inter_evc(361), 361), (self.create_inter_evc(362), 362)]
+        other = (self.create_inter_evc(363, uni=2), 363)
+        time.sleep(10)
+        self.enable_int([evc_id for evc_id, _ in affected] + [other[0]])
+
+        expected = {
+            evc_id: self.expected_inter_int_flows(evc_id, vlan)
+            for evc_id, vlan in affected
+        }
+        expected[other[0]] = self.expected_inter_int_flows(other[0], other[1], uni=2)
+        for evc_id, flows in expected.items():
+            self.assert_int_up(evc_id, flows)
+        mef_flows = {evc_id: self.count_mef_eline_flows(evc_id) for evc_id in expected}
+        int_flows = self.switches_int_flows(list(expected))
+
+        # proxy port of s6:1 goes down
+        self.set_proxy_port_loop_status(S6, 1, "down")
+
+        self.assert_fallback_to_mef_eline([evc_id for evc_id, _ in affected])
+        for evc_id, count in mef_flows.items():
+            assert self.count_mef_eline_flows(evc_id) == count
+        # the other EVC keeps INT
+        self.assert_int_up(other[0], expected[other[0]])
+        # INT is still enabled on all EVCs, only the status changed
+        assert sorted(self.list_int_evcs()) == sorted(expected)
+
+        # proxy port of s6:1 goes up
+        self.set_proxy_port_loop_status(S6, 1, "up")
+
+        for evc_id, flows in expected.items():
+            self.assert_int_up(evc_id, flows)
+        assert self.switches_int_flows(list(expected)) == int_flows
+
+    def test_051_intra_evcs_proxy_port_down_and_up(self):
+        """Test INT flows of intra EVCs are removed when any of their proxy port
+        loops goes down and installed again when it goes up."""
+        intra_s1 = (self.create_intra_evc(364, S1), S1, 364)
+        intra_s6 = (self.create_intra_evc(365, S6), S6, 365)
+        # inter EVC on UNI 1 doesn't use the proxy port of UNI 2
+        inter = (self.create_inter_evc(366), 366)
+        time.sleep(10)
+        self.enable_int([intra_s1[0], intra_s6[0], inter[0]])
+
+        expected = {
+            intra_s1[0]: self.expected_intra_int_flows(S1, 364),
+            intra_s6[0]: self.expected_intra_int_flows(S6, 365),
+            inter[0]: self.expected_inter_int_flows(inter[0], 366),
+        }
+        for evc_id, flows in expected.items():
+            self.assert_int_up(evc_id, flows)
+        int_flows = self.switches_int_flows(list(expected))
+
+        # proxy port of s1:2 goes down: only the intra EVC on s1 is affected
+        self.set_proxy_port_loop_status(S1, 2, "down")
+
+        self.assert_fallback_to_mef_eline([intra_s1[0]])
+        self.assert_int_up(intra_s6[0], expected[intra_s6[0]])
+        self.assert_int_up(inter[0], expected[inter[0]])
+
+        # proxy port of s1:2 goes up
+        self.set_proxy_port_loop_status(S1, 2, "up")
+
+        for evc_id, flows in expected.items():
+            self.assert_int_up(evc_id, flows)
+        assert self.switches_int_flows(list(expected)) == int_flows
+
+    def test_052_enable_int_with_proxy_port_down(self):
+        """Test enabling INT when a proxy port loop is down doesn't install INT
+        flows (mef_eline only), and they get installed once the loop is up."""
+        evc_id = self.create_inter_evc(367)
+        time.sleep(10)
+
+        self.set_proxy_port_loop_status(S1, 1, "down")
+        self.enable_int([evc_id])
+
+        self.assert_fallback_to_mef_eline([evc_id])
+        assert list(self.list_int_evcs()) == [evc_id]
+
+        self.set_proxy_port_loop_status(S1, 1, "up")
+
+        self.assert_int_up(evc_id, self.expected_inter_int_flows(evc_id, 367))
