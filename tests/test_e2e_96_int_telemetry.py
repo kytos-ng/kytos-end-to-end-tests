@@ -8,6 +8,7 @@ and a mix of both. Proxy ports are configured on all UNIs.
 
 import json
 import os
+import re
 import time
 
 import pytest
@@ -379,3 +380,124 @@ class TestE2ETelemetryINTFlows:
             self.assert_int_flows(evc_id, self.expected_inter_int_flows(evc_id, vlan))
         for evc_id, dpid, vlan in intra:
             self.assert_int_flows(evc_id, self.expected_intra_int_flows(dpid, vlan))
+
+    def disable_int(self, evc_ids, expected_status=200, **kwargs):
+        """Disable INT on the EVC ids with a single request, return the response."""
+        response = requests.post(
+            f"{KYTOS_API}/kytos/telemetry_int/v1/evc/disable",
+            json={"evc_ids": evc_ids, **kwargs},
+            timeout=10,
+        )
+        assert response.status_code == expected_status, response.text
+        return response
+
+    def list_int_evcs(self):
+        """GET /v1/evc, return the EVCs with INT enabled."""
+        response = requests.get(f"{KYTOS_API}/kytos/telemetry_int/v1/evc", timeout=10)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def get_telemetry_metadata(self, evc_id):
+        """Get the telemetry metadata of an EVC from mef_eline."""
+        response = requests.get(
+            f"{KYTOS_API}/kytos/mef_eline/v2/evc/{evc_id}", timeout=5
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["metadata"].get("telemetry")
+
+    def count_mef_eline_flows(self, evc_id):
+        """Count the installed mef_eline flows of an EVC."""
+        flows = self.get_stored_flows(evc_id, MEF_COOKIE_PREFIX)
+        return sum(len(fl) for fl in flows.values())
+
+    def create_evcs(self):
+        """Create 2 inter and 2 intra EVCs. Return a list of (evc_id, kind, dpid, vlan)
+        where kind is 'inter' or 'intra'."""
+        evcs = [
+            (self.create_inter_evc(331), "inter", None, 331),
+            (self.create_inter_evc(332), "inter", None, 332),
+            (self.create_intra_evc(333, S1), "intra", S1, 333),
+            (self.create_intra_evc(334, S6), "intra", S6, 334),
+        ]
+        time.sleep(10)
+        return evcs
+
+    def expected_int_flows(self, evc):
+        """Expected INT flows of an EVC created by create_evcs."""
+        evc_id, kind, dpid, vlan = evc
+        if kind == "inter":
+            return self.expected_inter_int_flows(evc_id, vlan)
+        return self.expected_intra_int_flows(dpid, vlan)
+
+    def assert_int_enabled_evcs(self, evcs):
+        """Assert INT flows are installed and metadata is UP for the EVCs."""
+        for evc in evcs:
+            self.assert_int_flows(evc[0], self.expected_int_flows(evc))
+            telemetry = self.get_telemetry_metadata(evc[0])
+            assert telemetry["enabled"] is True, telemetry
+            assert telemetry["status"] == "UP", telemetry
+
+    def assert_int_disabled_evcs(self, evcs):
+        """Assert INT flows were removed, mef_eline flows were kept and
+        telemetry metadata is DOWN/disabled for the EVCs."""
+        for evc in evcs:
+            self.assert_int_flows(evc[0], {})
+            telemetry = self.get_telemetry_metadata(evc[0])
+            assert telemetry["enabled"] is False, telemetry
+            assert telemetry["status"] == "DOWN", telemetry
+            assert telemetry["status_reason"] == ["disabled"], telemetry
+            assert self.count_mef_eline_flows(evc[0]) > 0
+
+    #####################################################
+    ## GET /v1/evc
+    #####################################################
+
+    def test_010_list_evcs_none_enabled(self):
+        """Test GET v1/evc when there aren't EVCs with INT."""
+        assert self.list_int_evcs() == {}
+
+        evcs = self.create_evcs()
+        time.sleep(2)
+        # EVCs exist on mef_eline but none has INT enabled
+        assert self.list_int_evcs() == {}
+        assert all(self.get_telemetry_metadata(evc[0]) is None for evc in evcs)
+
+    def test_011_list_evcs_enabled(self):
+        """Test GET v1/evc lists only the EVCs with INT enabled and follows
+        enable and disable operations."""
+        evcs = self.create_evcs()
+        ids = [evc[0] for evc in evcs]
+
+        # one EVC
+        self.enable_int([ids[0]])
+        self.assert_int_enabled_evcs(evcs[:1])
+        data = self.list_int_evcs()
+        assert list(data) == [ids[0]], data
+        telemetry = data[ids[0]]["metadata"]["telemetry"]
+        assert telemetry["enabled"] is True, telemetry
+        assert telemetry["status"] == "UP", telemetry
+        assert telemetry["status_reason"] == [], telemetry
+
+        # multiple EVCs, inter and intra
+        self.enable_int(ids[1:3])
+        self.assert_int_enabled_evcs(evcs[1:3])
+        data = self.list_int_evcs()
+        assert sorted(data) == sorted(ids[:3]), data
+        assert ids[3] not in data
+        for evc_id in ids[:3]:
+            assert data[evc_id]["id"] == evc_id
+            assert data[evc_id]["metadata"]["telemetry"]["enabled"] is True
+
+        # disabled EVC isn't listed anymore
+        self.disable_int([ids[1]])
+        self.assert_int_disabled_evcs(evcs[1:2])
+        data = self.list_int_evcs()
+        assert sorted(data) == sorted([ids[0], ids[2]]), data
+
+        # EVC deleted isn't listed
+        response = requests.delete(
+            f"{KYTOS_API}/kytos/mef_eline/v2/evc/{ids[0]}", timeout=5
+        )
+        assert response.status_code == 200, response.text
+        time.sleep(5)
+        assert list(self.list_int_evcs()) == [ids[2]]
