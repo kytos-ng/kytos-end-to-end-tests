@@ -501,3 +501,114 @@ class TestE2ETelemetryINTFlows:
         assert response.status_code == 200, response.text
         time.sleep(5)
         assert list(self.list_int_evcs()) == [ids[2]]
+
+    #####################################################
+    ## POST /v1/evc/disable
+    #####################################################
+
+    def test_020_disable_one_evc(self):
+        """Test disabling INT with a payload with just one evc_id."""
+        evcs = self.create_evcs()
+        self.enable_int([evc[0] for evc in evcs])
+        self.assert_int_enabled_evcs(evcs)
+
+        response = self.disable_int([evcs[0][0]])
+        assert response.json() == [evcs[0][0]], response.text
+
+        self.assert_int_disabled_evcs(evcs[:1])
+        # the other EVCs aren't affected
+        self.assert_int_enabled_evcs(evcs[1:])
+        assert sorted(self.list_int_evcs()) == sorted(evc[0] for evc in evcs[1:])
+
+    def test_021_disable_multiple_evcs(self):
+        """Test disabling INT with a payload with multiple evc_ids."""
+        evcs = self.create_evcs()
+        self.enable_int([evc[0] for evc in evcs])
+        self.assert_int_enabled_evcs(evcs)
+
+        # an inter and an intra EVC
+        to_disable = [evcs[1], evcs[2]]
+        response = self.disable_int([evc[0] for evc in to_disable])
+        assert sorted(response.json()) == sorted(evc[0] for evc in to_disable)
+
+        self.assert_int_disabled_evcs(to_disable)
+        self.assert_int_enabled_evcs([evcs[0], evcs[3]])
+        assert sorted(self.list_int_evcs()) == sorted([evcs[0][0], evcs[3][0]])
+
+    def test_022_disable_all_evcs_empty_payload(self):
+        """Test disabling INT with an empty evc_ids, which disables all INT EVCs."""
+        evcs = self.create_evcs()
+        self.enable_int([evc[0] for evc in evcs[:3]])
+        self.assert_int_enabled_evcs(evcs[:3])
+
+        response = self.disable_int([])
+        assert sorted(response.json()) == sorted(evc[0] for evc in evcs[:3])
+
+        self.assert_int_disabled_evcs(evcs[:3])
+        assert self.list_int_evcs() == {}
+        # the EVC that never had INT remains untouched
+        assert self.get_telemetry_metadata(evcs[3][0]) is None
+        assert self.get_int_flows(evcs[3][0]) == {}
+
+        # nothing else to disable
+        response = self.disable_int([])
+        assert response.json() == [], response.text
+
+    def test_023_disable_evc_without_int(self):
+        """Test disabling INT on an EVC without INT is a conflict, and that
+        a request with valid and invalid EVCs doesn't disable any EVC."""
+        evcs = self.create_evcs()
+        self.enable_int([evcs[0][0]])
+        self.assert_int_enabled_evcs(evcs[:1])
+
+        # EVC that never had INT
+        response = self.disable_int([evcs[1][0]], expected_status=409)
+        assert evcs[1][0] in response.text, response.text
+
+        # one EVC with INT, other without
+        self.disable_int([evcs[0][0], evcs[1][0]], expected_status=409)
+        self.assert_int_enabled_evcs(evcs[:1])
+
+        # EVC with INT already disabled
+        self.disable_int([evcs[0][0]])
+        self.assert_int_disabled_evcs(evcs[:1])
+        self.disable_int([evcs[0][0]], expected_status=409)
+
+    def test_024_disable_evc_not_found(self):
+        """Test disabling INT on an EVC that doesn't exist."""
+        evcs = self.create_evcs()
+        self.enable_int([evcs[0][0]])
+        self.assert_int_enabled_evcs(evcs[:1])
+
+        # single and multiple evc_ids
+        self.disable_int(["aaaaaaaaaaaaaa"], expected_status=404)
+        self.disable_int([evcs[0][0], "aaaaaaaaaaaaaa"], expected_status=404)
+        self.assert_int_enabled_evcs(evcs[:1])
+
+        # force bypasses the EVC not found validation
+        self.disable_int(["aaaaaaaaaaaaaa", evcs[0][0]], force=True)
+        self.assert_int_disabled_evcs(evcs[:1])
+
+    def test_025_disable_invalid_payload(self):
+        """Test disabling INT with an invalid payload."""
+        for payload in ({}, {"evc_ids": "abc"}, {"evc_ids": [1]}):
+            response = requests.post(
+                f"{KYTOS_API}/kytos/telemetry_int/v1/evc/disable",
+                json=payload,
+                timeout=5,
+            )
+            assert response.status_code == 400, response.text
+
+    def test_026_reenable_after_disable(self):
+        """Test INT can be enabled again after disabling it."""
+        evcs = self.create_evcs()
+        ids = [evc[0] for evc in evcs]
+        self.enable_int(ids)
+        self.assert_int_enabled_evcs(evcs)
+        self.disable_int(ids)
+        self.assert_int_disabled_evcs(evcs)
+        assert self.list_int_evcs() == {}
+
+        self.enable_int(ids)
+        self.assert_int_enabled_evcs(evcs)
+        assert sorted(self.list_int_evcs()) == sorted(ids)
