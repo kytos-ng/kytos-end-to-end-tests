@@ -843,3 +843,222 @@ class TestE2ETelemetryINTFlows:
         # empty evc_ids and there aren't INT EVCs
         self.redeploy_int([], expected_status=404)
         assert self.get_int_flows(evc_id) == {}
+
+    #####################################################
+    ## GET /v1/evc/compare
+    #####################################################
+
+    def compare_int_evcs(self):
+        """GET /v1/evc/compare, return a dict mapping EVC id to the response item."""
+        response = requests.get(
+            f"{KYTOS_API}/kytos/telemetry_int/v1/evc/compare", timeout=15
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert isinstance(data, list), data
+        return {item["id"]: item for item in data}
+
+    def set_telemetry_enabled_metadata(self, evc_id, enabled):
+        """Overwrite the telemetry metadata of an EVC via mef_eline, without
+        touching the flows."""
+        response = requests.post(
+            f"{KYTOS_API}/kytos/mef_eline/v2/evc/{evc_id}/metadata",
+            json={
+                "telemetry": {
+                    "enabled": enabled,
+                    "status": "UP" if enabled else "DOWN",
+                    "status_reason": [],
+                    "status_updated_at": "2026-01-01T00:00:00",
+                }
+            },
+            timeout=5,
+        )
+        assert response.status_code == 201, response.text
+
+    def delete_stored_int_flows(self, evc_id, flows):
+        """Delete INT flows (as returned by flow_manager stored_flows) from the
+        switches through flow_manager."""
+        flows_per_dpid = {}
+        for flow in flows:
+            flows_per_dpid.setdefault(flow["switch"], []).append(
+                {
+                    "cookie": flow["flow"]["cookie"],
+                    "cookie_mask": 0xFFFFFFFFFFFFFFFF,
+                    "table_id": flow["flow"]["table_id"],
+                    "match": flow["flow"]["match"],
+                }
+            )
+        for dpid, dpid_flows in flows_per_dpid.items():
+            response = requests.post(
+                f"{KYTOS_API}/kytos/flow_manager/v2/delete/{dpid}",
+                json={"flows": dpid_flows},
+                timeout=10,
+            )
+            assert response.status_code == 202, response.text
+
+    def all_stored_int_flows(self, evc_id):
+        """List all stored INT flows of an EVC."""
+        return [
+            flow
+            for flows in self.get_stored_flows(evc_id, INT_COOKIE_PREFIX).values()
+            for flow in flows
+        ]
+
+    def wait_int_flows_count(self, evc_id, count, timeout=30):
+        """Wait until the number of INT flows installed on the switches is count."""
+        total = None
+        for _ in range(timeout):
+            total = sum(
+                len(flows) for flows in self.switches_int_flows([evc_id]).values()
+            )
+            if total == count:
+                return
+            time.sleep(1)
+        pytest.fail(f"Expected {count} INT flows on switches for {evc_id}, got {total}")
+
+    def wait_compare(self, expected, timeout=30):
+        """Wait until the compare response reflects the expected
+        {evc_id: compare_reason}, return the last response."""
+        result = {}
+        for _ in range(timeout):
+            result = self.compare_int_evcs()
+            if {k: v["compare_reason"] for k, v in result.items()} == expected:
+                return result
+            time.sleep(1)
+        assert {k: v["compare_reason"] for k, v in result.items()} == expected
+        return result
+
+    def test_040_compare_consistent(self):
+        """Test GET v1/evc/compare is empty when INT EVCs and EVCs without INT
+        are all consistent."""
+        assert self.compare_int_evcs() == {}
+
+        evcs = self.create_evcs()
+        # none enabled, no INT flows
+        assert self.compare_int_evcs() == {}
+
+        self.enable_int([evc[0] for evc in evcs[:3]])
+        self.assert_int_enabled_evcs(evcs[:3])
+        assert self.compare_int_evcs() == {}
+
+        # disabled EVCs have no flows nor enabled metadata
+        self.disable_int([evcs[0][0]])
+        self.assert_int_disabled_evcs(evcs[:1])
+        assert self.compare_int_evcs() == {}
+
+    def test_041_compare_wrong_metadata_has_int_flows(self):
+        """Test GET v1/evc/compare reports EVCs with INT flows installed but
+        without INT enabled on the metadata."""
+        evcs = self.create_evcs()
+        ids = [evc[0] for evc in evcs]
+        self.enable_int(ids[:3])
+        self.assert_int_enabled_evcs(evcs[:3])
+        flows_before = self.switches_int_flows(ids)
+
+        # an inter and an intra EVC lose the telemetry enabled metadata
+        for evc_id in (ids[0], ids[2]):
+            self.set_telemetry_enabled_metadata(evc_id, False)
+
+        result = self.wait_compare(
+            {
+                ids[0]: ["wrong_metadata_has_int_flows"],
+                ids[2]: ["wrong_metadata_has_int_flows"],
+            }
+        )
+        assert result[ids[0]]["name"] == "Vlan_331", result
+        assert result[ids[2]]["name"] == "Vlan_333", result
+
+        # the flows are still on the switches, compare only reports
+        assert self.switches_int_flows(ids) == flows_before
+        for evc_id in (ids[0], ids[2]):
+            self.assert_int_flows(
+                evc_id, self.expected_int_flows(evcs[ids.index(evc_id)])
+            )
+
+    def test_042_compare_missing_some_int_flows(self):
+        """Test GET v1/evc/compare reports INT EVCs with fewer INT flows than
+        mef_eline flows."""
+        evcs = self.create_evcs()
+        ids = [evc[0] for evc in evcs]
+        self.enable_int(ids[:3])
+        self.assert_int_enabled_evcs(evcs[:3])
+
+        # inter EVC: all INT flows removed from the switches
+        inter_flows = self.all_stored_int_flows(ids[0])
+        assert len(inter_flows) == 14, inter_flows
+        self.delete_stored_int_flows(ids[0], inter_flows)
+        self.wait_int_flows_count(ids[0], 0)
+
+        # intra EVC (2 mef_eline flows): only 1 of the 10 INT flows is kept
+        intra_flows = self.all_stored_int_flows(ids[2])
+        assert len(intra_flows) == 10, intra_flows
+        self.delete_stored_int_flows(ids[2], intra_flows[1:])
+        self.wait_int_flows_count(ids[2], 1)
+        assert self.count_mef_eline_flows(ids[2]) == 2
+
+        result = self.wait_compare(
+            {
+                ids[0]: ["missing_some_int_flows"],
+                ids[2]: ["missing_some_int_flows"],
+            }
+        )
+        assert result[ids[0]]["name"] == "Vlan_331", result
+        assert result[ids[2]]["name"] == "Vlan_333", result
+
+        # the consistent INT EVC and the EVC without INT aren't reported, and
+        # compare doesn't fix the flows
+        assert ids[1] not in result and ids[3] not in result
+        self.assert_int_flows(ids[1], self.expected_int_flows(evcs[1]))
+        assert self.switches_int_flows([ids[0]]) == {}
+        self.wait_int_flows_count(ids[2], 1)
+
+    def test_043_compare_few_missing_int_flows_not_reported(self):
+        """Test GET v1/evc/compare only checks the minimum expected number of
+        flows (INT flows >= mef_eline flows): missing just one INT flow of an
+        inter EVC isn't reported, but the flow is really missing."""
+        evc_id = self.create_inter_evc(351)
+        time.sleep(10)
+        self.enable_int([evc_id])
+        self.assert_int_flows(evc_id, self.expected_inter_int_flows(evc_id, 351))
+        original = self.switches_int_flows([evc_id])
+
+        self.delete_stored_int_flows(evc_id, self.all_stored_int_flows(evc_id)[:1])
+        self.wait_int_flows_count(evc_id, 13)
+        assert self.switches_int_flows([evc_id]) != original
+
+        assert self.compare_int_evcs() == {}
+
+    def test_044_compare_multiple_inconsistent_evcs_and_fix(self):
+        """Test GET v1/evc/compare with multiple kinds of inconsistencies at
+        once, that compare is read-only and the EVCs are consistent after
+        fixing them with redeploy and (forced) disable."""
+        evcs = self.create_evcs()
+        ids = [evc[0] for evc in evcs]
+        self.enable_int(ids[:3])
+        self.assert_int_enabled_evcs(evcs[:3])
+
+        # ids[0]: missing flows, ids[1]: wrong metadata, ids[2]: consistent
+        self.delete_stored_int_flows(ids[0], self.all_stored_int_flows(ids[0]))
+        self.wait_int_flows_count(ids[0], 0)
+        self.set_telemetry_enabled_metadata(ids[1], False)
+
+        expected = {
+            ids[0]: ["missing_some_int_flows"],
+            ids[1]: ["wrong_metadata_has_int_flows"],
+        }
+        self.wait_compare(expected)
+        flows_before = self.switches_int_flows(ids)
+        # calling compare again changes nothing
+        self.wait_compare(expected)
+        assert self.switches_int_flows(ids) == flows_before
+
+        # redeploy fixes the missing flows
+        self.redeploy_int([ids[0]])
+        self.assert_int_flows(ids[0], self.expected_int_flows(evcs[0]))
+        self.wait_compare({ids[1]: ["wrong_metadata_has_int_flows"]})
+
+        # the EVC has no INT metadata, so disable requires force to remove flows
+        self.disable_int([ids[1]], expected_status=409)
+        self.disable_int([ids[1]], force=True)
+        self.assert_int_flows(ids[1], {})
+        self.wait_compare({})
