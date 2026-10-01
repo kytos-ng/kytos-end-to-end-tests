@@ -612,3 +612,234 @@ class TestE2ETelemetryINTFlows:
         self.enable_int(ids)
         self.assert_int_enabled_evcs(evcs)
         assert sorted(self.list_int_evcs()) == sorted(ids)
+
+    #####################################################
+    ## PATCH /v1/evc/redeploy
+    #####################################################
+
+    def redeploy_int(self, evc_ids, expected_status=201):
+        """Redeploy INT on the EVC ids with a single request, return the response."""
+        response = requests.patch(
+            f"{KYTOS_API}/kytos/telemetry_int/v1/evc/redeploy",
+            json={"evc_ids": evc_ids},
+            timeout=15,
+        )
+        assert response.status_code == expected_status, response.text
+        return response
+
+    def switch_int_flows(self, dpid, evc_id):
+        """Dump the INT flows of an EVC from the switch, with their actions.
+
+        Return a dict mapping the flow (table, priority and match, without
+        counters or duration) to its actions string."""
+        switch = self.net.net.get(f"s{int(dpid[-2:], 16)}")
+        flows = {}
+        for line in switch.dpctl("dump-flows").splitlines():
+            if f"cookie=0x{INT_COOKIE_PREFIX}{evc_id}" not in line:
+                continue
+            table = re.search(r"table=(\d+)", line).group(1)
+            match, actions = line.split("priority=", 1)[1].split(" actions=", 1)
+            flows[(table, match.strip())] = actions.strip()
+        return flows
+
+    def switches_int_flows(self, evc_ids):
+        """Dump the INT flows of EVCs from all switches that have them."""
+        return {
+            (dpid, evc_id): flows
+            for evc_id in evc_ids
+            for dpid in (f"00:00:00:00:00:00:00:0{i}" for i in range(1, 7))
+            if (flows := self.switch_int_flows(dpid, evc_id))
+        }
+
+    def wait_switches_int_flows(self, evc_ids, condition, timeout=30):
+        """Wait until condition(snapshot) is true, return the last snapshot."""
+        snapshot = {}
+        for _ in range(timeout):
+            snapshot = self.switches_int_flows(evc_ids)
+            if condition(snapshot):
+                break
+            time.sleep(1)
+        return snapshot
+
+    def find_stored_int_flow(self, evc_id, dpid, table_id, in_port):
+        """Find a stored INT flow on flow_manager."""
+        for flow in self.get_stored_flows(evc_id, INT_COOKIE_PREFIX)[dpid]:
+            match = flow["flow"]["match"]
+            if flow["flow"]["table_id"] == table_id and match["in_port"] == in_port:
+                return flow["flow"]
+        pytest.fail(f"INT flow not found {evc_id} {dpid} table {table_id} {in_port}")
+
+    def tamper_flow_actions(self, evc_id, dpid, table_id, in_port, wrong_port):
+        """Overwrite a INT flow via flow_manager with a wrong output action."""
+        flow = self.find_stored_int_flow(evc_id, dpid, table_id, in_port)
+        flow = {
+            k: v
+            for k, v in flow.items()
+            if k in ("owner", "cookie", "match", "table_id", "table_group", "priority")
+        }
+        flow["instructions"] = [
+            {
+                "instruction_type": "apply_actions",
+                "actions": [{"action_type": "output", "port": wrong_port}],
+            }
+        ]
+        response = requests.post(
+            f"{KYTOS_API}/kytos/flow_manager/v2/flows/{dpid}",
+            json={"flows": [flow]},
+            timeout=10,
+        )
+        assert response.status_code == 202, response.text
+
+    def delete_flow(self, evc_id, dpid, table_id, in_port):
+        """Delete a INT flow via flow_manager."""
+        flow = self.find_stored_int_flow(evc_id, dpid, table_id, in_port)
+        response = requests.post(
+            f"{KYTOS_API}/kytos/flow_manager/v2/delete/{dpid}",
+            json={
+                "flows": [
+                    {
+                        "cookie": flow["cookie"],
+                        "cookie_mask": 0xFFFFFFFFFFFFFFFF,
+                        "table_id": flow["table_id"],
+                        "match": flow["match"],
+                    }
+                ]
+            },
+            timeout=10,
+        )
+        assert response.status_code == 202, response.text
+
+    def tamper_and_redeploy(self, evcs, redeploy_ids):
+        """Tamper each EVC INT flows, check on the switches, redeploy and
+        check the flows were fixed.
+
+        evcs: list of (evc_id, tampers) where tampers is a list of
+        (dpid, table_id, in_port, wrong_port); wrong_port None deletes the flow.
+        """
+        evc_ids = [evc_id for evc_id, _ in evcs]
+        original = self.switches_int_flows(evc_ids)
+        assert original, "INT flows not found on the switches"
+
+        # tamper flows through flow_manager
+        for evc_id, tampers in evcs:
+            for dpid, table_id, in_port, port in tampers:
+                if port is None:
+                    self.delete_flow(evc_id, dpid, table_id, in_port)
+                else:
+                    self.tamper_flow_actions(evc_id, dpid, table_id, in_port, port)
+
+        # the flows on the switches are actually wrong
+        def tamper_problems(snapshot):
+            problems = []
+            for evc_id, tampers in evcs:
+                for dpid, table_id, in_port, port in tampers:
+                    key = (dpid, evc_id)
+                    current = snapshot.get(key, {})
+                    candidates = [
+                        flow_key
+                        for flow_key in original[key]
+                        if flow_key[0] == str(table_id)
+                        and f"in_port={in_port}" in flow_key[1].split(",")
+                    ]
+                    assert candidates, f"flow not found {key} {table_id} {in_port}"
+                    for flow_key in candidates:
+                        if port is None and flow_key in current:
+                            problems.append(f"not deleted: {key} {flow_key}")
+                        elif port is not None and (
+                            f"output:{port}" not in current.get(flow_key, "")
+                            or current[flow_key] == original[key][flow_key]
+                        ):
+                            problems.append(f"not changed: {key} {flow_key}")
+            return problems
+
+        snapshot = self.wait_switches_int_flows(
+            evc_ids, lambda s: not tamper_problems(s)
+        )
+        assert not tamper_problems(snapshot), f"{tamper_problems(snapshot)}\n{snapshot}"
+        assert snapshot != original
+
+        # redeploy
+        response = self.redeploy_int(redeploy_ids)
+        assert sorted(response.json()) == sorted(redeploy_ids), response.text
+
+        # the actions on the switches are the same as originally
+        fixed = self.wait_switches_int_flows(evc_ids, lambda s: s == original)
+        assert fixed == original, f"original: {original}\nafter redeploy: {fixed}"
+
+    def test_030_redeploy_one_inter_evc(self):
+        """Test redeploy with one evc_id after tampering an inter EVC flows."""
+        evc_id = self.create_inter_evc(341)
+        time.sleep(10)
+        self.enable_int([evc_id])
+        expected = self.expected_inter_int_flows(evc_id, 341)
+        self.assert_int_flows(evc_id, expected)
+
+        pp_dst = PROXY_PORTS[S6][1][1]
+        self.tamper_and_redeploy(
+            [
+                (
+                    evc_id,
+                    [
+                        # source: wrong output port
+                        (S1, TABLE_EVPL, 1, 3),
+                        # sink after proxy: flow removed
+                        (S6, TABLE_EVPL, pp_dst, None),
+                    ],
+                )
+            ],
+            [evc_id],
+        )
+        self.assert_int_flows(evc_id, expected)
+        telemetry = self.get_telemetry_metadata(evc_id)
+        assert telemetry["enabled"] is True and telemetry["status"] == "UP"
+
+    def test_031_redeploy_multiple_evcs(self):
+        """Test redeploy with multiple evc_ids after tampering inter and intra
+        EVCs flows."""
+        inter_id = self.create_inter_evc(342)
+        intra_id = self.create_intra_evc(343, S1)
+        untouched_id = self.create_intra_evc(344, S6)
+        time.sleep(10)
+        self.enable_int([inter_id, intra_id, untouched_id])
+        expected = {
+            inter_id: self.expected_inter_int_flows(inter_id, 342),
+            intra_id: self.expected_intra_int_flows(S1, 343),
+            untouched_id: self.expected_intra_int_flows(S6, 344),
+        }
+        for evc_id, flows in expected.items():
+            self.assert_int_flows(evc_id, flows)
+
+        untouched_before = self.switches_int_flows([untouched_id])
+        self.tamper_and_redeploy(
+            [
+                (
+                    inter_id,
+                    [
+                        (S6, TABLE_EVPL, 1, 3),
+                        (S1, TABLE_EVPL, PROXY_PORTS[S1][1][1], None),
+                    ],
+                ),
+                (
+                    intra_id,
+                    [
+                        (S1, TABLE_EVPL, 2, 3),
+                        (S1, TABLE_EVPL, PROXY_PORTS[S1][1][1], None),
+                    ],
+                ),
+            ],
+            [inter_id, intra_id],
+        )
+        for evc_id, flows in expected.items():
+            self.assert_int_flows(evc_id, flows)
+        # EVC not part of the redeploy is untouched
+        assert self.switches_int_flows([untouched_id]) == untouched_before
+
+    def test_032_redeploy_evc_without_int(self):
+        """Test redeploy on an EVC without INT, or without any INT EVCs."""
+        evc_id = self.create_inter_evc(345)
+        time.sleep(10)
+
+        self.redeploy_int([evc_id], expected_status=409)
+        # empty evc_ids and there aren't INT EVCs
+        self.redeploy_int([], expected_status=404)
+        assert self.get_int_flows(evc_id) == {}
