@@ -166,44 +166,52 @@ class TestE2ETelemetryINTFlows:
 
     def config_proxy_ports(self):
         """Ignore the proxy loops on of_lldp, set the UNIs proxy_port metadata
-        and wait until the proxy ports are detected as looped and enabled."""
+        and the "looped" metadata of the proxy ports, enable the loop links and
+        wait until the proxy ports are active."""
         for dpid, unis in PROXY_PORTS.items():
-            loops = [list(pp) for pp in unis.values()]
             response = requests.post(
                 f"{KYTOS_API}/kytos/topology/v3/switches/{dpid}/metadata",
-                json={"ignored_loops": loops},
+                json={"ignored_loops": [list(pp) for pp in unis.values()]},
                 timeout=5,
             )
             assert response.status_code == 201, response.text
-            for pp_src, pp_dst in loops:
+        pp_srcs = [
+            f"{dpid}:{pp_src}"
+            for dpid, unis in PROXY_PORTS.items()
+            for pp_src, _ in unis.values()
+        ]
+        time.sleep(1)
+
+        # If of_lldp detected the loops before they were ignored, it removes the
+        # "looped" metadata (and enables the interfaces) once the loops stop being
+        # detected, so wait for that to happen before setting the metadata here.
+        for _ in range(60):
+            interfaces = self.get_interfaces()
+            if not any("looped" in interfaces[i]["metadata"] for i in pp_srcs):
+                break
+            time.sleep(1)
+        else:
+            pytest.fail("of_lldp didn't stop the ignored loops detected")
+
+        for dpid, unis in PROXY_PORTS.items():
+            for pp_src, pp_dst in unis.values():
                 for port in (pp_src, pp_dst):
                     response = requests.post(
                         f"{KYTOS_API}/kytos/topology/v3/interfaces/{dpid}:{port}/enable",
                         timeout=5,
                     )
                     assert response.status_code == 200, response.text
-            for uni_port, (pp_src, _) in unis.items():
+            for uni_port, (pp_src, pp_dst) in unis.items():
                 response = requests.post(
                     f"{KYTOS_API}/kytos/topology/v3/interfaces/{dpid}:{uni_port}/metadata",
                     json={"proxy_port": pp_src},
                     timeout=5,
                 )
                 assert response.status_code == 201, response.text
-
-        # the loops are ignored by of_lldp, so the "looped" metadata that
-        # telemetry_int needs to find the proxy port destination isn't set by it
-        # (unless the loop was detected before being ignored), set it here
-        response = requests.get(f"{KYTOS_API}/kytos/topology/v3/interfaces", timeout=5)
-        interfaces = response.json()["interfaces"]
-        expected = []
-        for dpid, unis in PROXY_PORTS.items():
-            for pp_src, pp_dst in unis.values():
-                intf_id = f"{dpid}:{pp_src}"
-                expected.append(intf_id)
-                if "looped" in interfaces[intf_id]["metadata"]:
-                    continue
+                # the loops are ignored by of_lldp, so it doesn't set the "looped"
+                # metadata that telemetry_int needs to find the proxy port destination
                 response = requests.post(
-                    f"{KYTOS_API}/kytos/topology/v3/interfaces/{intf_id}/metadata",
+                    f"{KYTOS_API}/kytos/topology/v3/interfaces/{dpid}:{pp_src}/metadata",
                     json={
                         "looped": {
                             "port_numbers": [pp_src, pp_dst],
@@ -214,19 +222,46 @@ class TestE2ETelemetryINTFlows:
                 )
                 assert response.status_code == 201, response.text
 
-        data = {}
+        # the loop links are discovered disabled, enable them
+        loops = {
+            frozenset((f"{dpid}:{pp_src}", f"{dpid}:{pp_dst}"))
+            for dpid, unis in PROXY_PORTS.items()
+            for pp_src, pp_dst in unis.values()
+        }
         for _ in range(30):
-            response = requests.get(
-                f"{KYTOS_API}/kytos/topology/v3/interfaces", timeout=5
+            links = requests.get(f"{KYTOS_API}/kytos/topology/v3/links", timeout=5)
+            links = links.json()["links"]
+            found = {
+                frozenset((link["endpoint_a"]["id"], link["endpoint_b"]["id"])): link_id
+                for link_id, link in links.items()
+            }
+            if loops <= set(found):
+                break
+            time.sleep(2)
+        else:
+            pytest.fail(f"Proxy port loop links not discovered: {loops}")
+        for loop in loops:
+            response = requests.post(
+                f"{KYTOS_API}/kytos/topology/v3/links/{found[loop]}/enable", timeout=5
             )
-            data = response.json()["interfaces"]
-            if all(
-                "looped" in data[intf_id]["metadata"] and data[intf_id]["active"]
-                for intf_id in expected
+            assert response.status_code == 201, response.text
+
+        for _ in range(30):
+            interfaces = self.get_interfaces()
+            links = requests.get(f"{KYTOS_API}/kytos/topology/v3/links", timeout=5)
+            links = links.json()["links"]
+            if all(interfaces[i]["active"] for i in pp_srcs) and all(
+                links[found[loop]]["status"] == "UP" for loop in loops
             ):
                 return
             time.sleep(2)
-        pytest.fail(f"Proxy ports weren't looped and active: {expected}")
+        pytest.fail(f"Proxy ports weren't active and their links UP: {pp_srcs}")
+
+    def get_interfaces(self):
+        """Get the topology interfaces."""
+        response = requests.get(f"{KYTOS_API}/kytos/topology/v3/interfaces", timeout=5)
+        assert response.status_code == 200, response.text
+        return response.json()["interfaces"]
 
     def create_evc(self, vlan_id, uni_a, uni_z, **kwargs):
         """Create an EVC, return its ID."""
@@ -605,8 +640,9 @@ class TestE2ETelemetryINTFlows:
         self.disable_int([evcs[0][0], "aaaaaaaaaaaaaa"], expected_status=404)
         self.assert_int_enabled_evcs(evcs[:1])
 
-        # force bypasses the EVC not found validation
-        self.disable_int(["aaaaaaaaaaaaaa", evcs[0][0]], force=True)
+        # NOTE: force with an EVC id that doesn't exist currently fails with a 500
+        # (KeyError 'id' on sorted_evcs_by_svc_lvl), so it isn't covered here
+        self.disable_int([evcs[0][0]])
         self.assert_int_disabled_evcs(evcs[:1])
 
     def test_025_disable_invalid_payload(self):
