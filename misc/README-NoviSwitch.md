@@ -39,7 +39,7 @@ kubectl --kubeconfig $KUBECONFIG rollout status deployment/kytos-regression-test
 
 kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container mongo1 -- mongosh --eval 'db.getSiblingDB("kytosdb").createUser({user: "kytosuser", pwd: "kytospass", roles: [ { role: "dbAdmin", db: "kytosdb" } ]})'
 
-kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- git clone --branch feat/adding-noviswitch-backend https://github.com/kytos-ng/kytos-end-to-end-tests
+kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- git clone https://github.com/kytos-ng/kytos-end-to-end-tests
 
 kubectl --kubeconfig $KUBECONFIG exec -it deployment/kytos-regression-tests --container kytos -- bash -c "service rsyslog start; service openvswitch-switch start; apt-get update; apt-get install -y python3-paramiko openssh-client"
 
