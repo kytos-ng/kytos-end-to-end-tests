@@ -23,10 +23,7 @@ class TestE2EMefEline:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name="ring")
-        cls.net.start()
-        cls.net.restart_kytos_clean()
-        cls.net.wait_switches_connect()
-        time.sleep(5)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):

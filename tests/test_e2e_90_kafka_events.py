@@ -34,8 +34,7 @@ class TestE2EKafkaEvents:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.wait_switches_connect()
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):

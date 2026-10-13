@@ -1,5 +1,6 @@
 import json
 import re
+import os
 import time
 from datetime import datetime, timedelta
 
@@ -36,15 +37,14 @@ class TestE2EMefEline:
         # Start the controller setting an environment in
         # which all elements are disabled in a clean setting
         self.net.restart_kytos_clean()
+        self.net.wait_kytos_links(status="UP")
+        self.net.wait_kytos_buff_low_usage()
         time.sleep(10)
 
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER)
-        cls.net.start()
-        cls.net.restart_kytos_clean()
-        cls.net.wait_switches_connect()
-        time.sleep(5)
+        cls.net.start(start_controller=False)
 
     @classmethod
     def teardown_class(cls):
@@ -740,7 +740,7 @@ class TestE2EMefEline:
                 response = requests.delete(api_url)
                 assert response.status_code == 200, response.text
 
-            time.sleep(60)
+            time.sleep(int(os.environ.get("CUSTOM_SLEEP_TIME", 10)))
 
             # make sure the circuits were deleted
             api_url = KYTOS_API + '/mef_eline/v2/evc/'
@@ -803,7 +803,7 @@ class TestE2EMefEline:
             response = requests.delete(api_url)
             assert response.status_code == 200, response.text
 
-        time.sleep(60)
+        time.sleep(int(os.environ.get("CUSTOM_SLEEP_TIME", 10)))
 
         # make sure the circuits were deleted
         api_url = KYTOS_API + '/mef_eline/v2/evc/'

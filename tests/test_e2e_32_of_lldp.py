@@ -12,7 +12,7 @@ class TestE2EOfLLDPLoopDetection:
     @classmethod
     def setup_class(cls):
         cls.net = NetworkTest(CONTROLLER, topo_name='looped')
-        cls.net.start()
+        cls.net.start(start_controller=False)
         cls.net.restart_kytos_clean()
         time.sleep(10)
 

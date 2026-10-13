@@ -7,6 +7,7 @@ import struct
 
 from scapy.all import BitField, Packet, XBitField, sniff
 from scapy.layers.inet import IP, TCP, UDP
+from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Dot1Q, Ether
 
 verbose = False
@@ -96,18 +97,28 @@ def pkt_diam(pkt):
     if verbose:
         next_hdr.show()
     ip = next_hdr.getlayer(IP)
-    if ip.proto == 6:
+    ip_len = 20
+    if ip is None:
+        ip_len = 40
+        ip = next_hdr.getlayer(IPv6)
+        if not ip:
+            print(f"error unknown frame, skipping...")
+            return
+    if ip.version == 4 and ip.proto == 6:
         l4_size = 20
-        l4_ports = f"tcp_sport={ip[TCP].sport} tcp_dport={ip[TCP].dport}"
-    elif ip.proto == 17:
+        l4_str = f"tcp_sport={ip[TCP].sport} tcp_dport={ip[TCP].dport}"
+    elif ip.version == 4 and ip.proto == 17:
         l4_size = 8
-        l4_ports = f"udp_sport={ip[UDP].sport} udp_dport={ip[UDP].dport}"
+        l4_str = f"udp_sport={ip[UDP].sport} udp_dport={ip[UDP].dport}"
     else:
-        print(f"error unknown ip_proto {ip.proto}")
-        return
+        l4_size = 0
+        try:
+            l4_str = ip.payload.name
+        except:
+            l4_str = "UnknownProto"
     # print("len l4 == %d" % len(l4.payload))
 
-    int_shim = IntShim(bytes(ip)[20 + l4_size :])
+    int_shim = IntShim(bytes(ip)[ip_len + l4_size :])
 
     if verbose:
         int_shim.show()
@@ -120,7 +131,7 @@ def pkt_diam(pkt):
     data = int_metadata.load[:int_size_len]
     int_stack = show_int_md(data, int_metadata)
     print(
-        f"pkt_len={len(inner_ether)} ip_src={ip.src} ip_dst={ip.dst} {l4_ports}",
+        f"pkt_len={len(inner_ether)} ip_src={ip.src} ip_dst={ip.dst} {l4_str}",
         f" int_stack={';'.join(int_stack)}",
         flush=True,
     )
@@ -199,9 +210,14 @@ def show_int_md(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--interface", action="append", type=str)
+    parser.add_argument("-F", "--file", type=str)
     parser.add_argument("-f", "--filter", type=str, default="")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
     verbose = args.verbose
-    sniff(iface=args.interface, filter=args.filter, store=0, prn=pkt_diam)
-    # sniff(offline=sys.argv[1], filter="", store=0, prn=pkt_diam)
+    if args.interface:
+        sniff(iface=args.interface, filter=args.filter, store=0, prn=pkt_diam)
+    elif args.file:
+        sniff(offline=args.file, filter=args.filter, store=0, prn=pkt_diam)
+    else:
+        parser.error("you must provide --interface or --file")
