@@ -100,12 +100,15 @@ def path_s_vlans(path: list[dict]) -> list:
 def assert_deployed(path: list[dict]) -> None:
     """A kept-installed path carries an s_vlan on every link."""
     vlans = path_s_vlans(path)
-    assert path and all(v is not None for v in vlans), (path, vlans)
+    assert path and all(v is not None for v in vlans), \
+        f"path not deployed, s_vlans {vlans} of {path}"
 
 
 def assert_not_deployed(path: list[dict]) -> None:
     """A never-deployed path has no s_vlan on any link."""
-    assert all(v is None for v in path_s_vlans(path)), path_s_vlans(path)
+    vlans = path_s_vlans(path)
+    assert all(v is None for v in vlans), \
+        f"path deployed, s_vlans {vlans} of {path}"
 
 
 def redeploy_evc(evc_id: str, wait: int = 10) -> None:
@@ -133,7 +136,8 @@ def assert_only_paths_hold_vlans(baseline: dict, *paths, ignore=()) -> None:
     now = all_available_tags()
     for intf, avail in baseline.items():
         if intf not in held:
-            assert now[intf] == avail, (intf, avail, now[intf])
+            assert now[intf] == avail, \
+                f"{intf} holds vlans, {avail} became {now[intf]}"
 
 
 class TestE2EMefEline:
@@ -205,7 +209,6 @@ class TestE2EMefEline:
     def teardown_class(cls):
         cls.net.stop()
 
-
     def _ping_h1_h5(self, vlan: int = 100) -> bool:
         """Ping h1 <-> h5 over a vlan subinterface; return True on 0% loss."""
         h1, h5 = self.net.net.get("h1", "h5")
@@ -228,10 +231,13 @@ class TestE2EMefEline:
         uni_ports = {self.UNI_A.rsplit(":", 1)[0]: 1,
                      self.UNI_Z.rsplit(":", 1)[0]: 1}
         for dpid, flow in gone | new:
-            assert dpid in uni_ports, (dpid, flow)
+            assert dpid in uni_ports, \
+                f"a flow moved on {dpid}, not a UNI switch: {flow}"
             assert json.loads(flow)["match"].get("in_port") == \
-                uni_ports[dpid], (dpid, flow)
-        assert len(gone) == removed and len(new) == added, (gone, new)
+                uni_ports[dpid], f"a non ingress flow moved on {dpid}: {flow}"
+        assert len(gone) == removed and len(new) == added, \
+            f"expected {removed} removed and {added} added, " \
+            f"got removed {gone} added {new}"
 
     def _static_payload(self, name, primary, backup=None, dynamic=False):
         payload = {
@@ -284,7 +290,7 @@ class TestE2EMefEline:
 
         after = flow_counts(evc_id)
         assert after.get(self.DPID[6]) == before.get(self.DPID[6]), \
-            (before, after)
+            f"s6 flow count changed, before {before} after {after}"
         self._assert_only_ingress_moved(flows_before, flow_keys(evc_id))
         assert available_tags(nni) == avail
         assert self._ping_h1_h5()
@@ -315,12 +321,14 @@ class TestE2EMefEline:
         assert not self._ping_h1_h5()
 
         after = flow_counts(evc_id)
-        assert sum(after.values()) == sum(before.values()) - 2, (before, after)
+        assert sum(after.values()) == sum(before.values()) - 2, \
+            f"not only the 2 ingress went, before {before} after {after}"
         for dpid in set(before) | set(after):
             expected = before.get(dpid, 0)
             if dpid in (self.DPID[1], self.DPID[5]):
                 expected -= 1
-            assert after.get(dpid, 0) == expected, (dpid, before, after)
+            assert after.get(dpid, 0) == expected, \
+                f"{dpid} expected {expected}, before {before} after {after}"
 
         assert available_tags(nni) == avail
 
@@ -440,9 +448,10 @@ class TestE2EMefEline:
             path_endpoint_ids(self.PRIMARY_DISJOINT)
 
         after = flow_counts(evc_id)
-        assert sum(after.values()) == sum(before.values()), (before, after)
+        assert sum(after.values()) == sum(before.values()), \
+            f"flow count changed, before {before} after {after}"
         assert after.get(self.DPID[6]) == before.get(self.DPID[6]), \
-            (before, after)
+            f"s6 flow count changed, before {before} after {after}"
         self._assert_only_ingress_moved(flows_before, flow_keys(evc_id))
         assert available_tags(nni) == avail
         assert self._ping_h1_h5()
@@ -507,12 +516,14 @@ class TestE2EMefEline:
         assert data["current_path"], data
         assert_deployed(data["primary_path"])
         after = flow_counts(evc_id)
-        assert sum(after.values()) == sum(before.values()) - 2, (before, after)
+        assert sum(after.values()) == sum(before.values()) - 2, \
+            f"not only the 2 ingress went, before {before} after {after}"
         for dpid in set(before) | set(after):
             expected = before.get(dpid, 0)
             if dpid in (self.DPID[1], self.DPID[5]):
                 expected -= 1
-            assert after.get(dpid, 0) == expected, (dpid, before, after)
+            assert after.get(dpid, 0) == expected, \
+                f"{dpid} expected {expected}, before {before} after {after}"
         assert available_tags(nni) == avail
 
         self.net.net.configLinkStatus("s1", "s2", "up")
@@ -1437,7 +1448,7 @@ class TestE2EMefEline:
         assert path_s_vlans(get_evc(evc_id)["primary_path"]) != before_vlans
         after_flows = flow_keys(evc_id)
         assert len(after_flows) == len(before_flows), \
-            (before_flows, after_flows)
+            f"flow count changed, before {before_flows} after {after_flows}"
         assert after_flows != before_flows
 
         # the reinstalled standby forwards too
