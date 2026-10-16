@@ -27,9 +27,11 @@ class TestE2ETopologyMetadataInjection:
     document ``{"a": {"b": {"c": ...}}}`` on reload instead of being kept as a
     literal key.
 
-    The expected secure behaviour is that a dotted key is either rejected or
-    stored and returned verbatim as a single literal key, never silently turned
-    into a nested structure, and that the request never triggers a 500.
+    The expected secure behaviour is that a crafted key (one containing dots,
+    or one that looks like a Mongo operator such as ``$set``/``$where``) is
+    either rejected or stored and returned verbatim as a single literal key,
+    never silently turned into a nested structure or evaluated as an operator,
+    and that the request never triggers a 500.
     """
 
     net = None
@@ -202,3 +204,47 @@ class TestE2ETopologyMetadataInjection:
         metadata = self.get_link_metadata(link_id)
         assert metadata.get("x.y") == "z", metadata
         assert "x" not in metadata, metadata
+
+    # ---- operator-like metadata keys ------------------------------------
+
+    def test_060_switch_operator_key_handled_safely(self):
+        """A metadata key equal to a Mongo operator ($set) must be rejected
+        or kept as a literal key, and must never trigger a 500."""
+        switch_id = "00:00:00:00:00:00:00:01"
+
+        payload = {"$set": "pwned", "plain": "ok"}
+        api_url = KYTOS_API + '/topology/v3/switches/%s/metadata' % switch_id
+        response = requests.post(
+            api_url, data=json.dumps(payload), timeout=30,
+            headers={'Content-type': 'application/json'})
+
+        assert response.status_code != 500, response.text
+        assert response.status_code in (201, 400), response.text
+        if response.status_code == 400:
+            return
+
+        metadata = self.get_switch_metadata(switch_id)
+        assert metadata.get("plain") == "ok"
+        assert metadata.get("$set") == "pwned", metadata
+
+    def test_070_switch_operator_key_survives_restart(self):
+        """An operator-like metadata key, if accepted, must persist unchanged
+        across a controller restart and must not corrupt the document."""
+        switch_id = "00:00:00:00:00:00:00:01"
+
+        payload = {"$where": "1", "plain": "ok"}
+        api_url = KYTOS_API + '/topology/v3/switches/%s/metadata' % switch_id
+        response = requests.post(
+            api_url, data=json.dumps(payload), timeout=30,
+            headers={'Content-type': 'application/json'})
+        assert response.status_code != 500, response.text
+        if response.status_code != 201:
+            return
+
+        self.net.start_controller(clean_config=False, enable_all=False)
+        self.net.wait_switches_connect()
+        time.sleep(10)
+
+        metadata = self.get_switch_metadata(switch_id)
+        assert metadata.get("plain") == "ok", metadata
+        assert metadata.get("$where") == "1", metadata
