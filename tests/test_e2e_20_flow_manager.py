@@ -387,7 +387,7 @@ class TestE2EFlowManager:
             "hard_timeout": 100000,
             "table_id": 300,
         }
-        api_url = KYTOS_API + '/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        api_url = f'{KYTOS_API}/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
         for field, value in cases.items():
             flow = dict(base)
             flow[field] = value
@@ -409,7 +409,7 @@ class TestE2EFlowManager:
             "match": {"in_port": 1},
             "actions": [{"action_type": "output", "port": 2 ** 32}],
         }]}
-        api_url = KYTOS_API + '/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        api_url = f'{KYTOS_API}/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
         response = requests.post(api_url, data=json.dumps(payload),
                                  headers={'Content-type': 'application/json'})
         assert response.status_code != 500, response.text
