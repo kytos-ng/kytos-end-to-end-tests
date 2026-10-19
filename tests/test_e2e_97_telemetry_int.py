@@ -602,11 +602,23 @@ class TestE2ETelemetryINTMefEline(INTHelper):
     def test_145_evcs_loaded_after_controller_restart(self):
         """INT survives a controller restart that keeps the database.
 
-        On the way back up ``mef_eline.evcs_loaded`` makes telemetry_int
-        rebuild its in-memory proxy-port maps from the stored EVCs. This is the
-        only test that covers an INT EVC outliving the controller, so it
-        restarts kytos *without* ``clean_config`` -- a ``restart_kytos_clean()``
-        would drop the database and take the EVC with it.
+        Restarts *without* ``clean_config`` -- ``restart_kytos_clean()`` would
+        drop the database and take the EVC with it.
+
+        Scope, since the name overpromises: this asserts the EVC, its metadata
+        and its INT flows are all still coherent after the controller comes
+        back, which is worth having as the only test of an INT EVC outliving
+        kytosd. It does **not** exercise ``mef_eline.evcs_loaded``:
+        telemetry_int's handler only calls ``load_uni_src_proxy_ports``, and a
+        no-proxy-port EVC leaves ``srcs_pp`` / ``unis_src`` empty either way, so
+        there is nothing for it to rebuild and nothing here could tell a broken
+        load handler from a working one. Covering that needs proxy ports, which
+        this backend does not have.
+
+        Note also that ``start_controller`` is called with ``del_flows=False``
+        and no ``clean_config``, so the switch flows and flow_manager's stored
+        flows survive the restart untouched -- the assertions below check that
+        state is still consistent, not that anything was rebuilt from scratch.
         """
         evc_id = self.create_int_evc_via_api(745)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)

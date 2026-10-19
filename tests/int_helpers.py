@@ -843,10 +843,17 @@ class INTHelper:
     ):
         """Assert the INT path and the plain mef_eline path are both intact.
 
-        Runs the control and INT traces in a single ``/v1/traces`` call. Both must
-        traverse ``expected_dpids``. If an INT table X flow is missing, or lands on a
-        table the ``goto_table`` chain cannot reach, only the INT trace breaks --
-        which is exactly the signal this is here to catch.
+        Runs both traces in a single ``/v1/traces`` call; both must traverse
+        ``expected_dpids``. This catches a table X flow that is missing or on a
+        table the ``goto_table`` chain cannot reach: the table 0 INT flow still
+        matches and jumps, nothing matches at the far end, and the INT trace
+        stops early while the control trace does not.
+
+        It does **not** prove an INT flow was selected. The mef_eline flow's
+        match is a subset of the INT trace's args, so if the table 0 INT flow
+        is absent the trace falls through to mef_eline and walks the same
+        dpids. Detecting that is the job of ``assert_int_flows_match_expected``
+        and ``assert_int_consistent``, which every caller of this also runs.
 
         Polls, because sdntrace_cp only sees ``state=installed`` flows and a flow
         that is still ``pending`` would make the INT trace stop early.
