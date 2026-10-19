@@ -372,6 +372,46 @@ class TestE2EFlowManager:
         assert data[0]["flow"]["priority"] > data[1]["flow"]["priority"] 
         assert data[1]["flow"]["priority"] > data[2]["flow"]["priority"]
 
+    def test_018_install_out_of_range_fields_should_fail(self):
+        """Fixed-width OF1.3 fields (priority and timeouts are 16-bit,
+        table_id is 8-bit) must reject overflowing values with 400, never
+        500, since Python integers are unbounded."""
+        base = {
+            "priority": 10,
+            "match": {"in_port": 1},
+            "actions": [{"action_type": "output", "port": 2}],
+        }
+        cases = {
+            "priority": 70000,
+            "idle_timeout": 100000,
+            "hard_timeout": 100000,
+            "table_id": 300,
+        }
+        api_url = f'{KYTOS_API}/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        for field, value in cases.items():
+            flow = dict(base)
+            flow[field] = value
+            payload = {"flows": [flow]}
+            response = requests.post(api_url, data=json.dumps(payload),
+                                     headers={'Content-type':
+                                              'application/json'})
+            assert response.status_code == 400, \
+                f"{field}={value} expected 400, got " \
+                f"{response.status_code}: {response.text}"
+
+    def test_019_install_out_of_range_output_port_should_fail(self):
+        """An output-action port above the 32-bit range must be rejected
+        with 400, never 500."""
+        payload = {"flows": [{
+            "priority": 10,
+            "match": {"in_port": 1},
+            "actions": [{"action_type": "output", "port": 2 ** 32}],
+        }]}
+        api_url = f'{KYTOS_API}/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
+        response = requests.post(api_url, data=json.dumps(payload),
+                                 headers={'Content-type': 'application/json'})
+        assert response.status_code == 400, response.text
+
     def test_020_delete_flow(self):
         """Tests if, after kytos restart, a flow deleted
         from a switch will still be deleted."""
