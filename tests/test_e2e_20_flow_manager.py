@@ -395,8 +395,6 @@ class TestE2EFlowManager:
             response = requests.post(api_url, data=json.dumps(payload),
                                      headers={'Content-type':
                                               'application/json'})
-            assert response.status_code != 500, \
-                f"{field}={value} returned 500: {response.text}"
             assert response.status_code == 400, \
                 f"{field}={value} expected 400, got " \
                 f"{response.status_code}: {response.text}"
@@ -412,7 +410,6 @@ class TestE2EFlowManager:
         api_url = f'{KYTOS_API}/flow_manager/v2/flows/00:00:00:00:00:00:00:01'
         response = requests.post(api_url, data=json.dumps(payload),
                                  headers={'Content-type': 'application/json'})
-        assert response.status_code != 500, response.text
         assert response.status_code == 400, response.text
 
     def test_020_delete_flow(self):
