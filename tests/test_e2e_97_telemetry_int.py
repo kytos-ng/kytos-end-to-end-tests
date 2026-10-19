@@ -516,6 +516,11 @@ class TestE2ETelemetryINTMefEline(INTHelper):
 
         self.assert_telemetry_up_after_mef_redeploy(evc_id)
 
+    @pytest.mark.xfail(
+        reason="kytos-ng/mef_eline#731: a concurrent EVC.sync() reverts the "
+        "metadata write telemetry_int makes on the deployed event",
+        strict=False,
+    )
     def test_135_evc_vlan_changed_via_mef_eline(self):
         """Changing a UNI's VLAN moves the INT flows onto the new VLAN."""
         evc_id = self.create_int_evc_via_api(735)
