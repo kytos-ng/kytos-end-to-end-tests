@@ -110,6 +110,8 @@ class TestE2ETelemtryINT(INTHelper):
         """
         It is called at the beginning of every class method execution
         """
+        # Since some tests may set a link to down state, we should reset
+        # the link state to up (for all links)
         self.net.config_all_links_up()
         self.net.restart_kytos_clean()
         time.sleep(5)
@@ -269,6 +271,7 @@ class TestE2ETelemtryINT(INTHelper):
 
     def validate_evc_paths(self, evc_id, expected_current, expected_failover):
         """Validate EVC paths (current and failover) with the expected values."""
+        # get evc data
         evc = self.get_evc(evc_id)
         current = self.path_links(evc["current_path"])
         assert current == expected_current, str(current)
@@ -316,9 +319,11 @@ class TestE2ETelemtryINT(INTHelper):
 
         time.sleep(10)
 
+        # configure hosts h1 and h3 and ping
         self.config_host_ip_vlan(h1, "10.1.98.1", 198)
         self.config_host_ip_vlan(h3, "10.1.98.3", 198)
 
+        # enable INT Collector on switches
         if os.environ.get("SWITCH_CLASS") == "NoviSwitch":
             s1.novi_cmd(
                 "set config int monitor portno 3 ethdst 00:00:00:00:02:01 ethsrc 00:00:00:aa:aa:01 "
@@ -344,11 +349,13 @@ class TestE2ETelemtryINT(INTHelper):
                 "Unsupported SWITCH_CLASS. Supported values: NoviSwitch, P4OfSwitch"
             )
 
+        # start int collector
         h2.cmd(
             f"python3 {self.SCRIPTS_DIR}/int_collector.py -i h2-eth1 -i h2-eth3 "
             ">/tmp/int_collector.log 2>&1 &"
         )
 
+        # start tcpdump
         h1.cmd("tcpdump -i vlan198 -n -l -e tcp or udp >/tmp/h1-capture.log 2>&1 &")
         h1.capture_pid = h1.lastPid
         h3.cmd("tcpdump -i vlan198 -n -l -e tcp or udp >/tmp/h3-capture.log 2>&1 &")
@@ -364,8 +371,10 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, expected_current, expected_failover)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows before enabling INT to make sure it all works
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -373,6 +382,13 @@ class TestE2ETelemtryINT(INTHelper):
         int_pkts = self.parse_int_collector(output)
         assert len(int_pkts) == 0, output
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        # s5:
+        #  - mef_eline: 2 failover_path
+        # s6:
+        #  - mef_eline: 2 current_path + 1 failover_path
         self.validate_switch_flows(
             evc_id,
             {
@@ -385,13 +401,16 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
+        # enable INT
         response = self.int_enable([evc_id])
         assert response.status_code == 201, response.text
 
         time.sleep(15)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -411,6 +430,16 @@ class TestE2ETelemtryINT(INTHelper):
             "sw_id=0x6,ig_port=1,eg_port=7,queue=0"
         ], str(int_pkts)
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 table0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
+        # s5:
+        #  - mef_eline: 2 failover_path
+        #  - telemetry_int: 4 failover_path
+        # s6:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
         self.validate_switch_flows(
             evc_id,
             {
@@ -423,6 +452,9 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
+        #####################################################
+        ## simulate link down on current path: s1:7 -- s6:7
+        #####################################################
         self.net.net.configLinkStatus("s1", "s6", "down")
         self.net.wait_kytos_links("s1", "s6", status="DOWN")
 
@@ -439,8 +471,10 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, expected_current, expected_failover)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -464,6 +498,19 @@ class TestE2ETelemtryINT(INTHelper):
             "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
         ], str(int_pkts)
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
+        # s2:
+        #  - mef_eline: 2 failover_path
+        #  - telemetry_int: 4 failover_path
+        # s5:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 4 current_path
+        # s6:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
         self.validate_switch_flows(
             evc_id,
             {
@@ -476,6 +523,9 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
+        #####################################################
+        ## simulate link down on current path: s1:5 -- s5:5
+        #####################################################
         self.net.net.configLinkStatus("s1", "s5", "down")
         self.net.wait_kytos_links("s1", "s5", status="DOWN")
 
@@ -493,8 +543,10 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, expected_current, expected_failover)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -518,6 +570,19 @@ class TestE2ETelemtryINT(INTHelper):
             "sw_id=0x6,ig_port=1,eg_port=5,queue=0",
         ], str(int_pkts)
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
+        # s2:
+        #  - mef_eline: 2 current_path + 2 failover_path
+        #  - telemetry_int: 4 current_path + 4 failover_path
+        # s5:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 4 current_path
+        # s6:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
         self.validate_switch_flows(
             evc_id,
             {
@@ -530,6 +595,9 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
+        #####################################################
+        ## simulate link down on current path: s2:5 -- s6:5
+        #####################################################
         self.net.net.configLinkStatus("s2", "s6", "down")
         self.net.wait_kytos_links("s2", "s6", status="DOWN")
 
@@ -550,8 +618,10 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, expected_current, expected_failover)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -579,6 +649,25 @@ class TestE2ETelemtryINT(INTHelper):
             "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
         ], str(int_pkts)
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
+        # s2:
+        #  - mef_eline: 2 current_path + 2 failover_path
+        #  - telemetry_int: 4 current_path + 4 failover_path
+        # s3:
+        #  - mef_eline: 2 failover_path
+        #  - telemetry_int: 4 failover_path
+        # s4:
+        #  - mef_eline: 2 failover_path
+        #  - telemetry_int: 4 failover_path
+        # s5:
+        #  - mef_eline: 2 current_path + 2 failover
+        #  - telemetry_int: 4 current_path + 4 failover
+        # s6:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
         self.validate_switch_flows(
             evc_id,
             {
@@ -591,6 +680,9 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
+        #####################################################
+        ## simulate link down on current path: s5:8 -- s6:8
+        #####################################################
         self.net.net.configLinkStatus("s5", "s6", "down", port1=8, port2=8)
         self.net.wait_kytos_links("s5", "s6", port1=8, port2=8, status="DOWN")
 
@@ -611,8 +703,10 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, expected_current, expected_failover)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -648,6 +742,25 @@ class TestE2ETelemtryINT(INTHelper):
             "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
         ], str(int_pkts)
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
+        # s2:
+        #  - mef_eline: 2 current_path + 2 failover_path
+        #  - telemetry_int: 4 current_path + 4 failover_path
+        # s3:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 4 current_path
+        # s4:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 4 current_path
+        # s5:
+        #  - mef_eline: 2 current_path + 2 failover
+        #  - telemetry_int: 4 current_path + 4 failover
+        # s6:
+        #  - mef_eline: 2 current_path + 1 failover_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2) + 3 failover_path (2 tab0 + 1 tab2)
         self.validate_switch_flows(
             evc_id,
             {
@@ -660,6 +773,9 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
+        #####################################################
+        ## simulate link down on current path: s2:4 -- s3:4
+        #####################################################
         self.net.net.configLinkStatus("s2", "s3", "down")
         self.net.wait_kytos_links("s2", "s3", status="DOWN")
 
@@ -674,8 +790,10 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, expected_current, expected_failover)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -703,6 +821,19 @@ class TestE2ETelemtryINT(INTHelper):
             "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
         ], str(int_pkts)
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2)
+        # s2:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 4 current_path
+        # s5:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 4 current_path
+        # s6:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2)
         self.validate_switch_flows(
             evc_id,
             {
@@ -715,6 +846,9 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
+        #####################################################
+        ## simulate link down on current path: s5:9 -- s6:9
+        #####################################################
         self.net.net.configLinkStatus("s5", "s6", "down", port1=9, port2=9)
         self.net.wait_kytos_links("s5", "s6", port1=9, port2=9, status="DOWN")
 
@@ -722,11 +856,16 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, [], [])
 
+        # test ping and flows
         result = h1.cmd("ping -c1 10.1.98.3")
         assert ", 100% packet loss," in result
 
+        # check flows
         self.validate_switch_flows(evc_id, self.NO_FLOWS)
 
+        #####################################################
+        ## simulate link UP on s1 -- s6 to check if the EVC will recover
+        #####################################################
         self.net.net.configLinkStatus("s1", "s6", "up")
         self.net.wait_kytos_links("s1", "s6", status="UP")
 
@@ -739,8 +878,10 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.validate_evc_paths(evc_id, expected_current, expected_failover)
 
+        # clear counters
         h2.cmd("truncate -s0 /tmp/int_collector.log")
 
+        # test ping, tcp, udp and flows
         self.validate_traffic(h1, h3)
         self.validate_traffic(h3, h1)
 
@@ -760,6 +901,16 @@ class TestE2ETelemtryINT(INTHelper):
             "sw_id=0x6,ig_port=1,eg_port=7,queue=0"
         ], str(int_pkts)
 
+        # check flows
+        # s1:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2)
+        # s5:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 4 current_path
+        # s6:
+        #  - mef_eline: 2 current_path
+        #  - telemetry_int: 6 current_path (4 tab0 2 tab2)
         self.validate_switch_flows(
             evc_id,
             {
