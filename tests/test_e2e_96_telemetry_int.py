@@ -99,7 +99,11 @@ class TestE2ETelemetryINTApi(INTHelper):
         self.wait_no_evc_flows(self.switches)
 
     def create_evc(self, vlan_id, uni_a=UNI_A1, uni_z=UNI_Z1, **kwargs):
-        """Create a dynamic EVPL and wait for it to become active."""
+        """Create a dynamic EVPL and wait for it to be fully provisioned.
+
+        The failover path is part of that wait: enabling INT while mef_eline is
+        still provisioning it loses the failover INT subset for good.
+        """
         payload = {
             "name": f"Vlan_{vlan_id}",
             "dynamic_backup_path": True,
@@ -115,6 +119,7 @@ class TestE2ETelemetryINTApi(INTHelper):
         payload.update(kwargs)
         evc_id = self.mef_create_evc(payload)
         self.wait_evc_active(evc_id)
+        self.wait_evc_failover_ready(evc_id)
         return evc_id
 
     def create_int_evc(self, vlan_id, **kwargs):

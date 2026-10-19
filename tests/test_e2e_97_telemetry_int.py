@@ -127,6 +127,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         payload.update(kwargs)
         evc_id = self.mef_create_evc(payload)
         self.wait_evc_active(evc_id)
+        self.wait_evc_failover_ready(evc_id)
         return evc_id
 
     def create_int_requested_evc(self, vlan_id, extra_metadata=None, **kwargs):

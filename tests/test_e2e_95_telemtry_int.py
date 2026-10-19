@@ -224,6 +224,7 @@ class TestE2ETelemtryINT(INTHelper):
         telemetry_int bug, so remember it on the class and skip the remaining
         table 3 shapes instead of failing each of them with the same cause.
         """
+        self.wait_evc_failover_ready(evc_id)
         response = self.int_enable([evc_id])
         assert response.status_code == 201, response.text
 

@@ -521,6 +521,8 @@ class INTHelper:
             if actual == expected:
                 return observed
             if time.time() >= deadline:
+                if enabled and not observed:
+                    self.xfail_if_metadata_write_lost(evc_id)
                 raise AssertionError(
                     f"EVC {evc_id} telemetry metadata mismatch.\n"
                     f"  expected (subset): {expected}\n"
@@ -529,6 +531,27 @@ class INTHelper:
                     f"{self.dump_evc_state(evc_id)}"
                 )
             time.sleep(2)
+
+    def xfail_if_metadata_write_lost(self, evc_id):
+        """``xfail`` if the EVC has INT flows installed but no telemetry metadata.
+
+        That pair is kytos-ng/mef_eline#731: telemetry_int's bulk metadata
+        write returned 201 and a concurrent ``EVC.sync()`` reverted it, leaving
+        Mongo -- which is what ``GET /v2/evc/{id}`` serves -- holding the
+        pre-write document. The INT flows installed by the same operation are
+        untouched, so their presence is what separates a lost write from
+        telemetry_int never having enabled INT at all; the latter still fails
+        hard. Drop this once #731 is fixed.
+        """
+        int_flows = self.stored_flow_ids(self.int_cookie_prefix, evc_id)
+        if not int_flows:
+            return
+        pytest.xfail(
+            f"kytos-ng/mef_eline#731: EVC {evc_id} has {len(int_flows)} INT "
+            "flows installed and no telemetry metadata at all, so the bulk "
+            "write that accompanied them was reverted.\n"
+            f"{self.dump_evc_state(evc_id)}"
+        )
 
     def assert_telemetry_up_after_mef_redeploy(self, evc_id, timeout=60):
         """Assert telemetry is back UP after a mef_eline PATCH that redeploys.
@@ -1221,6 +1244,39 @@ class INTHelper:
             f"{self.dump_evc_state(evc_id)}\n"
             f"{self.dump_nni_state()}"
         )
+
+    def wait_evc_failover_ready(self, evc_id, timeout=90):
+        """Wait until mef_eline has finished provisioning an EVC's failover path.
+
+        Enabling INT before this point is a race telemetry_int loses silently.
+        ``enable`` builds its INT flows from the mef_eline flows that exist at
+        that moment, so a failover deployed afterwards is left to
+        ``handle_failover_flows`` -- which drops the EVC when
+        ``has_int_enabled`` is still false on the event payload
+        (``managers/int.py:751``), the telemetry metadata write not having
+        landed yet. The failover INT subset is then never installed and nothing
+        retries it, so ``check_consistency`` reports those flows missing for as
+        long as the EVC lives.
+
+        Returns at once for the EVCs that never get a pre-provisioned failover:
+        static ones, and intra-switch ones (no links in ``current_path``, so
+        there is no alternative path to pre-provision).
+        """
+        deadline = time.time() + timeout
+        while True:
+            evc = self.get_evc(evc_id)
+            if not evc.get("dynamic_backup_path"):
+                return evc
+            if evc.get("active") and not evc.get("current_path"):
+                return evc
+            if evc.get("failover_path"):
+                return evc
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"EVC {evc_id} never got a failover path.\n"
+                    f"{self.dump_evc_state(evc_id)}\n{self.dump_nni_state()}"
+                )
+            time.sleep(2)
 
     def count_all_evc_flows(self, switch):
         """Return ``(n_mef_flows, n_int_flows)`` across every EVC on a switch."""
