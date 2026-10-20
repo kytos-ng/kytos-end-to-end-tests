@@ -28,6 +28,32 @@ OF_FLOWMOD_EXPERIMENTER = bytes.fromhex(
     "0000001000000001ffff000000000000"
 )
 
+# A FlowMod with an invalid (unknown) action type (0x0ABC). python-openflow
+# rejects it with a clean UnpackException, so of_core should handle it
+# gracefully and close the connection.
+OF_UNKNOWN_ACTION_TYPE = bytes.fromhex(
+    "040e005800000001000000000000000000000000000000000000000000000000"
+    "ffffffffffffffffffffffff000100000001000c80000004000000010000000000"
+    "040018000000000abc001000000001ffff000000000000"
+)
+
+# A FlowMod whose OXM match field declares an oxm_length (0x7F) far larger
+# than the bytes actually present: the parser must not over-read or crash.
+OF_OVERSIZED_OXM_LENGTH = bytes.fromhex(
+    "040e005800000001000000000000000000000000000000000000000000000000"
+    "ffffffffffffffffffffffff000100000001000c8000007f000000010000000000"
+    "040018000000000000001000000001ffff000000000000"
+)
+
+# A FlowMod whose ApplyActions instruction declares a length (0x0FFF) far
+# larger than the bytes actually present: the parser must not over-read or
+# crash.
+OF_OVERSIZED_INSTR_LENGTH = bytes.fromhex(
+    "040e005800000001000000000000000000000000000000000000000000000000"
+    "ffffffffffffffffffffffff000100000001000c80000004000000010000000000"
+    "040fff000000000000001000000001ffff000000000000"
+)
+
 XFAIL_REASON = (
     "A FlowMod whose instruction type is OFPIT_EXPERIMENTER (0xFFFF) makes "
     "python-openflow raise an unhandled TypeError on unpack "
@@ -123,3 +149,30 @@ class TestE2EOfCoreMalformed:
         # escaping the OpenFlow parser.
         assert 'TypeError' not in new_logs, new_logs[-2000:]
         assert 'flow_instructions.py' not in new_logs, new_logs[-2000:]
+
+    def assert_handled_gracefully(self, payload):
+        """Send ``payload`` as a fake switch and assert the controller stays
+        healthy and the parser leaks no unhandled exception for it."""
+        assert self.core_status()['response'] == 'running'
+        offset = self.log_size()
+        self.send_as_fake_switch(payload)
+        time.sleep(2)
+        new_logs = self.log_since(offset)
+        assert self.core_status()['response'] == 'running'
+        assert 'TypeError' not in new_logs, new_logs[-2000:]
+        assert 'flow_instructions.py' not in new_logs, new_logs[-2000:]
+
+    def test_020_unknown_action_type_is_handled(self):
+        """A FlowMod with an unknown action type is rejected cleanly (a clean
+        UnpackException), without destabilising the controller."""
+        self.assert_handled_gracefully(OF_UNKNOWN_ACTION_TYPE)
+
+    def test_030_oversized_oxm_length_is_handled(self):
+        """An OXM match field whose declared length exceeds the bytes present
+        must not make the parser over-read or crash the controller."""
+        self.assert_handled_gracefully(OF_OVERSIZED_OXM_LENGTH)
+
+    def test_040_oversized_instruction_length_is_handled(self):
+        """An instruction whose declared length exceeds the bytes present must
+        not make the parser over-read or crash the controller."""
+        self.assert_handled_gracefully(OF_OVERSIZED_INSTR_LENGTH)
