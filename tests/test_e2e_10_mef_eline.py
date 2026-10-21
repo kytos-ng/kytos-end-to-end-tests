@@ -1,6 +1,7 @@
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import pytest
@@ -2049,6 +2050,64 @@ class TestE2EMefEline:
         data = response.json()
         assert "test" in data[evc_1_id]["metadata"]
         assert "test" in data[evc_2_id]["metadata"]
+
+    def test_215_concurrent_single_and_bulk_metadata(self):
+        """Test concurrent clients adding EVC metadata with both
+        /v2/evc/{circuit_id}/metadata and /v2/evc/metadata on POST
+        supported by:
+            /api/kytos/mef_eline/v2/evc/{circuit_id} on GET
+            /api/kytos/mef_eline/v2/evc/{circuit_id}/metadata on GET
+        """
+        evc_ids = [self.create_evc(100), self.create_evc(101)]
+        time.sleep(10)
+
+        n_clients, n_requests = 20, 5
+
+        def client(i):
+            for j in range(n_requests):
+                evc_id = evc_ids[(i + j) % len(evc_ids)]
+                api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc_id}/metadata"
+                response = requests.post(
+                    api_url, json={f"single_{i}_{j}": j}, timeout=30
+                )
+                assert response.status_code == 201, response.text
+
+                api_url = f"{KYTOS_API}/mef_eline/v2/evc/metadata"
+                payload = {"circuit_ids": evc_ids, f"bulk_{i}_{j}": j}
+                response = requests.post(api_url, json=payload, timeout=30)
+                assert response.status_code == 201, response.text
+
+        with ThreadPoolExecutor(max_workers=n_clients) as executor:
+            futures = [executor.submit(client, i) for i in range(n_clients)]
+            for future in as_completed(futures):
+                future.result()
+
+        expected = {evc_id: {} for evc_id in evc_ids}
+        for i in range(n_clients):
+            for j in range(n_requests):
+                expected[evc_ids[(i + j) % len(evc_ids)]][f"single_{i}_{j}"] = j
+                for evc_id in evc_ids:
+                    expected[evc_id][f"bulk_{i}_{j}"] = j
+
+        def assert_metadata():
+            for evc_id in evc_ids:
+                api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc_id}"
+                response = requests.get(api_url)
+                assert response.status_code == 200, response.text
+                stored = response.json()["metadata"]
+                diff = set(expected[evc_id].items()) ^ set(stored.items())
+                assert stored == expected[evc_id], f"stored diff: {diff}"
+
+                api_url = f"{KYTOS_API}/mef_eline/v2/evc/{evc_id}/metadata"
+                response = requests.get(api_url)
+                assert response.status_code == 200, response.text
+                in_memory = response.json()["metadata"]
+                diff = set(expected[evc_id].items()) ^ set(in_memory.items())
+                assert in_memory == expected[evc_id], f"in memory diff: {diff}"
+
+        assert_metadata()
+        self.restart()
+        assert_metadata()
 
     def test_300_inter_evc_dynamic_uni_status(self):
         """Test UNI status for a dynamic inter EVC."""
