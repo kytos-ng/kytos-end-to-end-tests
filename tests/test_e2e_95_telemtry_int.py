@@ -95,9 +95,6 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.config_all_links_up()
         self.net.restart_kytos_clean()
         time.sleep(5)
-        # restart_kytos_clean only waits for the links to be *present*; after a
-        # test that downed some, they must be UP again before the next EVC is
-        # created or it deploys on the wrong path
         self.wait_nni_links_up(self.net)
 
     @classmethod
@@ -121,15 +118,7 @@ class TestE2ETelemtryINT(INTHelper):
         tag_z=None,
         **kwargs,
     ):
-        """Create an EVC and return its EVC ID.
-
-        ``vlan_id`` is used for the EVC name and, unless overridden, for the tag
-        value on both UNIs; ``None`` makes an EPL (no ``tag`` key at all).
-        ``tag_a``/``tag_z`` override it with an int, ``"any"``, ``"untagged"``
-        or a vlan range such as ``[[10, 15]]``. ``kwargs`` is merged last, so
-        ``primary_path``, ``backup_path``, ``dynamic_backup_path`` and
-        ``metadata`` all pass straight through.
-        """
+        """Create an EVC and return its EVC ID."""
         payload = {
             "name": "EPL" if vlan_id is None else f"Vlan_{vlan_id}",
             "dynamic_backup_path": True,
@@ -148,16 +137,8 @@ class TestE2ETelemtryINT(INTHelper):
     def create_int_evc(self, vlan_id, **kwargs):
         """Create an EVC, wait for it to deploy and enable INT on it.
 
-        For a dynamic EVC the failover path is waited for *before* the enable.
-        telemetry_int builds its flows from the mef_eline flows that exist at
-        enable time, so enabling while mef_eline is still provisioning the
-        failover leaves the failover subset to the ``failover_deployed``
-        handler and races its install. When that race is lost the EVC settles
-        with only the current-path INT flows and stays there:
-        ``test_100`` hit it with ten ``missing_flows``, every one of them on
-        the failover path (s5 in_port 5/8, s1 in_port 5, s6 in_port 8).
-
-        A static EVC gets no pre-provisioned failover, so it is skipped.
+        For a dynamic EVC the failover path is waited for *before* the enable,
+        which avoids the race ``test_125`` pins.
         """
         evc_id = self.create_evc(vlan_id, **kwargs)
         self.wait_evc_active(evc_id)
@@ -185,10 +166,7 @@ class TestE2ETelemtryINT(INTHelper):
         response = self.int_enable([evc_id])
         assert response.status_code == 201, response.text
 
-        # install_int_flows writes status UP *concurrently* with sending the
-        # flow mods, so UP alone does not mean the pipeline accepted them. Trust
-        # it only once the INT flows are ready, or until a rejection shows up
-        # as an ofpt_error; the loop keeps watching for either.
+        # UP is written concurrently with the flow mods, so it isn't enough
         deadline = time.time() + 90
         telemetry = {}
         while time.time() < deadline:
@@ -887,13 +865,7 @@ class TestE2ETelemtryINT(INTHelper):
         )
 
     def test_010_shape_evpl_symmetric_vlan(self):
-        """Dynamic EVPL, same VLAN on both UNIs, no proxy port.
-
-        The reference shape: same EVC as test_001, but validated through the
-        control plane instead of real INT reports. The flow counts are the
-        same literals test_001 asserts, so a divergence between the two tests
-        points at the validation, not at the NApp.
-        """
+        """Dynamic EVPL, same VLAN on both UNIs, no proxy port."""
         evc_id = self.create_evc(100)
         self.wait_evc_active(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
