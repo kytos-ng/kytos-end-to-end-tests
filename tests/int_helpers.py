@@ -959,17 +959,6 @@ class INTHelper:
         table the ``goto_table`` chain cannot reach: the table 0 INT flow still
         matches and jumps, nothing matches at the far end, and the INT trace
         stops early while the control trace does not.
-
-        It does **not** prove an INT flow was selected. The mef_eline flow's
-        match is a subset of the INT trace's args, so if the table 0 INT flow
-        is absent the trace falls through to mef_eline and walks the same
-        dpids. Detecting that is the job of ``assert_int_flows_match_expected``
-        and ``assert_int_consistent``, which every caller of this also runs.
-        That the INT trace does walk the INT flows when they are there is
-        proved once, by file 96's ``test_217`` negative control.
-
-        Polls, because sdntrace_cp only sees ``state=installed`` flows and a flow
-        that is still ``pending`` would make the INT trace stop early.
         """
         expected = list(expected_dpids)
         deadline = time.time() + timeout

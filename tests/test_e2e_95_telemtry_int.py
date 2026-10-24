@@ -39,6 +39,7 @@ class TestE2ETelemtryINT(INTHelper):
     controller = "127.0.0.1"
     net = None
     SCRIPTS_DIR = str(Path(__file__).resolve().parents[1] / "scripts")
+    INT_COLLECTOR_LOG = "/tmp/int_collector.log"
     UNI_A1 = "00:00:00:00:00:00:00:01:1"
     UNI_Z1 = "00:00:00:00:00:00:00:06:1"
     UNI_A2 = "00:00:00:00:00:00:00:01:2"
@@ -96,6 +97,11 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.restart_kytos_clean()
         time.sleep(5)
         self.wait_nni_links_up(self.net)
+
+    def teardown_method(self, method):  # pylint: disable=unused-argument
+        """Undo the host-side traffic setup a test did, last first."""
+        for host, cmd in reversed(self.__dict__.get("_host_cleanup", [])):
+            host.cmd(cmd)
 
     @classmethod
     def setup_class(cls):
@@ -188,24 +194,75 @@ class TestE2ETelemtryINT(INTHelper):
             f"{self.dump_evc_state(evc_id)}"
         )
 
-    def config_host_ip_vlan(self, host, ip, vlan):
-        """Configure VLAN subinterface and VLAN into host."""
-        host.cmd(
-            f"ip link add link {host.name}-eth1 name vlan{vlan} type vlan id {vlan}"
-        )
-        host.cmd(f"ip link set up vlan{vlan}")
-        host.cmd(f"ip addr add {ip}/24 dev vlan{vlan}")
-        host.test_ip = ip
-        host.test_intf = f"vlan{vlan}"
+    def on_teardown(self, host, cmd):
+        """Run ``cmd`` on ``host`` in ``teardown_method``."""
+        self.__dict__.setdefault("_host_cleanup", []).append((host, cmd))
 
-    def validate_evc_paths(self, evc_id, expected_current, expected_failover):
-        """Validate EVC paths (current and failover) with the expected values."""
-        # get evc data
-        evc = self.get_evc(evc_id)
-        current = self.path_links(evc["current_path"])
-        assert current == expected_current, str(current)
-        failover = self.path_links(evc["failover_path"])
-        assert failover == expected_failover, str(failover)
+    def config_host_ip_vlan(self, host, ip, vlan, port=1):
+        """Configure a VLAN subinterface on the host port facing a UNI."""
+        intf = f"vlan{vlan}"
+        host.cmd(
+            f"ip link add link {host.name}-eth{port} name {intf} type vlan id {vlan}"
+        )
+        host.cmd(f"ip link set up {intf}")
+        host.cmd(f"ip addr add {ip}/24 dev {intf}")
+        self.on_teardown(host, f"ip link del {intf}")
+        host.test_ip = ip
+        host.test_intf = intf
+
+    def config_host_ip(self, host, ip, port):
+        """Configure an untagged address on the host port facing a UNI."""
+        intf = f"{host.name}-eth{port}"
+        host.cmd(f"ip addr add {ip}/24 dev {intf}")
+        self.on_teardown(host, f"ip addr del {ip}/24 dev {intf}")
+        host.test_ip = ip
+        host.test_intf = intf
+
+    def start_capture(self, host, timeout=10):
+        """Capture TCP and UDP on the host's test interface."""
+        host.capture_log = f"/tmp/{host.name}-capture.log"
+        host.cmd(
+            f"tcpdump -i {host.test_intf} -n -l -e tcp or udp "
+            f">{host.capture_log} 2>&1 &"
+        )
+        self.on_teardown(host, f"kill {host.lastPid}")
+        deadline = time.time() + timeout
+        while "listening on" not in host.cmd(f"cat {host.capture_log}"):
+            assert time.time() < deadline, host.cmd(f"cat {host.capture_log}")
+            time.sleep(0.5)
+
+    def start_int_collector(self):
+        """Have s1 and s6 send their INT reports to h2 and collect them there."""
+        s1, h2, s6 = self.net.net.get("s1", "h2", "s6")
+        if os.environ.get("SWITCH_CLASS") == "NoviSwitch":
+            s1.novi_cmd(
+                "set config int monitor portno 3 ethdst 00:00:00:00:02:01 ethsrc 00:00:00:aa:aa:01 "
+                "ipv4src 10.255.255.1 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
+            )
+            s1.novi_cmd("set config int maxhopcount 10")
+            s6.novi_cmd(
+                "set config int monitor portno 3 ethdst 00:00:00:00:02:03 ethsrc 00:00:00:aa:aa:06 "
+                "ipv4src 10.255.255.6 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
+            )
+            s6.novi_cmd("set config int maxhopcount 10")
+        elif os.environ.get("SWITCH_CLASS") == "P4OfSwitch":
+            s1.cmd(
+                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:01 --dst_mac 00:00:00:00:02:01 "
+                "--src_ip 10.255.255.1 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
+            )
+            s6.cmd(
+                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:06 --dst_mac 00:00:00:00:02:03 "
+                "--src_ip 10.255.255.6 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
+            )
+        else:
+            pytest.fail(
+                "Unsupported SWITCH_CLASS. Supported values: NoviSwitch, P4OfSwitch"
+            )
+        h2.cmd(
+            f"python3 {self.SCRIPTS_DIR}/int_collector.py -i h2-eth1 -i h2-eth3 "
+            f">{self.INT_COLLECTOR_LOG} 2>&1 &"
+        )
+        self.on_teardown(h2, f"kill {h2.lastPid}")
 
     def assert_int_flow_actions_on_paths(self, evc_id):
         """``assert_int_flow_actions`` with the hops read off the EVC's paths."""
@@ -231,76 +288,86 @@ class TestE2ETelemtryINT(INTHelper):
         """
         return self.assert_evc_flow_counts(self.switches, evc_id, expected_counts)
 
-    def validate_traffic(self, src, dst):
-        """Send traffic from src to dst and check packet received on dst."""
-        result = src.cmd(f"ping -c1 {dst.test_ip}")
-        assert ", 0% packet loss," in result, result
+    def send_tcp_udp(self, src, dst):
+        """Send one TCP and one UDP packet to port 80, the INT flows' match."""
+        for udp in ("", " -u"):
+            src.cmd(
+                f"python3 {self.SCRIPTS_DIR}/sendp.py -i {src.test_intf} "
+                f"-s 127.0.0.1 -d {dst.test_ip} -c1 -p 80{udp}"
+            )
 
-        dst.cmd(f"truncate -s0 /tmp/{dst.name}-capture.log")
-        src.cmd(
-            f"python3 {self.SCRIPTS_DIR}/sendp.py -i {src.test_intf} "
-            f"-s 127.0.0.1 -d {dst.test_ip} -c1 -p 80"
-        )
-        src.cmd(
-            f"python3 {self.SCRIPTS_DIR}/sendp.py -i {src.test_intf} "
-            f"-s 127.0.0.1 -d {dst.test_ip} -c1 -p 80 -u"
-        )
-        time.sleep(2)
-        dst.cmd(f"kill -USR2 {dst.capture_pid}")
-        pkts = dst.cmd(f"cat /tmp/{dst.name}-capture.log").splitlines()
-        assert sum(dst.test_ip in s for s in pkts) == 2, str(pkts)
+    @staticmethod
+    def captured_tcp_udp(host):
+        """Return ``(n_tcp, n_udp)`` packets to port 80 in the host's capture."""
+        lines = [
+            line
+            for line in host.cmd(f"cat {host.capture_log}").splitlines()
+            if f"> {host.test_ip}.80:" in line
+        ]
+        n_udp = sum("UDP," in line for line in lines)
+        return len(lines) - n_udp, n_udp
+
+    def assert_traffic(self, host_a, host_z, reports, timeout=30):
+        """Send TCP and UDP both ways and check delivery and the INT reports.
+
+        ``reports`` maps a collector key such as ``"ip_dst=10.1.98.3
+        tcp_dport=80"`` to its INT stack, and must match exactly; ``{}``
+        asserts there are none. The packets are resent until all of them are
+        through, since the capture and collector may not be listening yet and
+        INT may still be converging, but never more than once per round, so a
+        duplicate still shows up as more packets than were sent.
+        """
+        hosts = (host_a, host_z)
+        for src, dst in (hosts, hosts[::-1]):
+            result = src.cmd(f"ping -c1 -W2 {dst.test_ip}")
+            assert ", 0% packet loss," in result, result
+        h2 = self.net.net.get("h2")
+        h2.cmd(f"truncate -s0 {self.INT_COLLECTOR_LOG}")
+        for host in hosts:
+            host.cmd(f"truncate -s0 {host.capture_log}")
+
+        deadline = time.time() + timeout
+        rounds = 0
+        while True:
+            for src, dst in (hosts, hosts[::-1]):
+                self.send_tcp_udp(src, dst)
+            rounds += 1
+            time.sleep(2)
+            captured = {host.name: self.captured_tcp_udp(host) for host in hosts}
+            for host in hosts:
+                assert max(captured[host.name]) <= rounds, (
+                    f"{host.name} received more packets than were sent in "
+                    f"{rounds} rounds: {captured}"
+                )
+            delivered = all(min(counts) for counts in captured.values())
+            int_pkts = self.parse_int_collector(
+                h2.cmd(f"cat {self.INT_COLLECTOR_LOG}")
+            )
+            if delivered and (not reports or int_pkts == reports):
+                break
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"traffic never fully went through after {rounds} rounds.\n"
+                    f"  captured (tcp, udp): {captured}\n"
+                    f"  expected reports: {reports}\n  INT reports: {int_pkts}"
+                )
+        if not reports:
+            # the sink reports as it delivers, so by now any report has landed
+            assert int_pkts == {}, int_pkts
 
     def test_001_dynamic_evc_without_proxy(self):
         # pylint: disable=too-many-locals, too-many-statements
         """Test enabling INT on a dynamic EVC without proxy port."""
-        h1, h2, h3 = self.net.net.get("h1", "h2", "h3")
-        s1, s2, s3, s4, s5, s6 = self.net.net.get("s1", "s2", "s3", "s4", "s5", "s6")
+        h1, h3 = self.net.net.get("h1", "h3")
 
         evc_id = self.create_evc(198)
+        self.wait_evc_active(evc_id)
 
-        time.sleep(10)
-
-        # configure hosts h1 and h3 and ping
         self.config_host_ip_vlan(h1, "10.1.98.1", 198)
         self.config_host_ip_vlan(h3, "10.1.98.3", 198)
-
-        # enable INT Collector on switches
-        if os.environ.get("SWITCH_CLASS") == "NoviSwitch":
-            s1.novi_cmd(
-                "set config int monitor portno 3 ethdst 00:00:00:00:02:01 ethsrc 00:00:00:aa:aa:01 "
-                "ipv4src 10.255.255.1 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
-            )
-            s1.novi_cmd("set config int maxhopcount 10")
-            s6.novi_cmd(
-                "set config int monitor portno 3 ethdst 00:00:00:00:02:03 ethsrc 00:00:00:aa:aa:06 "
-                "ipv4src 10.255.255.6 ipv4dst 10.255.255.254 udpsrc 6000 udpdst 5900 maxlen 320"
-            )
-            s6.novi_cmd("set config int maxhopcount 10")
-        elif os.environ.get("SWITCH_CLASS") == "P4OfSwitch":
-            s1.cmd(
-                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:01 --dst_mac 00:00:00:00:02:01 "
-                "--src_ip 10.255.255.1 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
-            )
-            s6.cmd(
-                "p4ofagent set config int --of_port_no 3 --src_mac 00:00:00:aa:aa:06 --dst_mac 00:00:00:00:02:03 "
-                "--src_ip 10.255.255.6 --dst_ip 10.255.255.254 --dst_udp 5900 --max_pkt_len 320"
-            )
-        else:
-            pytest.fail(
-                "Unsupported SWITCH_CLASS. Supported values: NoviSwitch, P4OfSwitch"
-            )
-
-        # start int collector
-        h2.cmd(
-            f"python3 {self.SCRIPTS_DIR}/int_collector.py -i h2-eth1 -i h2-eth3 "
-            ">/tmp/int_collector.log 2>&1 &"
-        )
-
-        # start tcpdump
-        h1.cmd("tcpdump -i vlan198 -n -l -e tcp or udp >/tmp/h1-capture.log 2>&1 &")
-        h1.capture_pid = h1.lastPid
-        h3.cmd("tcpdump -i vlan198 -n -l -e tcp or udp >/tmp/h3-capture.log 2>&1 &")
-        h3.capture_pid = h3.lastPid
+        self.start_capture(h1)
+        self.start_capture(h3)
+        self.start_int_collector()
 
         expected_current = [
             ["00:00:00:00:00:00:00:01:7", "00:00:00:00:00:00:00:06:7"],
@@ -309,19 +376,12 @@ class TestE2ETelemtryINT(INTHelper):
             ["00:00:00:00:00:00:00:01:5", "00:00:00:00:00:00:00:05:5"],
             ["00:00:00:00:00:00:00:05:8", "00:00:00:00:00:00:00:06:8"],
         ]
+        self.wait_evc_paths(
+            evc_id, current=expected_current, failover=expected_failover
+        )
 
-        self.validate_evc_paths(evc_id, expected_current, expected_failover)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows before enabling INT to make sure it all works
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 0, output
+        # no INT yet, so the traffic must go through without any report
+        self.assert_traffic(h1, h3, {})
 
         # check flows
         # s1:
@@ -345,31 +405,26 @@ class TestE2ETelemtryINT(INTHelper):
         # enable INT
         response = self.int_enable([evc_id])
         assert response.status_code == 201, response.text
+        self.wait_int_ready(evc_id)
 
-        time.sleep(15)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 4, output
-        assert int_pkts.get("ip_dst=10.1.98.3 tcp_dport=80") == [
-            "sw_id=0x1,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.3 udp_dport=80") == [
-            "sw_id=0x1,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 tcp_dport=80") == [
-            "sw_id=0x6,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 udp_dport=80") == [
-            "sw_id=0x6,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.98.3 tcp_dport=80": [
+                    "sw_id=0x1,ig_port=1,eg_port=7,queue=0",
+                ],
+                "ip_dst=10.1.98.3 udp_dport=80": [
+                    "sw_id=0x1,ig_port=1,eg_port=7,queue=0",
+                ],
+                "ip_dst=10.1.98.1 tcp_dport=80": [
+                    "sw_id=0x6,ig_port=1,eg_port=7,queue=0",
+                ],
+                "ip_dst=10.1.98.1 udp_dport=80": [
+                    "sw_id=0x6,ig_port=1,eg_port=7,queue=0",
+                ],
+            },
+        )
 
         # check flows
         # s1:
@@ -399,8 +454,6 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.net.configLinkStatus("s1", "s6", "down")
         self.net.wait_kytos_links("s1", "s6", status="DOWN")
 
-        time.sleep(5)
-
         expected_current = [
             ["00:00:00:00:00:00:00:01:5", "00:00:00:00:00:00:00:05:5"],
             ["00:00:00:00:00:00:00:05:8", "00:00:00:00:00:00:00:06:8"],
@@ -409,35 +462,32 @@ class TestE2ETelemtryINT(INTHelper):
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
             ["00:00:00:00:00:00:00:02:5", "00:00:00:00:00:00:00:06:5"],
         ]
+        self.wait_evc_paths(
+            evc_id, current=expected_current, failover=expected_failover
+        )
 
-        self.validate_evc_paths(evc_id, expected_current, expected_failover)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 4, output
-        assert int_pkts.get("ip_dst=10.1.98.3 tcp_dport=80") == [
-            "sw_id=0x5,ig_port=5,eg_port=8,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=5,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.3 udp_dport=80") == [
-            "sw_id=0x5,ig_port=5,eg_port=8,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=5,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 tcp_dport=80") == [
-            "sw_id=0x5,ig_port=8,eg_port=5,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 udp_dport=80") == [
-            "sw_id=0x5,ig_port=8,eg_port=5,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
-        ], str(int_pkts)
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.98.3 tcp_dport=80": [
+                    "sw_id=0x5,ig_port=5,eg_port=8,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=5,queue=0",
+                ],
+                "ip_dst=10.1.98.3 udp_dport=80": [
+                    "sw_id=0x5,ig_port=5,eg_port=8,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=5,queue=0",
+                ],
+                "ip_dst=10.1.98.1 tcp_dport=80": [
+                    "sw_id=0x5,ig_port=8,eg_port=5,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
+                ],
+                "ip_dst=10.1.98.1 udp_dport=80": [
+                    "sw_id=0x5,ig_port=8,eg_port=5,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
+                ],
+            },
+        )
 
         # check flows
         # s1:
@@ -470,8 +520,6 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.net.configLinkStatus("s1", "s5", "down")
         self.net.wait_kytos_links("s1", "s5", status="DOWN")
 
-        time.sleep(5)
-
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
             ["00:00:00:00:00:00:00:02:5", "00:00:00:00:00:00:00:06:5"],
@@ -481,35 +529,32 @@ class TestE2ETelemtryINT(INTHelper):
             ["00:00:00:00:00:00:00:02:3", "00:00:00:00:00:00:00:05:3"],
             ["00:00:00:00:00:00:00:05:8", "00:00:00:00:00:00:00:06:8"],
         ]
+        self.wait_evc_paths(
+            evc_id, current=expected_current, failover=expected_failover
+        )
 
-        self.validate_evc_paths(evc_id, expected_current, expected_failover)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 4, output
-        assert int_pkts.get("ip_dst=10.1.98.3 tcp_dport=80") == [
-            "sw_id=0x2,ig_port=6,eg_port=5,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.3 udp_dport=80") == [
-            "sw_id=0x2,ig_port=6,eg_port=5,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 tcp_dport=80") == [
-            "sw_id=0x2,ig_port=5,eg_port=6,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=5,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 udp_dport=80") == [
-            "sw_id=0x2,ig_port=5,eg_port=6,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=5,queue=0",
-        ], str(int_pkts)
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.98.3 tcp_dport=80": [
+                    "sw_id=0x2,ig_port=6,eg_port=5,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.3 udp_dport=80": [
+                    "sw_id=0x2,ig_port=6,eg_port=5,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.1 tcp_dport=80": [
+                    "sw_id=0x2,ig_port=5,eg_port=6,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=5,queue=0",
+                ],
+                "ip_dst=10.1.98.1 udp_dport=80": [
+                    "sw_id=0x2,ig_port=5,eg_port=6,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=5,queue=0",
+                ],
+            },
+        )
 
         # check flows
         # s1:
@@ -542,8 +587,6 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.net.configLinkStatus("s2", "s6", "down")
         self.net.wait_kytos_links("s2", "s6", status="DOWN")
 
-        time.sleep(5)
-
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
             ["00:00:00:00:00:00:00:02:3", "00:00:00:00:00:00:00:05:3"],
@@ -556,39 +599,36 @@ class TestE2ETelemtryINT(INTHelper):
             ["00:00:00:00:00:00:00:04:7", "00:00:00:00:00:00:00:05:7"],
             ["00:00:00:00:00:00:00:05:9", "00:00:00:00:00:00:00:06:9"],
         ]
+        self.wait_evc_paths(
+            evc_id, current=expected_current, failover=expected_failover
+        )
 
-        self.validate_evc_paths(evc_id, expected_current, expected_failover)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 4, output
-        assert int_pkts.get("ip_dst=10.1.98.3 tcp_dport=80") == [
-            "sw_id=0x5,ig_port=3,eg_port=8,queue=0",
-            "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.3 udp_dport=80") == [
-            "sw_id=0x5,ig_port=3,eg_port=8,queue=0",
-            "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 tcp_dport=80") == [
-            "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
-            "sw_id=0x5,ig_port=8,eg_port=3,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 udp_dport=80") == [
-            "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
-            "sw_id=0x5,ig_port=8,eg_port=3,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
-        ], str(int_pkts)
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.98.3 tcp_dport=80": [
+                    "sw_id=0x5,ig_port=3,eg_port=8,queue=0",
+                    "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.3 udp_dport=80": [
+                    "sw_id=0x5,ig_port=3,eg_port=8,queue=0",
+                    "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.1 tcp_dport=80": [
+                    "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
+                    "sw_id=0x5,ig_port=8,eg_port=3,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
+                ],
+                "ip_dst=10.1.98.1 udp_dport=80": [
+                    "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
+                    "sw_id=0x5,ig_port=8,eg_port=3,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=8,queue=0",
+                ],
+            },
+        )
 
         # check flows
         # s1:
@@ -627,8 +667,6 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.net.configLinkStatus("s5", "s6", "down", port1=8, port2=8)
         self.net.wait_kytos_links("s5", "s6", port1=8, port2=8, status="DOWN")
 
-        time.sleep(5)
-
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
             ["00:00:00:00:00:00:00:02:4", "00:00:00:00:00:00:00:03:4"],
@@ -641,47 +679,44 @@ class TestE2ETelemtryINT(INTHelper):
             ["00:00:00:00:00:00:00:02:3", "00:00:00:00:00:00:00:05:3"],
             ["00:00:00:00:00:00:00:05:9", "00:00:00:00:00:00:00:06:9"],
         ]
+        self.wait_evc_paths(
+            evc_id, current=expected_current, failover=expected_failover
+        )
 
-        self.validate_evc_paths(evc_id, expected_current, expected_failover)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 4, output
-        assert int_pkts.get("ip_dst=10.1.98.3 tcp_dport=80") == [
-            "sw_id=0x5,ig_port=7,eg_port=9,queue=0",
-            "sw_id=0x4,ig_port=6,eg_port=7,queue=0",
-            "sw_id=0x3,ig_port=4,eg_port=6,queue=0",
-            "sw_id=0x2,ig_port=6,eg_port=4,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.3 udp_dport=80") == [
-            "sw_id=0x5,ig_port=7,eg_port=9,queue=0",
-            "sw_id=0x4,ig_port=6,eg_port=7,queue=0",
-            "sw_id=0x3,ig_port=4,eg_port=6,queue=0",
-            "sw_id=0x2,ig_port=6,eg_port=4,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 tcp_dport=80") == [
-            "sw_id=0x2,ig_port=4,eg_port=6,queue=0",
-            "sw_id=0x3,ig_port=6,eg_port=4,queue=0",
-            "sw_id=0x4,ig_port=7,eg_port=6,queue=0",
-            "sw_id=0x5,ig_port=9,eg_port=7,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 udp_dport=80") == [
-            "sw_id=0x2,ig_port=4,eg_port=6,queue=0",
-            "sw_id=0x3,ig_port=6,eg_port=4,queue=0",
-            "sw_id=0x4,ig_port=7,eg_port=6,queue=0",
-            "sw_id=0x5,ig_port=9,eg_port=7,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
-        ], str(int_pkts)
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.98.3 tcp_dport=80": [
+                    "sw_id=0x5,ig_port=7,eg_port=9,queue=0",
+                    "sw_id=0x4,ig_port=6,eg_port=7,queue=0",
+                    "sw_id=0x3,ig_port=4,eg_port=6,queue=0",
+                    "sw_id=0x2,ig_port=6,eg_port=4,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.3 udp_dport=80": [
+                    "sw_id=0x5,ig_port=7,eg_port=9,queue=0",
+                    "sw_id=0x4,ig_port=6,eg_port=7,queue=0",
+                    "sw_id=0x3,ig_port=4,eg_port=6,queue=0",
+                    "sw_id=0x2,ig_port=6,eg_port=4,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.1 tcp_dport=80": [
+                    "sw_id=0x2,ig_port=4,eg_port=6,queue=0",
+                    "sw_id=0x3,ig_port=6,eg_port=4,queue=0",
+                    "sw_id=0x4,ig_port=7,eg_port=6,queue=0",
+                    "sw_id=0x5,ig_port=9,eg_port=7,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
+                ],
+                "ip_dst=10.1.98.1 udp_dport=80": [
+                    "sw_id=0x2,ig_port=4,eg_port=6,queue=0",
+                    "sw_id=0x3,ig_port=6,eg_port=4,queue=0",
+                    "sw_id=0x4,ig_port=7,eg_port=6,queue=0",
+                    "sw_id=0x5,ig_port=9,eg_port=7,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
+                ],
+            },
+        )
 
         # check flows
         # s1:
@@ -720,47 +755,42 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.net.configLinkStatus("s2", "s3", "down")
         self.net.wait_kytos_links("s2", "s3", status="DOWN")
 
-        time.sleep(5)
-
         expected_current = [
             ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
             ["00:00:00:00:00:00:00:02:3", "00:00:00:00:00:00:00:05:3"],
             ["00:00:00:00:00:00:00:05:9", "00:00:00:00:00:00:00:06:9"],
         ]
         expected_failover = []
+        self.wait_evc_paths(
+            evc_id, current=expected_current, failover=expected_failover
+        )
 
-        self.validate_evc_paths(evc_id, expected_current, expected_failover)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 4, output
-        assert int_pkts.get("ip_dst=10.1.98.3 tcp_dport=80") == [
-            "sw_id=0x5,ig_port=3,eg_port=9,queue=0",
-            "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.3 udp_dport=80") == [
-            "sw_id=0x5,ig_port=3,eg_port=9,queue=0",
-            "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
-            "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 tcp_dport=80") == [
-            "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
-            "sw_id=0x5,ig_port=9,eg_port=3,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 udp_dport=80") == [
-            "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
-            "sw_id=0x5,ig_port=9,eg_port=3,queue=0",
-            "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
-        ], str(int_pkts)
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.98.3 tcp_dport=80": [
+                    "sw_id=0x5,ig_port=3,eg_port=9,queue=0",
+                    "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.3 udp_dport=80": [
+                    "sw_id=0x5,ig_port=3,eg_port=9,queue=0",
+                    "sw_id=0x2,ig_port=6,eg_port=3,queue=0",
+                    "sw_id=0x1,ig_port=1,eg_port=6,queue=0",
+                ],
+                "ip_dst=10.1.98.1 tcp_dport=80": [
+                    "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
+                    "sw_id=0x5,ig_port=9,eg_port=3,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
+                ],
+                "ip_dst=10.1.98.1 udp_dport=80": [
+                    "sw_id=0x2,ig_port=3,eg_port=6,queue=0",
+                    "sw_id=0x5,ig_port=9,eg_port=3,queue=0",
+                    "sw_id=0x6,ig_port=1,eg_port=9,queue=0",
+                ],
+            },
+        )
 
         # check flows
         # s1:
@@ -793,9 +823,7 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.net.configLinkStatus("s5", "s6", "down", port1=9, port2=9)
         self.net.wait_kytos_links("s5", "s6", port1=9, port2=9, status="DOWN")
 
-        time.sleep(5)
-
-        self.validate_evc_paths(evc_id, [], [])
+        self.wait_evc_paths(evc_id, current=[], failover=[])
 
         # test ping and flows
         result = h1.cmd("ping -c1 10.1.98.3")
@@ -810,37 +838,32 @@ class TestE2ETelemtryINT(INTHelper):
         self.net.net.configLinkStatus("s1", "s6", "up")
         self.net.wait_kytos_links("s1", "s6", status="UP")
 
-        time.sleep(5)
-
         expected_current = [
             ["00:00:00:00:00:00:00:01:7", "00:00:00:00:00:00:00:06:7"],
         ]
         expected_failover = []
+        self.wait_evc_paths(
+            evc_id, current=expected_current, failover=expected_failover
+        )
 
-        self.validate_evc_paths(evc_id, expected_current, expected_failover)
-
-        # clear counters
-        h2.cmd("truncate -s0 /tmp/int_collector.log")
-
-        # test ping, tcp, udp and flows
-        self.validate_traffic(h1, h3)
-        self.validate_traffic(h3, h1)
-
-        output = h2.cmd("cat /tmp/int_collector.log")
-        int_pkts = self.parse_int_collector(output)
-        assert len(int_pkts) == 4, output
-        assert int_pkts.get("ip_dst=10.1.98.3 tcp_dport=80") == [
-            "sw_id=0x1,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.3 udp_dport=80") == [
-            "sw_id=0x1,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 tcp_dport=80") == [
-            "sw_id=0x6,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
-        assert int_pkts.get("ip_dst=10.1.98.1 udp_dport=80") == [
-            "sw_id=0x6,ig_port=1,eg_port=7,queue=0"
-        ], str(int_pkts)
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.98.3 tcp_dport=80": [
+                    "sw_id=0x1,ig_port=1,eg_port=7,queue=0",
+                ],
+                "ip_dst=10.1.98.3 udp_dport=80": [
+                    "sw_id=0x1,ig_port=1,eg_port=7,queue=0",
+                ],
+                "ip_dst=10.1.98.1 tcp_dport=80": [
+                    "sw_id=0x6,ig_port=1,eg_port=7,queue=0",
+                ],
+                "ip_dst=10.1.98.1 udp_dport=80": [
+                    "sw_id=0x6,ig_port=1,eg_port=7,queue=0",
+                ],
+            },
+        )
 
         # check flows
         # s1:
@@ -1057,6 +1080,26 @@ class TestE2ETelemtryINT(INTHelper):
             self.DPID_S6, 2, None, [self.DPID_S6, self.DPID_S1]
         )
 
+        # the only proof the pipeline runs a table 3 INT source, not just
+        # accepts it: s1 and s6 only report what carries INT metadata
+        h1, h3 = self.net.net.get("h1", "h3")
+        self.config_host_ip(h1, "10.2.0.1", 2)
+        self.config_host_ip(h3, "10.2.0.3", 2)
+        self.start_capture(h1)
+        self.start_capture(h3)
+        self.start_int_collector()
+        to_z, to_a = ["sw_id=0x1,ig_port=2,eg_port=7,queue=0"], ["sw_id=0x6,ig_port=2,eg_port=7,queue=0"]
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.2.0.3 tcp_dport=80": to_z,
+                "ip_dst=10.2.0.3 udp_dport=80": to_z,
+                "ip_dst=10.2.0.1 tcp_dport=80": to_a,
+                "ip_dst=10.2.0.1 udp_dport=80": to_a,
+            },
+        )
+
     def test_035_shape_epl_dual_static_paths(self):
         """EPL with both a static primary_path and a static backup_path.
 
@@ -1121,6 +1164,25 @@ class TestE2ETelemtryINT(INTHelper):
         by_table = {int(k): v for k, v in expected["count_table"].items()}
         assert by_table.get(3), f"vlan range INT flows did not use table 3: {by_table}"
         print(f"\nvlan range INT flow total: {expected['count_total']}")
+
+        # same as test_030, for the evpl_vlan_range table 3 group
+        h1, h3 = self.net.net.get("h1", "h3")
+        self.config_host_ip_vlan(h1, "10.1.10.1", 10)
+        self.config_host_ip_vlan(h3, "10.1.10.3", 10)
+        self.start_capture(h1)
+        self.start_capture(h3)
+        self.start_int_collector()
+        to_z, to_a = ["sw_id=0x1,ig_port=1,eg_port=7,queue=0"], ["sw_id=0x6,ig_port=1,eg_port=7,queue=0"]
+        self.assert_traffic(
+            h1,
+            h3,
+            {
+                "ip_dst=10.1.10.3 tcp_dport=80": to_z,
+                "ip_dst=10.1.10.3 udp_dport=80": to_z,
+                "ip_dst=10.1.10.1 tcp_dport=80": to_a,
+                "ip_dst=10.1.10.1 udp_dport=80": to_a,
+            },
+        )
 
     def test_045_shape_evpl_any(self):
         """EVPL with the special ``any`` tag on both UNIs.
@@ -1369,10 +1431,14 @@ class TestE2ETelemtryINT(INTHelper):
         self.assert_no_int_trace(self.DPID_S1, 1, 135, [self.DPID_S1, self.DPID_S6])
 
     @pytest.mark.xfail(
-        reason="race, not filed yet: an INT install still in flight when the "
-        "next link goes down lands after remove_int_flows read stored_flows, "
-        "so its hop flows are never removed. strict=False because the "
-        "install doesn't always lose",
+        reason="kytos-ng/telemetry_int#189: handle_failover_flows "
+        "takes the EVC lock separately for its remove and its install, so a "
+        "queued remove_int_flows (error_redeploy_link_down) runs in between "
+        "and the failover INT install lands after the teardown. EP041 is "
+        "expected to fix that part, since handle_partial_flows holds the lock "
+        "across both, but INT flow mods are still only queued, so the "
+        "teardown can miss an install flow_manager hasn't stored yet. "
+        "strict=False because both need the timing to line up",
         strict=False,
     )
     def test_117_converge_dyn_back_to_back_link_downs(self):
@@ -1425,10 +1491,11 @@ class TestE2ETelemtryINT(INTHelper):
         )
 
     @pytest.mark.xfail(
-        reason="race, not filed yet: a failover_deployed handled before the "
-        "enable's metadata write lands is dropped (has_int_enabled is still "
-        "false on the payload), so the failover INT flows are never "
-        "installed. strict=False because the enable doesn't always lose",
+        reason="suspected race, not filed yet: a failover_deployed handled "
+        "before the enable's metadata write lands looks like it's dropped "
+        "(has_int_enabled still false on the payload), leaving the failover "
+        "INT flows uninstalled. strict=False because the timing doesn't "
+        "always line up",
         strict=False,
     )
     def test_125_converge_dyn_enable_before_failover_provisioned(self):
