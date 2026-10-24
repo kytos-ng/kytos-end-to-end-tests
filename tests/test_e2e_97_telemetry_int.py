@@ -11,8 +11,7 @@ EVPL on ``PRIMARY`` with ``BACKUP`` failover; ``STATIC_PRIMARY_FLOWS`` is a
 static EVC on ``PRIMARY``, which has no pre-provisioned failover and so touches
 the two UNI switches only.
 
-Out of scope: ``flow_manager.flow.error`` (provoking a real OFPT_ERROR is too
-fragile) and anything needing working proxy ports: kytos-init.sh has of_lldp
+Out of scope: anything needing working proxy ports: kytos-init.sh has of_lldp
 disable the ``amlight_intlab`` loops, and file 98 will set up ``ignored_loops``.
 """
 
@@ -94,11 +93,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.net.config_all_links_up()
         self.net.restart_kytos_clean()
         time.sleep(5)
-        # not wait_kytos_links(status="UP"): of_lldp disables the five
-        # amlight_intlab loop interfaces, so those links are permanently DOWN
         self.wait_nni_links_up(self.net)
-        # test_125 downs a UNI link, which is a host link and so is covered by
-        # no link wait at all; the UNIs must be active before the next EVC
         for intf_id in (self.UNI_A1, self.UNI_Z1, self.UNI_A2, self.UNI_Z2):
             self.wait_interface_active(intf_id, active=True)
         self.delete_all_evcs()
@@ -149,11 +144,6 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         under test.
         """
         evc_id = self.create_evc(vlan_id, **kwargs)
-        # wait for the failover *before* enabling: telemetry_int builds its
-        # flows from the mef_eline flows that exist at enable time, so enabling
-        # mid-provisioning leaves the failover subset to the
-        # failover_deployed handler and races it (file 96 saw EVCs settle with
-        # only the current-path INT flows installed)
         if kwargs.get("dynamic_backup_path", True):
             self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
         response = self.int_enable([evc_id])

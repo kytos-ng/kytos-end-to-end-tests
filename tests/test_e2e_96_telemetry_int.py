@@ -92,8 +92,6 @@ class TestE2ETelemetryINTApi(INTHelper):
         self.net.config_all_links_up()
         self.net.restart_kytos_clean()
         time.sleep(5)
-        # not wait_kytos_links(status="UP"): of_lldp disables the five
-        # amlight_intlab loop interfaces, so those links are permanently DOWN
         self.wait_nni_links_up(self.net)
         self.delete_all_evcs()
         self.wait_no_evc_flows(self.switches)
