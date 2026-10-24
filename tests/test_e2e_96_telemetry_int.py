@@ -11,13 +11,13 @@ machine, flow counts split by cookie owner, and telemetry_int's own
 
 Out of scope on this backend:
 
-- proxy-port scenarios needing a working loop. p4ofswitch has no proxy-port
-  support and ``of_lldp`` disables the ``amlight_intlab`` loops regardless, so
-  the proxy-port group only exercises the API surface and metadata handlers,
-  which work with a DOWN loop plus ``force=true``.
+- proxy-port scenarios needing a working loop. of_lldp detects the
+  ``amlight_intlab`` loops, but kytos-init.sh sets ``LLDP_LOOP_ACTIONS`` to
+  disable them, so the proxy-port group only exercises the API surface and
+  metadata handlers, which work with a DOWN loop plus ``force=true``. Working
+  loops need ``ignored_loops`` on the switches, which file 98 will set up.
 - ``flow_manager.flow.error`` -> ``status_reason: ["ofpt_error"]``: provoking a
-  genuine OFPT_ERROR is too fragile. 95 uses that signal as a
-  pipeline-capability detector instead.
+  genuine OFPT_ERROR is too fragile.
 - ``redeploy`` returning 500 via ``ProxyPortRequired``: unreachable without an
   INT-enabled intra-switch EVC, which needs proxy ports.
 """
@@ -842,10 +842,9 @@ class TestE2ETelemetryINTApi(INTHelper):
 
         ``of_lldp`` writes the ``looped`` metadata before acting on
         ``LLDP_LOOP_ACTIONS``, so ``ProxyPort.destination`` resolves even though
-        the loop ends up disabled. That makes the API surface testable on
-        p4ofswitch: an unforced POST must refuse a DOWN proxy port, and
-        ``force=true`` must accept it. No data plane is asserted -- this backend
-        has no proxy-port support.
+        the loop ends up disabled. That makes the API surface testable without
+        a working loop: an unforced POST must refuse a DOWN proxy port, and
+        ``force=true`` must accept it. No data plane is asserted.
         """
         looped = self.require_looped_interface(f"{self.DPID_S1}:{self.LOOP_PORT_A}")
         assert looped["port_numbers"], looped
@@ -967,7 +966,8 @@ class TestE2ETelemetryINTApi(INTHelper):
         return evc_id
 
     @pytest.mark.xfail(
-        reason="install_int_flows splits only the metadata into "
+        reason="kytos-ng/telemetry_int#186: install_int_flows splits only the "
+        "metadata into "
         "active/inactive/pp_down and installs the INT flows of all of them, "
         "so TCP/UDP is steered into the DOWN loop instead of falling back to "
         "mef_eline",
@@ -984,13 +984,7 @@ class TestE2ETelemetryINTApi(INTHelper):
             self.int_del_proxy_port(self.UNI_Z1, force=True)
 
     def test_355_proxy_port_delete_while_in_use(self):
-        """A proxy port in use by an INT EVC cannot be deleted without force.
-
-        The forced delete that follows is asserted as a no-op on the telemetry
-        metadata rather than as a fall back to mef_eline -- see the comment at
-        that assertion. Exercising ``proxy_port_metadata_removed`` needs a
-        proxy port whose loop is actually UP, which this backend does not give.
-        """
+        """A proxy port in use by an INT EVC cannot be deleted without force."""
         try:
             evc_id = self.enable_int_with_proxy_port_down(925)
 
@@ -1004,18 +998,31 @@ class TestE2ETelemetryINTApi(INTHelper):
             assert response.status_code == 200, response.text
             listed = {entry["uni"]["id"] for entry in self.int_list_proxy_ports()}
             assert self.UNI_A1 not in listed, listed
+        finally:
+            self.int_del_proxy_port(self.UNI_A1, force=True)
+            self.int_del_proxy_port(self.UNI_Z1, force=True)
 
-            # The forced delete does NOT fall the EVC back to mef_eline here,
-            # and ``proxy_port_metadata_removed`` is unreachable on this
-            # backend: handle_pp_metadata_removed only disables EVCs it finds
-            # with api.get_evcs(metadata.telemetry.status="UP"), and this EVC
-            # is DOWN precisely because the loop -- and so the proxy port -- is
-            # down. The EVC is therefore left enabled, with a status_reason
-            # still naming a proxy port that no longer exists. Worth an
-            # upstream question; pinned here as current behaviour.
+    @pytest.mark.xfail(
+        reason="kytos-ng/telemetry_int#186: handle_pp_metadata_removed only "
+        "disables EVCs whose telemetry status is UP, so an EVC that is DOWN "
+        "because of its proxy port keeps INT enabled and its INT flows",
+        strict=True,
+    )
+    def test_356_forced_proxy_port_delete_falls_back_to_mef_eline(self):
+        """Force-deleting an in-use proxy port disables INT on its EVC."""
+        try:
+            evc_id = self.enable_int_with_proxy_port_down(926)
+
+            response = self.int_del_proxy_port(self.UNI_A1, force=True)
+            assert response.status_code == 200, response.text
+
             self.assert_telemetry_metadata(
-                evc_id, True, status="DOWN", status_reason=["proxy_port_down"]
+                evc_id,
+                False,
+                status="DOWN",
+                status_reason=["proxy_port_metadata_removed"],
             )
+            self.assert_no_int_flows(self.switches, evc_id)
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)
             self.int_del_proxy_port(self.UNI_Z1, force=True)

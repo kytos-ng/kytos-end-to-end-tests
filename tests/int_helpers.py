@@ -1237,11 +1237,9 @@ class INTHelper:
     def require_looped_interface(self, intf_id, timeout=60):
         """Skip the test unless of_lldp has detected the loop on ``intf_id``.
 
-        Loop detection is what makes a proxy port addressable at all, and it is
-        a property of the backend rather than of telemetry_int: on P4OfSwitch
-        of_lldp does not report the amlight_intlab loops, so the proxy-port API
-        has nothing to point at. A skip keeps that distinction visible instead
-        of reporting it as a telemetry_int regression.
+        Loop detection is what makes a proxy port addressable at all, and it
+        depends on the topology and of_lldp rather than on telemetry_int, so a
+        missing loop is a skip instead of a telemetry_int failure.
         """
         try:
             return self.wait_interface_looped(intf_id, timeout=timeout)

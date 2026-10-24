@@ -12,7 +12,8 @@ static EVC on ``PRIMARY``, which has no pre-provisioned failover and so touches
 the two UNI switches only.
 
 Out of scope: ``flow_manager.flow.error`` (provoking a real OFPT_ERROR is too
-fragile) and anything needing working proxy ports, which p4ofswitch lacks.
+fragile) and anything needing working proxy ports: kytos-init.sh has of_lldp
+disable the ``amlight_intlab`` loops, and file 98 will set up ``ignored_loops``.
 """
 
 import os
