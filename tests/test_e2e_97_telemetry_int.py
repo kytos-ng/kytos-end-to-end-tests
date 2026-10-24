@@ -42,6 +42,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
     UNI_A2 = "00:00:00:00:00:00:00:01:2"
     UNI_Z2 = "00:00:00:00:00:00:00:06:2"
     DPID_S1 = "00:00:00:00:00:00:00:01"
+    DPID_S2 = "00:00:00:00:00:00:00:02"
     DPID_S5 = "00:00:00:00:00:00:00:05"
     DPID_S6 = "00:00:00:00:00:00:00:06"
     PRIMARY = [["00:00:00:00:00:00:00:01:7", "00:00:00:00:00:00:00:06:7"]]
@@ -174,10 +175,14 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         evc_id = self.create_int_requested_evc(600)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
 
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
-        self.assert_proxy_port_enabled(evc_id, None)
+        self.assert_telemetry_metadata(
+            evc_id, True, status="UP", status_reason=[], prior={}
+        )
         assert "telemetry_request" in self.get_evc(evc_id)["metadata"]
-        assert evc_id in self.int_list_evcs()
+        if not self.lost_write_recorded():
+            # both read the metadata the lost write would have set
+            self.assert_proxy_port_enabled(evc_id, None)
+            assert evc_id in self.int_list_evcs()
 
         self.assert_evc_flow_counts(self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
@@ -188,6 +193,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 600, [self.DPID_S1, self.DPID_S6]
         )
+        self.xfail_lost_writes()
 
     def test_010_telemetry_request_enables_static_evc(self):
         """A static EVC asking for INT at creation gets it too.
@@ -205,8 +211,11 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         )
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
 
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
-        self.assert_proxy_port_enabled(evc_id, None)
+        self.assert_telemetry_metadata(
+            evc_id, True, status="UP", status_reason=[], prior={}
+        )
+        if not self.lost_write_recorded():
+            self.assert_proxy_port_enabled(evc_id, None)
         self.assert_evc_flow_counts(self.switches, evc_id, self.STATIC_PRIMARY_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_flow_actions(evc_id, [self.DPID_S1, self.DPID_S6])
@@ -214,6 +223,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 605, [self.DPID_S1, self.DPID_S6]
         )
+        self.xfail_lost_writes()
 
     def test_015_telemetry_request_with_proxy_port_enabled_false(self):
         """``proxy_port_enabled: false`` alongside the request is honoured.
@@ -226,10 +236,18 @@ class TestE2ETelemetryINTMefEline(INTHelper):
             610, extra_metadata={"proxy_port_enabled": False}
         )
 
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
-        self.assert_proxy_port_enabled(evc_id, False)
-        self.assert_int_consistent(evc_id)
+        self.assert_telemetry_metadata(
+            evc_id, True, status="UP", status_reason=[], prior={}
+        )
+        if not self.lost_write_recorded():
+            self.assert_proxy_port_enabled(evc_id, False)
+        self.assert_evc_flow_counts(self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
+        self.assert_int_flow_actions(
+            evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=[self.DPID_S5]
+        )
+        self.assert_int_consistent(evc_id)
+        self.xfail_lost_writes()
 
     def test_020_telemetry_request_with_proxy_port_enabled_true_fails(self):
         """``proxy_port_enabled: true`` without proxy ports fails, and says so.
@@ -278,11 +296,18 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         assert response.status_code == 202, response.text
 
         self.assert_telemetry_metadata(
-            evc_id, True, status="UP", status_reason=[], timeout=90
+            evc_id, True, status="UP", status_reason=[], timeout=90, prior={}
         )
-        assert self.int_compare() == [], self.int_compare()
-        self.assert_int_consistent(evc_id)
+        self.assert_evc_flow_counts(self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
+        self.assert_int_flow_actions(
+            evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=[self.DPID_S5]
+        )
+        self.assert_int_consistent(evc_id)
+        if not self.lost_write_recorded():
+            # compare reads the metadata, so a lost write fails it too
+            assert self.int_compare() == [], self.int_compare()
+        self.xfail_lost_writes()
 
     def test_030_telemetry_request_ignored_when_telemetry_present(self):
         """With ``telemetry`` already set, a redeploy redeploys rather than enables.
@@ -298,12 +323,14 @@ class TestE2ETelemetryINTMefEline(INTHelper):
 
         response = self.mef_set_metadata(evc_id, {"telemetry_request": {}})
         assert response.status_code == 201, response.text
+        prior = self.get_evc_telemetry(evc_id)
         response = self.mef_redeploy_evc(evc_id)
         assert response.status_code == 202, response.text
 
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.assert_telemetry_rewritten(evc_id, prior)
         self.assert_evc_flow_counts(self.switches, evc_id, before_flows)
         self.assert_int_consistent(evc_id)
+        self.xfail_lost_writes()
 
     def test_035_telemetry_request_removed_does_not_disable(self):
         """Removing ``telemetry_request`` leaves INT enabled.
@@ -312,7 +339,9 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         wires its removal into a disable, this test is what notices.
         """
         evc_id = self.create_int_requested_evc(630)
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.assert_telemetry_metadata(
+            evc_id, True, status="UP", status_reason=[], prior={}
+        )
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
         self.assert_int_flows_match_expected(evc_id, self.switches)
         before_flows = {
@@ -324,9 +353,13 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         assert "telemetry_request" not in self.get_evc(evc_id)["metadata"]
 
         time.sleep(10)
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
         self.assert_evc_flow_counts(self.switches, evc_id, before_flows)
         self.assert_int_consistent(evc_id)
+        if not self.lost_write_recorded():
+            self.assert_telemetry_metadata(
+                evc_id, True, status="UP", status_reason=[]
+            )
+        self.xfail_lost_writes()
 
     def test_100_evc_disabled_via_mef_eline(self):
         """Disabling the EVC withdraws every flow but keeps INT requested.
@@ -405,7 +438,9 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         The delete path must not depend on how INT was switched on.
         """
         evc_id = self.create_int_requested_evc(715)
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.assert_telemetry_metadata(
+            evc_id, True, status="UP", status_reason=[], prior={}
+        )
 
         response = self.mef_delete_evc(evc_id)
         assert response.status_code == 200, response.text
@@ -413,6 +448,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_no_evc_flows(self.switches, evc_id)
         assert evc_id not in self.int_list_evcs()
         self.assert_compare_clean()
+        self.xfail_lost_writes()
 
     def test_120_evc_redeployed_via_mef_eline(self):
         """A mef_eline redeploy rebuilds the INT flows along with the mef ones.
@@ -423,22 +459,21 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         """
         evc_id = self.create_int_evc_via_api(720)
         self.wait_evc_paths(evc_id, current=self.PRIMARY)
-        before = self.stored_flow_ids(self.int_cookie_prefix, evc_id)
-        assert before
+        self.assert_evc_flow_counts(self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS)
+        prior = self.get_evc_telemetry(evc_id)
 
         response = self.mef_redeploy_evc(evc_id, try_avoid_same_s_vlan=False)
         assert response.status_code == 202, response.text
         self.wait_evc_active(evc_id)
 
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.assert_telemetry_rewritten(evc_id, prior)
         self.assert_int_consistent(evc_id)
+        self.assert_evc_flow_counts(self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
-        assert self.stored_flow_ids(
-            self.int_cookie_prefix, evc_id
-        ), "INT flows disappeared"
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 720, [self.DPID_S1, self.DPID_S6]
         )
+        self.xfail_lost_writes()
 
     def test_125_uni_down_sets_uni_down_reason(self):
         """A UNI going down is recorded in metadata but does not remove flows.
@@ -479,6 +514,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 730, [self.DPID_S1, self.DPID_S6]
         )
+        prior = self.get_evc_telemetry(evc_id)
 
         response = self.mef_patch_evc(
             evc_id,
@@ -515,17 +551,14 @@ class TestE2ETelemetryINTMefEline(INTHelper):
             self.DPID_S1, 2, 730, [self.DPID_S1, self.DPID_S6]
         )
 
-        self.assert_telemetry_up_after_mef_redeploy(evc_id)
+        self.assert_telemetry_rewritten(evc_id, prior)
+        self.xfail_lost_writes()
 
-    @pytest.mark.xfail(
-        reason="kytos-ng/mef_eline#731: a concurrent EVC.sync() reverts the "
-        "metadata write telemetry_int makes on the deployed event",
-        strict=False,
-    )
     def test_135_evc_vlan_changed_via_mef_eline(self):
         """Changing a UNI's VLAN moves the INT flows onto the new VLAN."""
         evc_id = self.create_int_evc_via_api(735)
         self.assert_int_consistent(evc_id)
+        prior = self.get_evc_telemetry(evc_id)
 
         response = self.mef_patch_evc(
             evc_id,
@@ -562,7 +595,8 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         )
         assert int_result[-1]["out"]["vlan"] == 736, int_result
 
-        self.assert_telemetry_up_after_mef_redeploy(evc_id)
+        self.assert_telemetry_rewritten(evc_id, prior)
+        self.xfail_lost_writes()
 
     def test_140_evc_path_changed_via_mef_eline(self):
         """Repointing a static EVC's primary_path moves the INT flows with it.
@@ -577,6 +611,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         )
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
         self.assert_evc_flow_counts(self.switches, evc_id, self.STATIC_PRIMARY_FLOWS)
+        prior = self.get_evc_telemetry(evc_id)
 
         response = self.mef_patch_evc(
             evc_id, {"primary_path": self.path_payload(self.BACKUP)}
@@ -598,47 +633,68 @@ class TestE2ETelemetryINTMefEline(INTHelper):
             self.DPID_S1, 1, 740, [self.DPID_S1, self.DPID_S5, self.DPID_S6]
         )
 
-        self.assert_telemetry_up_after_mef_redeploy(evc_id)
+        self.assert_telemetry_rewritten(evc_id, prior)
+        self.xfail_lost_writes()
 
     def test_145_evcs_loaded_after_controller_restart(self):
         """INT survives a controller restart that keeps the database.
 
         Restarts *without* ``clean_config`` -- ``restart_kytos_clean()`` would
-        drop the database and take the EVC with it.
+        drop the database and take the EVC with it -- but with ``del_flows``,
+        so every switch comes back empty. Matching flow counts afterwards
+        therefore prove the flows were reinstalled from flow_manager's stored
+        flows rather than left over from before the restart.
 
-        Scope, since the name overpromises: this asserts the EVC, its metadata
-        and its INT flows are all still coherent after the controller comes
-        back, which is worth having as the only test of an INT EVC outliving
-        kytosd. It does **not** exercise ``mef_eline.evcs_loaded``:
-        telemetry_int's handler only calls ``load_uni_src_proxy_ports``, and a
-        no-proxy-port EVC leaves ``srcs_pp`` / ``unis_src`` empty either way, so
-        there is nothing for it to rebuild and nothing here could tell a broken
-        load handler from a working one. Covering that needs proxy ports, which
-        this backend does not have.
+        A failover after the restart then proves the new telemetry_int process
+        handles events for an EVC it only knows from the database: it has to
+        promote the failover INT subset and add the s2 hop flows.
 
-        Note also that ``start_controller`` is called with ``del_flows=False``
-        and no ``clean_config``, so the switch flows and flow_manager's stored
-        flows survive the restart untouched -- the assertions below check that
-        state is still consistent, not that anything was rebuilt from scratch.
+        It does **not** exercise ``mef_eline.evcs_loaded``: telemetry_int's
+        handler only calls ``load_uni_src_proxy_ports``, and a no-proxy-port
+        EVC leaves ``srcs_pp`` / ``unis_src`` empty either way. Covering that
+        needs proxy ports, which this backend does not have.
         """
         evc_id = self.create_int_evc_via_api(745)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
-        before = {sw.name: self.count_evc_flows(sw, evc_id) for sw in self.switches}
+        self.assert_evc_flow_counts(self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS)
         self.assert_int_consistent(evc_id)
 
-        self.net.start_controller(enable_all=True)
+        self.net.start_controller(enable_all=True, del_flows=True)
         self.net.wait_switches_connect()
-        self.net.wait_kytos_links()
+        self.wait_nni_links_up(self.net)
 
         # mef_eline reloads its EVCs after start-up; everything below waits on
         # that through the polling helpers before any bare lookup
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
-        self.assert_telemetry_metadata(evc_id, True, status="UP")
+        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
         assert evc_id in self.mef_list_evcs(archived=False)
         assert evc_id in self.int_list_evcs()
-        self.assert_evc_flow_counts(self.switches, evc_id, before)
+        self.assert_evc_flow_counts(
+            self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS, timeout=120
+        )
         self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_consistent(evc_id)
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 745, [self.DPID_S1, self.DPID_S6]
+        )
+
+        self.net.net.configLinkStatus("s1", "s6", "down")
+        self.net.wait_kytos_links("s1", "s6", status="DOWN")
+        self.wait_evc_paths(evc_id, current=self.BACKUP)
+        self.assert_evc_flow_counts(
+            self.switches,
+            evc_id,
+            {**self.DYNAMIC_EVPL_FLOWS, "s2": (2, 4)},
+        )
+        self.assert_int_flows_match_expected(evc_id, self.switches)
+        # s5 is now on current_path and s2 on the new failover_path
+        self.assert_int_flow_actions(
+            evc_id,
+            [self.DPID_S1, self.DPID_S6],
+            hop_dpids=[self.DPID_S5, self.DPID_S2],
+        )
+        self.assert_int_consistent(evc_id)
+        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.assert_int_trace_matches_control(
+            self.DPID_S1, 1, 745, [self.DPID_S1, self.DPID_S5, self.DPID_S6]
         )

@@ -504,6 +504,32 @@ class TestE2ETelemetryINTApi(INTHelper):
         self.assert_int_consistent(evc_id)
         self.assert_int_flows_match_expected(evc_id, self.switches)
 
+    def test_217_int_trace_walks_int_flows(self):
+        """Negative control for ``assert_int_trace_matches_control``.
+
+        Every INT trace in these suites walks the same dpids as its control
+        trace, which on its own can't show the INT flows were selected at all.
+        Deleting s1's table X INT flows leaves its table 0 INT flows jumping to
+        a table where nothing matches, so the INT trace has to stop at s1
+        while the control trace still reaches s6. If it doesn't, the INT
+        traces were walking the mef_eline flows all along.
+        """
+        evc_id = self.create_int_evc(517)
+        expected = [self.DPID_S1, self.DPID_S6]
+        self.assert_int_trace_matches_control(self.DPID_S1, 1, 517, expected)
+
+        # an EVPL keeps its table X flows on table 2
+        self.delete_int_flows_stored(self.DPID_S1, evc_id, table_id=2)
+        int_steps = self.assert_no_int_trace(self.DPID_S1, 1, 517, expected)
+        assert self.trace_dpids(int_steps) == [self.DPID_S1], int_steps
+        control = self.trace(self.DPID_S1, 1, dl_vlan=517)
+        assert self.trace_dpids(control) == expected, control
+
+        response = self.int_check_consistency([evc_id], inconsistent_action="fix")
+        assert response.status_code == 200, response.text
+        self.assert_int_consistent(evc_id)
+        self.assert_int_trace_matches_control(self.DPID_S1, 1, 517, expected)
+
     def test_220_check_consistency_alien_then_fix(self):
         """Unexpected INT-cookie flows are detected and removed by ``fix``."""
         evc_id = self.create_int_evc(520)

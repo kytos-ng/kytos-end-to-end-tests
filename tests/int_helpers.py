@@ -496,13 +496,23 @@ class INTHelper:
         return self.get_evc(evc_id).get("metadata", {}).get("proxy_port_enabled")
 
     def assert_telemetry_metadata(
-        self, evc_id, enabled, status=None, status_reason=None, timeout=60
+        self,
+        evc_id,
+        enabled,
+        status=None,
+        status_reason=None,
+        timeout=60,
+        prior=None,
     ):
         """Assert the EVC's ``metadata.telemetry``, polling until it matches.
 
         telemetry_int writes this metadata asynchronously (via mef_eline's metadata
         API), so a bare read right after a REST call races. Only the fields passed
         are checked; ``status_reason`` is compared as a sorted list.
+
+        ``prior`` is the ``metadata.telemetry`` from before the operation under
+        test (``{}`` when there was none), and opts into tolerating
+        kytos-ng/mef_eline#731; see ``record_lost_write``.
         """
         expected = {"enabled": enabled}
         if status is not None:
@@ -521,8 +531,10 @@ class INTHelper:
             if actual == expected:
                 return observed
             if time.time() >= deadline:
-                if enabled and not observed:
-                    self.xfail_if_metadata_write_lost(evc_id)
+                if prior is not None and self.record_lost_write(
+                    evc_id, observed, prior
+                ):
+                    return observed
                 raise AssertionError(
                     f"EVC {evc_id} telemetry metadata mismatch.\n"
                     f"  expected (subset): {expected}\n"
@@ -532,47 +544,86 @@ class INTHelper:
                 )
             time.sleep(2)
 
-    def xfail_if_metadata_write_lost(self, evc_id):
-        """``xfail`` if the EVC has INT flows installed but no telemetry metadata.
+    def assert_telemetry_rewritten(self, evc_id, prior, timeout=60):
+        """Assert telemetry_int wrote a fresh UP after a redeploy.
 
-        That pair is kytos-ng/mef_eline#731: telemetry_int's bulk metadata
-        write returned 201 and a concurrent ``EVC.sync()`` reverted it, leaving
-        Mongo -- which is what ``GET /v2/evc/{id}`` serves -- holding the
-        pre-write document. The INT flows installed by the same operation are
-        untouched, so their presence is what separates a lost write from
-        telemetry_int never having enabled INT at all; the latter still fails
-        hard. Drop this once #731 is fixed.
+        A redeploy rewrites ``metadata.telemetry`` with the same UP status the
+        EVC already had, so asserting UP alone passes even when the write never
+        landed. ``status_updated_at`` is refreshed on every write, so it is
+        what proves this one did. ``prior`` is ``get_evc_telemetry`` from just
+        before the redeploy.
+
+        A write lost to kytos-ng/mef_eline#731 leaves exactly ``prior``
+        behind, which ``record_lost_write`` tolerates.
         """
-        int_flows = self.stored_flow_ids(self.int_cookie_prefix, evc_id)
-        if not int_flows:
-            return
-        pytest.xfail(
-            f"kytos-ng/mef_eline#731: EVC {evc_id} has {len(int_flows)} INT "
-            "flows installed and no telemetry metadata at all, so the bulk "
-            "write that accompanied them was reverted.\n"
-            f"{self.dump_evc_state(evc_id)}"
+        deadline = time.time() + timeout
+        while True:
+            observed = self.get_evc_telemetry(evc_id)
+            if (
+                observed.get("enabled") is True
+                and observed.get("status") == "UP"
+                and observed.get("status_reason") == []
+                and observed.get("status_updated_at")
+                != prior.get("status_updated_at")
+            ):
+                return observed
+            if time.time() >= deadline:
+                if self.record_lost_write(evc_id, observed, prior):
+                    return observed
+                raise AssertionError(
+                    f"EVC {evc_id} telemetry was not rewritten UP.\n"
+                    f"  prior: {prior}\n  observed: {observed}\n"
+                    f"{self.dump_evc_state(evc_id)}"
+                )
+            time.sleep(2)
+
+    def record_lost_write(self, evc_id, observed, prior):
+        """Record a kytos-ng/mef_eline#731 lost write; return whether it was one.
+
+        #731 reverts telemetry_int's bulk metadata write to the document it
+        replaced, so its signature is exact: ``metadata.telemetry`` still
+        equals ``prior`` -- ``status_updated_at`` included -- while the INT
+        flows the same operation installed are in place, none pending.
+        Anything else, a DOWN status or a missing ``telemetry`` with no INT
+        flows for instance, is not #731 and the caller fails on it.
+
+        The xfail itself is deferred to ``xfail_lost_writes`` so the flow and
+        trace assertions after this one still run. Drop both, and every
+        ``prior=``, once #731 is fixed.
+        """
+        if observed != prior:
+            return False
+        installed = self.stored_flow_ids(self.int_cookie_prefix, evc_id)
+        pending = self.stored_flow_ids(
+            self.int_cookie_prefix, evc_id, state="pending"
         )
+        if not installed or pending:
+            return False
+        # pytest builds a fresh instance per test, so this never leaks
+        self.__dict__.setdefault("_lost_writes", []).append(
+            f"EVC {evc_id} telemetry metadata still {prior!r} with "
+            f"{len(installed)} INT flows installed"
+        )
+        return True
 
-    def assert_telemetry_up_after_mef_redeploy(self, evc_id, timeout=60):
-        """Assert telemetry is back UP after a mef_eline PATCH that redeploys.
+    def lost_write_recorded(self):
+        """Whether ``record_lost_write`` caught a lost write in this test.
 
-        ``xfail``ed against kytos-ng/mef_eline#731, where a concurrent
-        ``EVC.sync()`` reverts the metadata write that telemetry_int just made.
-        Drop the ``except`` branch once that is fixed.
+        For guarding the assertions that read the metadata the lost write
+        would have set, which can't pass once it's gone.
         """
-        try:
-            self.assert_telemetry_metadata(
-                evc_id, True, status="UP", status_reason=[], timeout=timeout
-            )
-        except AssertionError as exc:
-            # imperative, so the flow and trace assertions above stay strict
+        return bool(self.__dict__.get("_lost_writes"))
+
+    def xfail_lost_writes(self):
+        """``xfail`` if ``record_lost_write`` caught kytos-ng/mef_eline#731.
+
+        Call it last in every test that passes ``prior``, so it only fires
+        once everything else has passed.
+        """
+        if self.lost_write_recorded():
             pytest.xfail(
-                "kytos-ng/mef_eline#731: bulk metadata write returned 201 and "
-                f"was reverted. EVC {evc_id} is left advertising "
-                f"{self.get_evc_telemetry(evc_id)} while its INT flows are "
-                "installed and consistent "
-                f"({len(self.stored_flow_ids(self.int_cookie_prefix, evc_id))} "
-                f"stored INT flows). {exc}"
+                "kytos-ng/mef_eline#731: bulk metadata write was reverted: "
+                + "; ".join(self.__dict__["_lost_writes"])
             )
 
     def assert_proxy_port_enabled(self, evc_id, expected, timeout=30):
@@ -637,10 +688,24 @@ class INTHelper:
         ``utils.set_priority`` is applied only to the table 0 copies, so those
         are mef_eline priority + 100 while the table X flow keeps the mef_eline
         priority unchanged.
+
+        Every count is exact and derived from the mef_eline flows rather than
+        from ``expected_flows``, so a FlowBuilder regression that drops or
+        duplicates flows can't pass by changing both sides. Each mef_eline
+        flow on a UNI switch becomes three INT flows: from the UNI port, a
+        TCP and a UDP ``push_int`` plus one table X ``add_int_metadata``;
+        from an NNI, a TCP and a UDP ``send_report`` plus one table X
+        ``pop_int``. On a hop each one becomes a TCP and a UDP
+        ``add_int_metadata``.
         """
         int_stored = self.get_stored_flows(self.int_cookie_prefix, evc_id)
         mef_stored = self.get_stored_flows(self.mef_cookie_prefix, evc_id)
         assert int_stored, f"EVC {evc_id} has no stored INT flows"
+        evc = self.get_evc(evc_id)
+        uni_ports = {}
+        for uni in (evc["uni_a"], evc["uni_z"]):
+            dpid, port = uni["interface_id"].rsplit(":", 1)
+            uni_ports.setdefault(dpid, set()).add(int(port))
 
         expected_cookie = self.int_cookie(evc_id)
         mef_priorities = {
@@ -675,11 +740,23 @@ class INTHelper:
         for dpid in uni_dpids:
             flows = int_stored.get(dpid)
             assert flows, f"EVC {evc_id} has no INT flows on UNI switch {dpid}"
+            mef_flows = mef_stored.get(dpid, [])
+            n_from_uni = sum(
+                1
+                for flow in mef_flows
+                if flow["flow"]["match"].get("in_port") in uni_ports.get(dpid, ())
+            )
+            n_from_nni = len(mef_flows) - n_from_uni
+            assert n_from_uni, f"{dpid} has no mef_eline flow from a UNI port"
+            assert len(flows) == 3 * len(mef_flows), (
+                f"{dpid} has {len(flows)} INT flows for {len(mef_flows)} "
+                f"mef_eline flows, expected {3 * len(mef_flows)}"
+            )
 
             push = [f for f in flows if self.action_types(f) == [self.push_int]]
-            assert (
-                len(push) >= 2
-            ), f"{dpid} expected >=2 push_int flows, got {len(push)}"
+            assert len(push) == 2 * n_from_uni, (
+                f"{dpid} expected {2 * n_from_uni} push_int flows, got {len(push)}"
+            )
             for flow in push:
                 assert flow["flow"]["table_id"] == 0, flow
                 assert flow["flow"]["match"].get("dl_type") == self.ipv4, flow
@@ -694,9 +771,10 @@ class INTHelper:
             }, push
 
             report = [f for f in flows if self.action_types(f) == [self.send_report]]
-            assert (
-                len(report) >= 2
-            ), f"{dpid} expected >=2 send_report flows, got {len(report)}"
+            assert len(report) == 2 * n_from_nni, (
+                f"{dpid} expected {2 * n_from_nni} send_report flows, "
+                f"got {len(report)}"
+            )
             for flow in report:
                 assert flow["flow"]["table_id"] == 0, flow
                 assert flow["flow"]["match"].get("dl_type") == self.ipv4, flow
@@ -716,16 +794,26 @@ class INTHelper:
                 if self.action_types(f)[:1] == [self.add_int_metadata]
                 and f["flow"]["table_id"] != 0
             ]
-            assert metadata_first, f"{dpid} has no table X add_int_metadata flow"
+            assert len(metadata_first) == n_from_uni, (
+                f"{dpid} expected {n_from_uni} table X add_int_metadata flows, "
+                f"got {len(metadata_first)}"
+            )
 
             pop_first = [f for f in flows if self.action_types(f)[:1] == [self.pop_int]]
-            assert pop_first, f"{dpid} has no pop_int flow"
+            assert len(pop_first) == n_from_nni, (
+                f"{dpid} expected {n_from_nni} pop_int flows, got {len(pop_first)}"
+            )
             for flow in pop_first:
                 assert flow["flow"]["table_id"] != 0, flow
 
         for dpid in hop_dpids:
             flows = int_stored.get(dpid)
             assert flows, f"EVC {evc_id} has no INT flows on hop switch {dpid}"
+            n_mef = len(mef_stored.get(dpid, []))
+            assert len(flows) == 2 * n_mef, (
+                f"hop {dpid} has {len(flows)} INT flows for {n_mef} mef_eline "
+                f"flows, expected {2 * n_mef}"
+            )
             for flow in flows:
                 assert (
                     flow["flow"]["table_id"] == 0
@@ -877,6 +965,8 @@ class INTHelper:
         is absent the trace falls through to mef_eline and walks the same
         dpids. Detecting that is the job of ``assert_int_flows_match_expected``
         and ``assert_int_consistent``, which every caller of this also runs.
+        That the INT trace does walk the INT flows when they are there is
+        proved once, by file 96's ``test_217`` negative control.
 
         Polls, because sdntrace_cp only sees ``state=installed`` flows and a flow
         that is still ``pending`` would make the INT trace stop early.
@@ -926,12 +1016,13 @@ class INTHelper:
                 )
             time.sleep(2)
 
-    def delete_int_flows_stored(self, dpid, evc_id):
+    def delete_int_flows_stored(self, dpid, evc_id, table_id=255):
         """Delete an EVC's INT flows through flow_manager.
 
         This removes them from ``stored_flows`` *and* from the switch, which is what
         telemetry_int's ``check_consistency`` detects as ``missing_flows`` (it diffs
-        expected against stored, never against the switch).
+        expected against stored, never against the switch). ``table_id`` 255
+        means every table.
         """
         payload = {
             "force": True,
@@ -939,7 +1030,7 @@ class INTHelper:
                 {
                     "cookie": self.int_cookie(evc_id),
                     "cookie_mask": 0xFFFFFFFFFFFFFFFF,
-                    "table_id": 255,
+                    "table_id": table_id,
                     "owner": self.int_owner,
                 }
             ],

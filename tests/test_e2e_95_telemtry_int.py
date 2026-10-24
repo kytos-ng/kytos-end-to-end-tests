@@ -137,9 +137,10 @@ class TestE2ETelemtryINT(INTHelper):
     def require_table_3(self):
         """Skip a test whose INT flows would land on table 3.
 
-        Only skips when the probe positively read the table list and table 3 was
-        absent. If the probe could not parse anything, the test runs and
-        ``enable_int_and_wait_up`` skips it on an ofpt_error instead.
+        The probe alone decides: skip when it read the table list and table 3
+        was absent, fail when it couldn't read any table at all. An ofpt_error
+        on enable is never taken as "no table 3", since a rejected flow mod is
+        exactly what a FlowBuilder regression looks like too.
         """
         if not self.pipeline_tables:
             # setup_class probed before any controller was up; try once more
@@ -147,7 +148,11 @@ class TestE2ETelemtryINT(INTHelper):
             cls = type(self)
             cls.pipeline_tables = cls.probe_pipeline_tables(self.switches[0])
             cls.supports_table_3 = 3 in cls.pipeline_tables
-        if self.pipeline_tables and not self.supports_table_3:
+        assert self.pipeline_tables, (
+            "could not parse any table id out of dump-tables or "
+            "dump-table-features, so whether table 3 exists is unknown"
+        )
+        if not self.supports_table_3:
             pytest.skip(
                 "pipeline has no table 3 (tables found: "
                 f"{sorted(self.pipeline_tables)}); telemetry_int maps EPL, "
@@ -216,15 +221,13 @@ class TestE2ETelemtryINT(INTHelper):
             for link in path
         ]
 
-    def enable_int_and_wait_up(self, evc_id, table_3=False):
+    def enable_int_and_wait_up(self, evc_id):
         """Enable INT on an EVC and wait for its telemetry to report UP.
 
         When the pipeline rejects an INT flow mod, flow_manager emits
         ``flow.error`` and telemetry_int disables INT with
-        ``status_reason: ["ofpt_error"]``. For the shapes whose table X flows
-        land on table 3 that is a pipeline limitation rather than a
-        telemetry_int bug, so remember it on the class and skip the remaining
-        table 3 shapes instead of failing each of them with the same cause.
+        ``status_reason: ["ofpt_error"]``. That fails fast here; whether a
+        table 3 shape can run at all is ``require_table_3``'s call.
         """
         self.wait_evc_failover_ready(evc_id)
         response = self.int_enable([evc_id])
@@ -250,14 +253,10 @@ class TestE2ETelemtryINT(INTHelper):
                 return telemetry
             time.sleep(2)
 
-        if table_3 and "ofpt_error" in telemetry.get("status_reason", []):
-            type(self).supports_table_3 = False
-            pytest.skip(
-                "pipeline rejected the table 3 INT flows "
-                f"(status_reason={telemetry.get('status_reason')}); this EVC "
-                "shape needs table 3"
-            )
-        raise AssertionError(f"EVC {evc_id} INT did not come UP: {telemetry}")
+        raise AssertionError(
+            f"EVC {evc_id} INT did not come UP: {telemetry}\n"
+            f"{self.dump_evc_state(evc_id)}"
+        )
 
     def config_host_ip_vlan(self, host, ip, vlan):
         """Configure VLAN subinterface and VLAN into host."""
@@ -277,6 +276,18 @@ class TestE2ETelemtryINT(INTHelper):
         assert current == expected_current, str(current)
         failover = self.path_links(evc["failover_path"])
         assert failover == expected_failover, str(failover)
+
+    def assert_int_flow_actions_on_paths(self, evc_id):
+        """``assert_int_flow_actions`` with the hops read off the EVC's paths."""
+        evc = self.get_evc(evc_id)
+        hops = set()
+        for key in ("current_path", "failover_path"):
+            links = self.path_links(evc.get(key, []))
+            if links:
+                hops.update(self.path_dpids(links, self.DPID_S1)[1:-1])
+        self.assert_int_flow_actions(
+            evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=sorted(hops)
+        )
 
     def validate_switch_flows(self, evc_id, expected_counts):
         """
@@ -929,15 +940,19 @@ class TestE2ETelemtryINT(INTHelper):
         telemetry_int puts its table X flows on table 2 for EVPL and table 3
         for EPL, vlan ranges and the special any/untagged tags. test_001 only
         ever proves table 2, so record what the pipeline reports before the
-        shape tests rely on it. This is informational: a missing table 3 skips
-        those shapes rather than failing here.
+        shape tests rely on it. A missing table 3 skips those shapes rather
+        than failing here, but a probe that reads nothing fails: the table 3
+        shapes would fail on it too.
         """
         if not self.pipeline_tables:
-            pytest.skip(
-                "could not parse any table id out of dump-tables or "
-                "dump-table-features, so table 3 cannot be probed up front; the "
-                "table 3 shapes fall back to detecting an ofpt_error on enable"
-            )
+            # setup_class probed before any controller was up
+            cls = type(self)
+            cls.pipeline_tables = cls.probe_pipeline_tables(self.switches[0])
+            cls.supports_table_3 = 3 in cls.pipeline_tables
+        assert self.pipeline_tables, (
+            "could not parse any table id out of dump-tables or "
+            "dump-table-features"
+        )
         assert 0 in self.pipeline_tables, sorted(self.pipeline_tables)
         assert 2 in self.pipeline_tables, (
             f"pipeline has no table 2, which every EVPL INT flow needs: "
@@ -1132,7 +1147,7 @@ class TestE2ETelemtryINT(INTHelper):
         self.wait_evc_active(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
 
-        self.enable_int_and_wait_up(evc_id, table_3=True)
+        self.enable_int_and_wait_up(evc_id)
 
         self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
@@ -1171,7 +1186,7 @@ class TestE2ETelemtryINT(INTHelper):
         self.wait_evc_active(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
 
-        self.enable_int_and_wait_up(evc_id, table_3=True)
+        self.enable_int_and_wait_up(evc_id)
 
         self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
@@ -1210,10 +1225,11 @@ class TestE2ETelemtryINT(INTHelper):
         )
         print(f"\nvlan range dl_vlan representation on s1 UNI: {uni_vlans}")
 
-        self.enable_int_and_wait_up(evc_id, table_3=True)
+        self.enable_int_and_wait_up(evc_id)
 
         expected = self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_consistent(evc_id)
+        self.assert_int_flow_actions_on_paths(evc_id)
         by_table = {int(k): v for k, v in expected["count_table"].items()}
         assert by_table.get(3), f"vlan range INT flows did not use table 3: {by_table}"
         print(f"\nvlan range INT flow total: {expected['count_total']}")
@@ -1231,10 +1247,11 @@ class TestE2ETelemtryINT(INTHelper):
         evc_id = self.create_evc(0, tag_a="any", tag_z="any")
         self.wait_evc_active(evc_id)
 
-        self.enable_int_and_wait_up(evc_id, table_3=True)
+        self.enable_int_and_wait_up(evc_id)
 
         expected = self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_consistent(evc_id)
+        self.assert_int_flow_actions_on_paths(evc_id)
         by_table = {int(k): v for k, v in expected["count_table"].items()}
         assert by_table.get(3), f"'any' INT flows did not use table 3: {by_table}"
 
@@ -1263,10 +1280,11 @@ class TestE2ETelemtryINT(INTHelper):
         evc_id = self.create_evc(0, tag_a="untagged", tag_z="untagged")
         self.wait_evc_active(evc_id)
 
-        self.enable_int_and_wait_up(evc_id, table_3=True)
+        self.enable_int_and_wait_up(evc_id)
 
         expected = self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_consistent(evc_id)
+        self.assert_int_flow_actions_on_paths(evc_id)
         by_table = {int(k): v for k, v in expected["count_table"].items()}
         assert by_table.get(3), f"'untagged' INT flows did not use table 3: {by_table}"
 
@@ -1280,8 +1298,10 @@ class TestE2ETelemtryINT(INTHelper):
         evc_id = self.create_evc(0, tag_a="any", tag_z="untagged")
         self.wait_evc_active(evc_id)
 
-        self.enable_int_and_wait_up(evc_id, table_3=True)
+        self.enable_int_and_wait_up(evc_id)
         self.assert_int_consistent(evc_id)
+        self.assert_int_flows_match_expected(evc_id, self.switches)
+        self.assert_int_flow_actions_on_paths(evc_id)
         assert evc_id in self.int_list_evcs()
 
     def down_link(self, node_a, node_b, port1=None, port2=None):
@@ -1463,6 +1483,36 @@ class TestE2ETelemtryINT(INTHelper):
         )
         self.assert_no_int_trace(self.DPID_S1, 1, 135, [self.DPID_S1, self.DPID_S6])
 
+    @pytest.mark.xfail(
+        reason="race, not filed yet: an INT install still in flight when the "
+        "next link goes down lands after remove_int_flows read stored_flows, "
+        "so its hop flows are never removed. strict=False because the "
+        "install doesn't always lose",
+        strict=False,
+    )
+    def test_117_converge_dyn_back_to_back_link_downs(self):
+        """Dynamic EVC: test_115 without settling between the link downs.
+
+        ``down_link_and_settle`` is what keeps test_115 and test_120 green;
+        this is the same walk with only kytos's own link-down wait in between,
+        which is what left 4 orphaned hop flows on s5 when the settle wasn't
+        there.
+        """
+        evc_id = self.create_int_evc(137)
+        self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
+
+        for node_a, node_b in (("s1", "s6"), ("s1", "s5"), ("s1", "s2")):
+            self.down_link(node_a, node_b)
+
+        self.wait_evc_paths(evc_id, current=[], failover=[])
+        self.assert_no_evc_flows(self.switches, evc_id)
+        self.assert_telemetry_metadata(
+            evc_id,
+            True,
+            status="DOWN",
+            status_reason=["redeployed_link_down_no_path"],
+        )
+
     def test_120_converge_dyn_recovery_link_up(self):
         """Dynamic EVC: the EVC recovers once a link comes back up.
 
@@ -1488,6 +1538,42 @@ class TestE2ETelemtryINT(INTHelper):
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 140, [self.DPID_S1, self.DPID_S6]
         )
+
+    @pytest.mark.xfail(
+        reason="race, not filed yet: a failover_deployed handled before the "
+        "enable's metadata write lands is dropped (has_int_enabled is still "
+        "false on the payload), so the failover INT flows are never "
+        "installed. strict=False because the enable doesn't always lose",
+        strict=False,
+    )
+    def test_125_converge_dyn_enable_before_failover_provisioned(self):
+        """Dynamic EVC: INT enabled while mef_eline is still provisioning.
+
+        Every other test waits for the failover first (``create_int_evc``,
+        ``wait_evc_failover_ready``). This one doesn't, which is also what an
+        EVC created with ``telemetry_request`` does, since that enables on
+        ``mef_eline.deployed``. Whatever the timing, the EVC has to end up
+        with the failover INT flows installed.
+        """
+        evc_id = self.create_evc(145)
+        self.wait_evc_active(evc_id)
+        response = self.int_enable([evc_id])
+        assert response.status_code == 201, response.text
+
+        self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
+        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.validate_switch_flows(
+            evc_id,
+            {
+                "s1": (3, 9),
+                "s2": (0, 0),
+                "s3": (0, 0),
+                "s4": (0, 0),
+                "s5": (2, 4),
+                "s6": (3, 9),
+            },
+        )
+        self.assert_int_consistent(evc_id)
 
     def test_150_converge_static_single_path(self):
         """Static EVC with only a primary_path: down means down, then recovers.
@@ -1598,7 +1684,7 @@ class TestE2ETelemtryINT(INTHelper):
             backup_path=self.path_payload(self.BACKUP),
         )
         self.wait_evc_active(evc_id)
-        self.enable_int_and_wait_up(evc_id, table_3=True)
+        self.enable_int_and_wait_up(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
         self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
 
