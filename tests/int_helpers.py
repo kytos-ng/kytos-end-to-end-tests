@@ -1171,23 +1171,46 @@ class INTHelper:
                 f"there is no proxy port to exercise: {exc}"
             )
 
-    def wait_int_flows_installed(self, evc_id, timeout=60):
-        """Wait until the EVC has INT flows in flow_manager's stored_flows.
+    def int_ready(self, evc_id):
+        """Return whether the EVC's INT flows are consistent and none is pending.
 
-        ``POST /v1/evc/enable`` returns once the metadata is written; the flow
-        mods are dispatched asynchronously, so a caller that snapshots INT flow
-        ids straight after a 201 can legitimately see none yet.
+        ``check_consistency`` counts ``pending`` stored flows as present, so a
+        consistent EVC can still have flow mods in flight; it's only ready
+        once none of its INT flows is pending anymore.
+
+        Only a 503 is retried: any other error, such as the 500 on an
+        intra-switch EVC without proxy ports (test_305), fails right away
+        instead of polling until the caller's timeout.
+        """
+        response = self.int_check_consistency([evc_id], outcome="inconsistent")
+        if response.status_code == 503:
+            return False
+        assert response.status_code == 200, (
+            f"check_consistency on EVC {evc_id}: {response.status_code} "
+            f"{response.text}"
+        )
+        if response.json():
+            return False
+        installed = self.stored_flow_ids(self.int_cookie_prefix, evc_id)
+        pending = self.stored_flow_ids(
+            self.int_cookie_prefix, evc_id, state="pending"
+        )
+        return bool(installed) and not pending
+
+    def wait_int_ready(self, evc_id, timeout=60):
+        """Wait until the EVC's INT flows are consistent and none is pending.
+
+        ``POST /v1/evc/enable`` and ``status: UP`` both precede the flow mods
+        landing, and they're sent per switch, so seeing some INT flows says
+        nothing about the rest.
         """
         deadline = time.time() + timeout
-        while True:
-            flow_ids = self.stored_flow_ids(
-                self.int_cookie_prefix, evc_id, state=("installed", "pending")
-            )
-            if flow_ids:
-                return flow_ids
+        while not self.int_ready(evc_id):
             if time.time() >= deadline:
+                response = self.int_check_consistency([evc_id])
                 raise AssertionError(
-                    f"EVC {evc_id} has no stored INT flows after {timeout}s.\n"
+                    f"EVC {evc_id} INT flows not ready after {timeout}s: "
+                    f"{response.status_code} {response.text}\n"
                     f"{self.dump_evc_state(evc_id)}"
                 )
             time.sleep(2)

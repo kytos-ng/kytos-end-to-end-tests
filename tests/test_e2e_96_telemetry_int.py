@@ -198,7 +198,6 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert any(counts[1] for counts in before.values()), before
 
         response = self.int_disable([evc_id])
-        # the handler returns the default 200; openapi.yml documents 201
         assert response.status_code == 200, response.text
         assert evc_id in response.json(), response.text
 
@@ -231,8 +230,8 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert response.status_code == 201, response.text
         self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
         self.assert_proxy_port_enabled(evc_id, False)
-        # enable returns once the metadata is written; the flow mods follow
-        self.wait_int_flows_installed(evc_id)
+        # the enable's flow mods must land first, else the redeploy races them
+        self.wait_int_ready(evc_id)
 
         response = self.int_redeploy([evc_id])
         assert response.status_code == 201, response.text
@@ -244,18 +243,10 @@ class TestE2ETelemetryINTApi(INTHelper):
         self.assert_int_flows_match_expected(evc_id, self.switches)
 
     def test_125_redeploy_negatives(self):
-        """Redeploy rejects EVCs that do not have INT enabled, and unknown ids."""
+        """Redeploy rejects an EVC that does not have INT enabled."""
         evc_id = self.create_evc(315)
 
         response = self.int_redeploy([evc_id])
-        assert response.status_code == 409, response.text
-        assert "INT isn't enabled" in self.error_description(response)
-
-        # 409, not 404: redeploy_int calls _validate_has_int() before
-        # _validate_map_enable_evcs(), and an unknown id prefetches as {},
-        # which has no telemetry metadata -- so EVCHasNoINT wins the race to
-        # raise and the caller never reaches the not-found check.
-        response = self.int_redeploy([self.UNKNOWN_EVC_ID])
         assert response.status_code == 409, response.text
         assert "INT isn't enabled" in self.error_description(response)
 
@@ -686,43 +677,46 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert self.get_evc_telemetry(evc_id) == {}, self.get_evc_telemetry(evc_id)
         self.assert_no_int_flows(self.switches, evc_id)
 
-    def test_303_intra_switch_evc_proxy_port_enabled_false_crashes(self):
-        """Pins today's 500 when an intra EVC is enabled with the flag off.
+    @pytest.mark.xfail(
+        reason="returns 500: with proxy_port_enabled false the source flow "
+        "builder dereferences the missing dst_uni['proxy_port'] (KeyError) "
+        "before ProxyPortRequired can be raised",
+        strict=True,
+    )
+    def test_303_intra_switch_evc_proxy_port_enabled_false_requires_proxy_port(
+        self,
+    ):
+        """An intra-switch EVC needs proxy ports even with the flag off.
 
-        ``proxy_port_enabled: false`` makes ``_validate_map_enable_evcs`` skip
-        every proxy-port check, so the clean ``ProxyPortRequired`` in
-        ``_build_int_sink_flows_no_proxy_port`` is never reached: the source
-        builder runs first and dereferences ``dst_uni["proxy_port"]``, which is
-        absent, raising a bare ``KeyError`` that no handler catches. A 409 with
-        the same message as test_300 would be the right answer; this asserts
-        the current behaviour so a fix is a deliberate change. Nothing is
-        installed, because the exception happens while flows are being built.
+        Same contract as test_300: a 409, and nothing installed.
         """
         evc_id = self.create_intra_evc(903)
 
         response = self.int_enable([evc_id], proxy_port_enabled=False)
-        assert response.status_code == 500, response.text
+        assert response.status_code == 409, response.text
+        assert "intra-EVC must use proxy ports" in self.error_description(response)
 
         self.assert_no_int_flows(self.switches, evc_id)
 
-    def test_305_intra_switch_expected_flows_and_consistency_500(self):
-        """Pins today's 500 on an intra-switch EVC without proxy ports.
-
-        ``ProxyPortRequired`` is a ``ProxyPortConflict``, not a
-        ``ProxyPortNotFound``, so it falls through the 404/409 clauses of
-        ``expected_flows`` and ``check_consistency`` into the generic
-        ``UnrecoverableError`` branch. A 409 would be the better answer; this
-        asserts the current behaviour so a future fix is a deliberate change
-        rather than a surprise.
-        """
+    @pytest.mark.xfail(
+        reason="kytos-ng/telemetry_int#187: returns 500: ProxyPortRequired is "
+        "a ProxyPortConflict, which expected_flows and check_consistency "
+        "don't map, so it falls into their UnrecoverableError branch",
+        strict=True,
+    )
+    def test_305_intra_switch_expected_flows_and_consistency_require_proxy_port(
+        self,
+    ):
+        """expected_flows and check_consistency 409 on an intra-switch EVC
+        without proxy ports."""
         evc_id = self.create_intra_evc(905)
 
         response = self.int_expected_flows_response([evc_id])
-        assert response.status_code == 500, response.text
+        assert response.status_code == 409, response.text
         assert "proxy ports" in self.error_description(response)
 
         response = self.int_check_consistency([evc_id])
-        assert response.status_code == 500, response.text
+        assert response.status_code == 409, response.text
 
     def test_310_proxy_port_enabled_true_without_metadata(self):
         """``proxy_port_enabled: true`` needs proxy ports on both UNIs."""
@@ -734,24 +728,35 @@ class TestE2ETelemetryINTApi(INTHelper):
         self.assert_no_int_flows(self.switches, evc_id)
 
     def test_315_unknown_evc_id(self):
-        """Unknown EVC ids are 404, except on redeploy; a forced disable crashes.
-
-        ``force=true`` makes ``_validate_disable_evcs`` skip the not-found
-        check, so ``disable_int`` carries on with an empty ``{}`` EVC and
-        ``_discard_pps_evc_ids`` dereferences ``evc["uni_a"]`` outside its
-        ``try`` -- a bare ``KeyError`` no handler maps, hence 500 rather than
-        the 200 the force semantics suggest. Pinned as current behaviour so a
-        fix is a deliberate change.
-        """
+        """Unknown EVC ids are 404."""
         assert self.int_enable([self.UNKNOWN_EVC_ID]).status_code == 404
         assert self.int_disable([self.UNKNOWN_EVC_ID]).status_code == 404
-        assert self.int_disable([self.UNKNOWN_EVC_ID], force=True).status_code == 500
-        # redeploy is the exception: _validate_has_int() runs first, so an
-        # unknown id is reported as "INT isn't enabled" (409), not not-found
-        assert self.int_redeploy([self.UNKNOWN_EVC_ID]).status_code == 409
         assert (
             self.int_expected_flows_response([self.UNKNOWN_EVC_ID]).status_code == 404
         )
+
+    @pytest.mark.xfail(
+        reason="returns 409: redeploy_int runs _validate_has_int() before the "
+        "not found check, and an unknown id maps to {}, so EVCHasNoINT is "
+        "raised instead of EVCNotFound",
+        strict=True,
+    )
+    def test_316_unknown_evc_id_redeploy(self):
+        """Redeploying an unknown EVC id is a 404, like the other endpoints."""
+        response = self.int_redeploy([self.UNKNOWN_EVC_ID])
+        assert response.status_code == 404, response.text
+
+    @pytest.mark.xfail(
+        reason="returns 500: force skips the not found check and "
+        "_discard_pps_evc_ids dereferences evc['uni_a'] of the {} EVC "
+        "outside its try (KeyError)",
+        strict=True,
+    )
+    def test_317_unknown_evc_id_forced_disable(self):
+        """A forced disable tries even when the EVC isn't found, per openapi.yml,
+        so an unknown id is a 200."""
+        response = self.int_disable([self.UNKNOWN_EVC_ID], force=True)
+        assert response.status_code == 200, response.text
 
     @pytest.mark.parametrize(
         "path,method",
@@ -764,10 +769,7 @@ class TestE2ETelemetryINTApi(INTHelper):
         ],
     )
     def test_320_malformed_payload(self, path, method):
-        """Every evc_ids endpoint rejects a malformed payload with a 400.
-
-        A request with no body at all is the one exception, and which code it
-        returns depends on the installed openapi-core; see the comment below.
+        """Every evc_ids endpoint rejects a malformed or missing payload with a 400.
 
         This is the one place that bypasses INTHelper and calls requests
         directly: the whole point is to send bodies the facade's wrappers would
@@ -781,18 +783,8 @@ class TestE2ETelemetryINTApi(INTHelper):
             response = send(url, json=payload, timeout=timeout)
             assert response.status_code == 400, (payload, response.text)
 
-        # A request with no body at all depends on the openapi-core version,
-        # so accept either outcome rather than pinning a dependency artefact:
-        #   <= 0.18.x  StarletteOpenAPIRequest.mimetype does a bare
-        #              self.request.headers["Content-Type"]; with neither body
-        #              nor header the KeyError escapes
-        #              avalidate_openapi_request -> 500
-        #   >= 0.19.0  renamed to content_type, defaulting to
-        #              "application/octet-stream" per RFC 2616 -> 400
-        # This run was on <= 0.18.x and returned 500. 400 is the correct
-        # answer and needs only a pin bump on the kytos side.
         response = send(url, timeout=timeout)
-        assert response.status_code in (400, 500), response.text
+        assert response.status_code == 400, response.text
 
     def test_325_check_consistency_bad_query_params(self):
         """check_consistency validates its query parameter enums."""
@@ -911,59 +903,70 @@ class TestE2ETelemetryINTApi(INTHelper):
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)
 
+    def enable_int_with_proxy_port_down(self, vlan_id):
+        """Set proxy ports on UNI_A1/UNI_Z1 and enable INT on a new EVC.
+
+        The loop is DOWN on this backend, so the EVC lands on
+        ``status_reason: ["proxy_port_down"]``, which registers it against the
+        proxy port. The caller must remove both proxy ports in a ``finally``,
+        including when this fails half way.
+        """
+        self.require_looped_interface(f"{self.DPID_S1}:{self.LOOP_PORT_A}")
+        self.require_looped_interface(f"{self.DPID_S6}:{self.LOOP_PORT_Z}")
+        for intf_id, port in (
+            (self.UNI_A1, self.LOOP_PORT_A),
+            (self.UNI_Z1, self.LOOP_PORT_Z),
+        ):
+            response = self.int_add_proxy_port(intf_id, port, force=True)
+            assert response.status_code == 200, response.text
+
+        evc_id = self.create_evc(vlan_id)
+        response = self.int_enable([evc_id])
+        assert response.status_code == 201, response.text
+
+        telemetry = self.wait_telemetry_settled(evc_id)
+        # a rejection arrives asynchronously, after the optimistic metadata
+        # write; give it time to land before trusting proxy_port_down
+        if telemetry.get("enabled"):
+            time.sleep(10)
+            telemetry = self.get_evc_telemetry(evc_id)
+        if not telemetry.get("enabled"):
+            pytest.skip(
+                "backend rejected the proxy-port INT flows "
+                f"(telemetry={telemetry}); a proxy-port EVC cannot be "
+                "registered on this backend"
+            )
+        assert telemetry["status"] == "DOWN", telemetry
+        assert telemetry["status_reason"] == ["proxy_port_down"], telemetry
+        return evc_id
+
+    @pytest.mark.xfail(
+        reason="install_int_flows splits only the metadata into "
+        "active/inactive/pp_down and installs the INT flows of all of them, "
+        "so TCP/UDP is steered into the DOWN loop instead of falling back to "
+        "mef_eline",
+        strict=True,
+    )
+    def test_354_proxy_port_down_evc_has_no_int_flows(self):
+        """An EVC enabled while its proxy port is down falls back to mef_eline:
+        no INT flows are installed."""
+        try:
+            evc_id = self.enable_int_with_proxy_port_down(924)
+            self.assert_no_int_flows(self.switches, evc_id)
+        finally:
+            self.int_del_proxy_port(self.UNI_A1, force=True)
+            self.int_del_proxy_port(self.UNI_Z1, force=True)
+
     def test_355_proxy_port_delete_while_in_use(self):
         """A proxy port in use by an INT EVC cannot be deleted without force.
-
-        With proxy-port metadata on both UNIs, ``_build_int_sink_flows`` takes
-        the proxy-port branch even though validation was skipped, and since the
-        loop is DOWN on this backend the EVC lands on
-        ``status_reason: ["proxy_port_down"]``. That is enough to register the
-        EVC against the proxy port, which is what the delete has to refuse.
 
         The forced delete that follows is asserted as a no-op on the telemetry
         metadata rather than as a fall back to mef_eline -- see the comment at
         that assertion. Exercising ``proxy_port_metadata_removed`` needs a
         proxy port whose loop is actually UP, which this backend does not give.
         """
-        self.require_looped_interface(f"{self.DPID_S1}:{self.LOOP_PORT_A}")
-        self.require_looped_interface(f"{self.DPID_S6}:{self.LOOP_PORT_Z}")
         try:
-            # inside the try: setting the first proxy port and then failing to
-            # set the second would otherwise leak metadata into 96's remaining
-            # tests, with no finally to clean it up
-            for intf_id, port in (
-                (self.UNI_A1, self.LOOP_PORT_A),
-                (self.UNI_Z1, self.LOOP_PORT_Z),
-            ):
-                response = self.int_add_proxy_port(intf_id, port, force=True)
-                assert response.status_code == 200, response.text
-
-            evc_id = self.create_evc(925)
-            response = self.int_enable([evc_id])
-            assert response.status_code == 201, response.text
-
-            telemetry = self.wait_telemetry_settled(evc_id)
-            # a rejection arrives asynchronously, after the optimistic metadata
-            # write; give it time to land before trusting proxy_port_down
-            if telemetry.get("enabled"):
-                time.sleep(10)
-                telemetry = self.get_evc_telemetry(evc_id)
-            if not telemetry.get("enabled"):
-                pytest.skip(
-                    "backend rejected the proxy-port INT flows "
-                    f"(telemetry={telemetry}); a proxy-port EVC cannot be "
-                    "registered on this backend"
-                )
-            assert telemetry["status"] == "DOWN", telemetry
-            assert telemetry["status_reason"] == ["proxy_port_down"], telemetry
-
-            # A pp-down EVC still gets its INT flows installed:
-            # install_int_flows splits only the *metadata* into
-            # active/inactive/pp_down and calls _install_int_flows(stored_flows)
-            # for all of them in the same gather. Asserted rather than assumed,
-            # because it is what makes the stale state after the forced delete
-            # below a real leak instead of a cosmetic one.
-            pp_down_flows = self.wait_int_flows_installed(evc_id)
+            evc_id = self.enable_int_with_proxy_port_down(925)
 
             response = self.int_del_proxy_port(self.UNI_A1)
             assert response.status_code == 409, response.text
@@ -982,17 +985,10 @@ class TestE2ETelemetryINTApi(INTHelper):
             # with api.get_evcs(metadata.telemetry.status="UP"), and this EVC
             # is DOWN precisely because the loop -- and so the proxy port -- is
             # down. The EVC is therefore left enabled, with a status_reason
-            # still naming a proxy port that no longer exists, and with the
-            # proxy-port INT flows it was given still installed. Worth an
+            # still naming a proxy port that no longer exists. Worth an
             # upstream question; pinned here as current behaviour.
             self.assert_telemetry_metadata(
                 evc_id, True, status="DOWN", status_reason=["proxy_port_down"]
-            )
-            assert (
-                self.stored_flow_ids(
-                    self.int_cookie_prefix, evc_id, state=("installed", "pending")
-                )
-                == pp_down_flows
             )
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)

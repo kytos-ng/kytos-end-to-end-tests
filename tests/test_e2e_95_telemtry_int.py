@@ -232,8 +232,8 @@ class TestE2ETelemtryINT(INTHelper):
 
         # install_int_flows writes status UP *concurrently* with sending the
         # flow mods, so UP alone does not mean the pipeline accepted them. Trust
-        # it only once INT flows are visible on s1, or until a rejection shows
-        # up as an ofpt_error; the loop keeps watching for either.
+        # it only once the INT flows are ready, or until a rejection shows up
+        # as an ofpt_error; the loop keeps watching for either.
         deadline = time.time() + 90
         telemetry = {}
         while time.time() < deadline:
@@ -244,7 +244,7 @@ class TestE2ETelemtryINT(INTHelper):
             if (
                 telemetry.get("enabled")
                 and telemetry.get("status") == "UP"
-                and self.count_evc_flows(self.switches[0], evc_id)[1]
+                and self.int_ready(evc_id)
             ):
                 assert reasons == [], telemetry
                 return telemetry
