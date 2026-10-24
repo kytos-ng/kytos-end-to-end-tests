@@ -16,7 +16,6 @@ s5 once it becomes a transit switch.
 """
 
 import os
-import re
 import time
 from pathlib import Path
 
@@ -74,37 +73,18 @@ class TestE2ETelemtryINT(INTHelper):
         "s5": (2, 4),
         "s6": (2, 6),
     }
-    # INT flows on a UNI switch, by table. FlowBuilder.get_table_id is
-    # evaluated per *originating mef_eline flow*, not per EVC, so each flow's
-    # own match decides its table -- which is why an EPL ends up split across
-    # two: its UNI-ingress flow has no dl_vlan (-> the epl group, table 3)
-    # while its NNI-ingress flow always carries the s-vlan (-> evpl, table 2).
-    # So an EPL moves only the INT *source* off table 2; the sink stays.
-    EVPL_DYNAMIC_TABLES = {0: 6, 2: 3}  # current_path + failover_path
-    EVPL_STATIC_TABLES = {0: 4, 2: 2}  # current_path only
-    EPL_STATIC_TABLES = {0: 4, 2: 1, 3: 1}  # source on 3, sink on 2
-
-    _USE_VLAN_ID = object()
-    _TABLE_ID_RE = re.compile(r"^\s*table (\d+)", re.MULTILINE)
-
-    @classmethod
-    def probe_pipeline_tables(cls, switch):
-        """Return the set of table ids the switch pipeline reports.
-
-        telemetry_int places its table X flows on table 2 (evpl) or table 3 (epl and
-        vlan-range/special-tag), so knowing which tables exist decides which of the
-        issue #408 EVC shapes are testable on this backend at all.
-        """
-        tables = set()
-        for source in ("dump-tables", "dump-table-features"):
-            try:
-                output = switch.dpctl(source)
-            except Exception:  # pylint: disable=broad-except
-                continue
-            tables.update(
-                int(match) for match in cls._TABLE_ID_RE.findall(output or "")
-            )
-        return tables
+    # INT flows on a UNI switch, by table. Each mef_eline flow there becomes two
+    # table 0 flows (TCP and UDP) plus one table X flow, so the totals only depend
+    # on how many mef_eline flows the switch has: 3 on a dynamic EVC (UNI ingress,
+    # current and failover NNI ingress), 2 on a static one (no failover).
+    #
+    # Table X is chosen per mef_eline flow from its own dl_vlan
+    # (FlowBuilder.get_table_id), not per EVC. An EPL's UNI-ingress flow has no
+    # dl_vlan, so its source goes to table 3, while its NNI-ingress flow carries
+    # the s-vlan, so its sink stays on table 2.
+    EVPL_DYNAMIC_TABLES = {0: 6, 2: 3}
+    EVPL_STATIC_TABLES = {0: 4, 2: 2}
+    EPL_STATIC_TABLES = {0: 4, 2: 1, 3: 1}
 
     def setup_method(self, method):  # pylint: disable=unused-argument
         """
@@ -126,65 +106,38 @@ class TestE2ETelemtryINT(INTHelper):
         cls.net = NetworkTest(cls.controller, topo_name="amlight_intlab")
         cls.net.start(start_controller=False)
         cls.switches = [cls.net.net.get(f"s{i}") for i in range(1, 7)]
-        cls.pipeline_tables = cls.probe_pipeline_tables(cls.switches[0])
-        cls.supports_table_3 = 3 in cls.pipeline_tables
 
     @classmethod
     def teardown_class(cls):
         """Called once after all tests in the class have finished for cleanup."""
         cls.net.stop()
 
-    def require_table_3(self):
-        """Skip a test whose INT flows would land on table 3.
-
-        The probe alone decides: skip when it read the table list and table 3
-        was absent, fail when it couldn't read any table at all. An ofpt_error
-        on enable is never taken as "no table 3", since a rejected flow mod is
-        exactly what a FlowBuilder regression looks like too.
-        """
-        if not self.pipeline_tables:
-            # setup_class probed before any controller was up; try once more
-            # now that the switches are connected
-            cls = type(self)
-            cls.pipeline_tables = cls.probe_pipeline_tables(self.switches[0])
-            cls.supports_table_3 = 3 in cls.pipeline_tables
-        assert self.pipeline_tables, (
-            "could not parse any table id out of dump-tables or "
-            "dump-table-features, so whether table 3 exists is unknown"
-        )
-        if not self.supports_table_3:
-            pytest.skip(
-                "pipeline has no table 3 (tables found: "
-                f"{sorted(self.pipeline_tables)}); telemetry_int maps EPL, "
-                "vlan-range and special-tag INT flows to table 3"
-            )
-
     def create_evc(
         self,
         vlan_id,
         uni_a=UNI_A1,
         uni_z=UNI_Z1,
-        tag_a=_USE_VLAN_ID,
-        tag_z=_USE_VLAN_ID,
+        tag_a=None,
+        tag_z=None,
         **kwargs,
     ):
         """Create an EVC and return its EVC ID.
 
         ``vlan_id`` is used for the EVC name and, unless overridden, for the tag
-        value on both UNIs. ``tag_a``/``tag_z`` accept an int, ``"any"``,
-        ``"untagged"``, a vlan range such as ``[[10, 15]]``, or ``None`` for an
-        EPL (no ``tag`` key at all). ``kwargs`` is merged last, so
+        value on both UNIs; ``None`` makes an EPL (no ``tag`` key at all).
+        ``tag_a``/``tag_z`` override it with an int, ``"any"``, ``"untagged"``
+        or a vlan range such as ``[[10, 15]]``. ``kwargs`` is merged last, so
         ``primary_path``, ``backup_path``, ``dynamic_backup_path`` and
         ``metadata`` all pass straight through.
         """
         payload = {
-            "name": f"Vlan_{vlan_id}",
+            "name": "EPL" if vlan_id is None else f"Vlan_{vlan_id}",
             "dynamic_backup_path": True,
             "uni_a": {"interface_id": uni_a},
             "uni_z": {"interface_id": uni_z},
         }
-        tag_a = vlan_id if tag_a is self._USE_VLAN_ID else tag_a
-        tag_z = vlan_id if tag_z is self._USE_VLAN_ID else tag_z
+        tag_a = vlan_id if tag_a is None else tag_a
+        tag_z = vlan_id if tag_z is None else tag_z
         if tag_a is not None:
             payload["uni_a"]["tag"] = {"tag_type": "vlan", "value": tag_a}
         if tag_z is not None:
@@ -226,8 +179,7 @@ class TestE2ETelemtryINT(INTHelper):
 
         When the pipeline rejects an INT flow mod, flow_manager emits
         ``flow.error`` and telemetry_int disables INT with
-        ``status_reason: ["ofpt_error"]``. That fails fast here; whether a
-        table 3 shape can run at all is ``require_table_3``'s call.
+        ``status_reason: ["ofpt_error"]``, which fails fast here.
         """
         self.wait_evc_failover_ready(evc_id)
         response = self.int_enable([evc_id])
@@ -934,35 +886,6 @@ class TestE2ETelemtryINT(INTHelper):
             },
         )
 
-    def test_005_pipeline_capabilities(self):
-        """Report which pipeline tables exist and gate the table 3 shapes.
-
-        telemetry_int puts its table X flows on table 2 for EVPL and table 3
-        for EPL, vlan ranges and the special any/untagged tags. test_001 only
-        ever proves table 2, so record what the pipeline reports before the
-        shape tests rely on it. A missing table 3 skips those shapes rather
-        than failing here, but a probe that reads nothing fails: the table 3
-        shapes would fail on it too.
-        """
-        if not self.pipeline_tables:
-            # setup_class probed before any controller was up
-            cls = type(self)
-            cls.pipeline_tables = cls.probe_pipeline_tables(self.switches[0])
-            cls.supports_table_3 = 3 in cls.pipeline_tables
-        assert self.pipeline_tables, (
-            "could not parse any table id out of dump-tables or "
-            "dump-table-features"
-        )
-        assert 0 in self.pipeline_tables, sorted(self.pipeline_tables)
-        assert 2 in self.pipeline_tables, (
-            f"pipeline has no table 2, which every EVPL INT flow needs: "
-            f"{sorted(self.pipeline_tables)}"
-        )
-        print(
-            f"\npipeline tables: {sorted(self.pipeline_tables)} "
-            f"supports_table_3={self.supports_table_3}"
-        )
-
     def test_010_shape_evpl_symmetric_vlan(self):
         """Dynamic EVPL, same VLAN on both UNIs, no proxy port.
 
@@ -1134,13 +1057,10 @@ class TestE2ETelemtryINT(INTHelper):
         on table 2: the table group follows each flow's own match, not the EVC's
         shape. This is the first shape that reaches table 3 at all.
         """
-        self.require_table_3()
         evc_id = self.create_evc(
-            0,
+            None,
             uni_a=self.UNI_A2,
             uni_z=self.UNI_Z2,
-            tag_a=None,
-            tag_z=None,
             dynamic_backup_path=False,
             primary_path=self.path_payload(self.PRIMARY),
         )
@@ -1172,13 +1092,10 @@ class TestE2ETelemtryINT(INTHelper):
         counts match test_030; what this adds is that the split placement
         survives declaring a ``backup_path``.
         """
-        self.require_table_3()
         evc_id = self.create_evc(
-            0,
+            None,
             uni_a=self.UNI_A2,
             uni_z=self.UNI_Z2,
-            tag_a=None,
-            tag_z=None,
             dynamic_backup_path=False,
             primary_path=self.path_payload(self.PRIMARY),
             backup_path=self.path_payload(self.BACKUP),
@@ -1210,7 +1127,6 @@ class TestE2ETelemtryINT(INTHelper):
         into three flows, so the totals come from expected_flows rather than
         from literals.
         """
-        self.require_table_3()
         evc_id = self.create_evc(10, tag_a=[[10, 15]], tag_z=[[10, 15]])
         self.wait_evc_active(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
@@ -1243,7 +1159,6 @@ class TestE2ETelemtryINT(INTHelper):
         dl_type/nw_proto on top of the wildcard VLAN match -- without that the
         INT flows would steal all traffic, not just TCP/UDP.
         """
-        self.require_table_3()
         evc_id = self.create_evc(0, tag_a="any", tag_z="any")
         self.wait_evc_active(evc_id)
 
@@ -1276,7 +1191,6 @@ class TestE2ETelemtryINT(INTHelper):
         its trace schema only accepts dl_vlan 1-4095, so an untagged match
         cannot be expressed as a trace request.
         """
-        self.require_table_3()
         evc_id = self.create_evc(0, tag_a="untagged", tag_z="untagged")
         self.wait_evc_active(evc_id)
 
@@ -1294,7 +1208,6 @@ class TestE2ETelemtryINT(INTHelper):
         A cheap smoke test for the asymmetric special-tag combination
         mef_eline supports; the per-shape detail is already covered by 045/050.
         """
-        self.require_table_3()
         evc_id = self.create_evc(0, tag_a="any", tag_z="untagged")
         self.wait_evc_active(evc_id)
 
@@ -1672,13 +1585,10 @@ class TestE2ETelemtryINT(INTHelper):
         the split table placement survives a path change, and that the hop flows
         the backup introduces stay on table 0 (hop flows never use table X).
         """
-        self.require_table_3()
         evc_id = self.create_evc(
-            0,
+            None,
             uni_a=self.UNI_A2,
             uni_z=self.UNI_Z2,
-            tag_a=None,
-            tag_z=None,
             dynamic_backup_path=False,
             primary_path=self.path_payload(self.PRIMARY),
             backup_path=self.path_payload(self.BACKUP),
