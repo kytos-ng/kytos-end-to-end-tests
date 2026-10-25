@@ -50,6 +50,13 @@ class INTHelper:
 
     alien_vlan = 3999
 
+    # what on_evc_undeployed writes; mef_eline emits undeployed on a redeploy too
+    undeployed_telemetry = {
+        "enabled": True,
+        "status": "DOWN",
+        "status_reason": ["undeployed"],
+    }
+
     _cookie_re = re.compile(r"cookie=(0x[0-9a-fA-F]+)")
     _table_re = re.compile(r"table=(\d+)")
     _priority_re = re.compile(r"priority=(\d+)")
@@ -553,8 +560,9 @@ class INTHelper:
         what proves this one did. ``prior`` is ``get_evc_telemetry`` from just
         before the redeploy.
 
-        A write lost to kytos-ng/mef_eline#731 leaves exactly ``prior``
-        behind, which ``record_lost_write`` tolerates.
+        A write lost to kytos-ng/mef_eline#731 leaves ``prior`` behind, or
+        the undeployed write mef_eline's redeploy triggers before it, which
+        ``record_lost_write`` tolerates.
         """
         deadline = time.time() + timeout
         while True:
@@ -568,7 +576,9 @@ class INTHelper:
             ):
                 return observed
             if time.time() >= deadline:
-                if self.record_lost_write(evc_id, observed, prior):
+                if self.record_lost_write(
+                    evc_id, observed, prior, self.undeployed_telemetry
+                ):
                     return observed
                 raise AssertionError(
                     f"EVC {evc_id} telemetry was not rewritten UP.\n"
@@ -577,21 +587,26 @@ class INTHelper:
                 )
             time.sleep(2)
 
-    def record_lost_write(self, evc_id, observed, prior):
+    def record_lost_write(self, evc_id, observed, prior, intermediate=None):
         """Record a kytos-ng/mef_eline#731 lost write; return whether it was one.
 
         #731 reverts telemetry_int's bulk metadata write to the document it
-        replaced, so its signature is exact: ``metadata.telemetry`` still
-        equals ``prior`` -- ``status_updated_at`` included -- while the INT
-        flows the same operation installed are in place, none pending.
-        Anything else, a DOWN status or a missing ``telemetry`` with no INT
-        flows for instance, is not #731 and the caller fails on it.
+        replaced: ``prior`` -- ``status_updated_at`` included -- or, when the
+        operation wrote ``intermediate`` first, a newer write matching it.
+        The INT flows the same operation installed must be in place, none
+        pending. Anything else is not #731 and the caller fails on it.
 
         The xfail itself is deferred to ``xfail_lost_writes`` so the flow and
         trace assertions after this one still run. Drop both, and every
         ``prior=``, once #731 is fixed.
         """
-        if observed != prior:
+        reverted_to_intermediate = (
+            intermediate is not None
+            and all(observed.get(key) == value for key, value in intermediate.items())
+            and observed.get("status_updated_at", "")
+            > prior.get("status_updated_at", "")
+        )
+        if observed != prior and not reverted_to_intermediate:
             return False
         installed = self.stored_flow_ids(self.int_cookie_prefix, evc_id)
         pending = self.stored_flow_ids(
@@ -601,7 +616,7 @@ class INTHelper:
             return False
         # pytest builds a fresh instance per test, so this never leaks
         self.__dict__.setdefault("_lost_writes", []).append(
-            f"EVC {evc_id} telemetry metadata still {prior!r} with "
+            f"EVC {evc_id} telemetry metadata still {observed!r} with "
             f"{len(installed)} INT flows installed"
         )
         return True

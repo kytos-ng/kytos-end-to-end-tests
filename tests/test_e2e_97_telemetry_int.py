@@ -384,7 +384,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
 
         response = self.mef_patch_evc(evc_id, {"enabled": False})
         assert response.status_code == 200, response.text
-        self.assert_telemetry_metadata(
+        undeployed = self.assert_telemetry_metadata(
             evc_id, True, status="DOWN", status_reason=["undeployed"]
         )
         self.assert_no_evc_flows(self.switches, evc_id)
@@ -397,7 +397,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         # while it is still missing
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
 
-        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.assert_telemetry_rewritten(evc_id, undeployed)
         self.assert_evc_flow_counts(self.switches, evc_id, self.DYNAMIC_EVPL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_flow_actions(
@@ -407,6 +407,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 705, [self.DPID_S1, self.DPID_S6]
         )
+        self.xfail_lost_writes()
 
     def test_110_evc_deleted_via_mef_eline(self):
         """Deleting the EVC cleans up its INT flows and its INT bookkeeping."""
