@@ -83,7 +83,7 @@ class P4OfSwitch(DockerSwitch):
         cmd = f"p4ofagent set config port portno {portno} --portdown off"
         output = self.cmd(cmd)
         if output:
-            error(f"Failed to run node={self.name} cmd={cmd}: {outpt}")
+            error(f"Failed to run node={self.name} cmd={cmd}: {output}")
 
     def start(self, controllers):
         """Start p4ofswitch instance."""
@@ -102,7 +102,7 @@ class P4OfSwitch(DockerSwitch):
         cmd = "p4ofagent --timeout 120 set config port portno all --portdown on"
         output = self.cmd(cmd)
         if output:
-            error(f"Failed to run node={self.name} cmd={cmd}: {outpt}")
+            error(f"Failed to run node={self.name} cmd={cmd}: {output}")
         for intf in self.intfs.values():
             if intf.link:
                 self.setup_intf(intf)
@@ -180,7 +180,7 @@ class P4OfSwitch(DockerSwitch):
                         f"cmd={cmd_str}: {output}"
                     )
         else:
-            logger.error("vsctl command not implemented: %s" % args)
+            error(f"vsctl command not implemented: {args}\n")
 
     def controllerUUIDs(self, *args, **kwargs):
         pass
