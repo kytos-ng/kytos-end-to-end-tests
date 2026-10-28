@@ -180,6 +180,67 @@ class TestE2EMefEline:
         payload_date = payload.get("schedule").get("date")
         assert payload_date == scheduler_date
 
+    def test_remove_schedule_by_date(self):
+        """ Test scheduler creation to remove the circuit by date,
+            keeping its metadata. """
+        payload = {
+            "name": "my evc1",
+            "enabled": True,
+            "uni_a": {
+                "interface_id": "00:00:00:00:00:00:00:01:1",
+            },
+            "uni_z": {
+                "interface_id": "00:00:00:00:00:00:00:01:2",
+            }
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+        circuit_id = response.json()["circuit_id"]
+        time.sleep(10)
+
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
+        response = requests.get(api_url)
+        json = response.json()
+        assert json.get("enabled") is True
+        assert json.get("active") is True
+        assert self.get_mef_eline_flow_number(circuit_id) > 0
+
+        metadata = {"some_key": "some_value"}
+        api_url = KYTOS_API + f'/mef_eline/v2/evc/{circuit_id}/metadata'
+        response = requests.post(api_url, json=metadata)
+        assert response.status_code == 201, response.text
+
+        ts = datetime.utcnow() + timedelta(seconds=15)
+        schedule_time = ts.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        payload = {
+            "circuit_id": circuit_id,
+            "schedule": {
+                "date": schedule_time,
+                "action": "remove"
+            }
+        }
+        api_url = KYTOS_API + '/mef_eline/v2/evc/schedule/'
+        response = requests.post(api_url, json=payload)
+        assert response.status_code == 201, response.text
+
+        time.sleep(25)
+
+        api_url = KYTOS_API + '/mef_eline/v2/evc/' + circuit_id
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        json = response.json()
+        assert json.get("enabled") is False
+        assert json.get("active") is False
+        assert json.get("metadata") == metadata
+        assert json.get("circuit_scheduler")[0].get("action") == "remove"
+        assert self.get_mef_eline_flow_number(circuit_id) == 0
+
+        api_url = KYTOS_API + f'/mef_eline/v2/evc/{circuit_id}/metadata'
+        response = requests.get(api_url)
+        assert response.status_code == 200, response.text
+        assert response.json()["metadata"] == metadata
+
     def test_delete_schedule(self, circuit_id):
         """ Test to delete a scheduler. """
 
