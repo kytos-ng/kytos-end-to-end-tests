@@ -127,3 +127,84 @@ class TestE2EKafkaEvents:
         assert found
 
         await consumer.stop()
+
+    def test_105_topic_already_added(self):
+        """
+        Test POST /v1/topics 400 with an existent topic.
+        """
+        api_url = KYTOS_API + '/kafka_events/v1/topics'
+        payload = {"mock_filter": ["kytos.mef_eline", "kytos.of_lldp"]}
+        response = requests.post(
+            api_url,
+            data=json.dumps(payload),
+            headers={'Content-type': 'application/json'},
+            timeout=5
+        )
+        assert response.status_code == 201, response.text
+
+        # Try to add the same topic again
+        response = requests.post(
+            api_url,
+            data=json.dumps(payload),
+            headers={'Content-type': 'application/json'},
+            timeout=5
+        )
+        data = response.json()
+        assert response.status_code == 400, response.text
+        assert "is already added" in data["description"]
+
+    def test_110_adding_invalid_pattern(self):
+        """
+        Test POST /v1/topics 400 with invalid pattern
+        """
+        api_url = KYTOS_API + '/kafka_events/v1/topics'
+        payload = {"mock_filter": ["["]}
+        response = requests.post(
+            api_url,
+            data=json.dumps(payload),
+            headers={'Content-type': 'application/json'},
+            timeout=5
+        )
+        data = response.json()
+        assert response.status_code == 400, response.text
+        assert "Invalid regex pattern" in data["description"]
+
+    def test_115_remove_topic_not_found(self):
+        """
+        Test DELETE /v1/topics 404 with a non-existent topic.
+        """
+        api_url = KYTOS_API + '/kafka_events/v1/topics'
+        response = requests.delete(
+            api_url + '/non_existent_topic',
+            headers={'Content-type': 'application/json'},
+            timeout=5
+        )
+        assert response.status_code == 404, response.text
+
+    def test_120_replace_topic_not_found(self):
+        """
+        Test PUT /v1/topics 404 with a non-existent topic.
+        """
+        api_url = KYTOS_API + '/kafka_events/v1/topics'
+        payload = ["kytos.of_lldp"]
+        response = requests.put(
+            api_url + '/non_existent_topic',
+            data=json.dumps(payload),
+            headers={'Content-type': 'application/json'},
+            timeout=5
+        )
+        assert response.status_code == 404, response.text
+
+    def test_125_patch_topic_not_found(self):
+        """
+        Test PATCH /v1/topics 404 with a non-existent topic.
+        """
+        api_url = KYTOS_API + '/kafka_events/v1/topics'
+        payload = ["kytos.of_lldp"]
+        response = requests.patch(
+            api_url + '/non_existent_topic',
+            data=json.dumps(payload),
+            headers={'Content-type': 'application/json'},
+            timeout=5
+        )
+        assert response.status_code == 404, response.text
