@@ -722,12 +722,6 @@ class TestE2ETelemetryINTApi(INTHelper):
 
         self.assert_no_int_flows(self.switches, evc_id)
 
-    @pytest.mark.xfail(
-        reason="kytos-ng/telemetry_int#187: returns 500: ProxyPortRequired is "
-        "a ProxyPortConflict, which expected_flows and check_consistency "
-        "don't map, so it falls into their UnrecoverableError branch",
-        strict=True,
-    )
     def test_305_intra_switch_expected_flows_and_consistency_require_proxy_port(
         self,
     ):
@@ -770,17 +764,19 @@ class TestE2ETelemetryINTApi(INTHelper):
         response = self.int_redeploy([self.UNKNOWN_EVC_ID])
         assert response.status_code == 404, response.text
 
-    @pytest.mark.xfail(
-        reason="returns 500: force skips the not found check and "
-        "_discard_pps_evc_ids dereferences evc['uni_a'] of the {} EVC "
-        "outside its try (KeyError)",
-        strict=True,
-    )
     def test_317_unknown_evc_id_forced_disable(self):
         """A forced disable tries even when the EVC isn't found, per openapi.yml,
-        so an unknown id is a 200."""
+        so an unknown id is a 200, alone or along with an INT EVC."""
         response = self.int_disable([self.UNKNOWN_EVC_ID], force=True)
         assert response.status_code == 200, response.text
+
+        evc_id = self.create_int_evc(318)
+        response = self.int_disable([self.UNKNOWN_EVC_ID, evc_id], force=True)
+        assert response.status_code == 200, response.text
+        self.assert_telemetry_metadata(
+            evc_id, False, status="DOWN", status_reason=["disabled"]
+        )
+        self.assert_no_int_flows(self.switches, evc_id)
 
     @pytest.mark.parametrize(
         "path,method",
@@ -803,7 +799,15 @@ class TestE2ETelemetryINTApi(INTHelper):
         send = getattr(requests, method)
         timeout = self.timeout
 
-        for payload in ({}, {"evc_ids": "abc"}, {"evc_ids": [1, 2]}):
+        for payload in (
+            {},
+            {"evc_ids": "abc"},
+            {"evc_ids": [1, 2]},
+            {"evc_ids": ["023766c105686749"]},
+            {"evc_ids": ["3766C105686749"]},
+            {"evc_ids": ["3766c10568674"]},
+            {"evc_ids": ["zzzzzzzzzzzzzz"]},
+        ):
             response = send(url, json=payload, timeout=timeout)
             assert response.status_code == 400, (payload, response.text)
 
