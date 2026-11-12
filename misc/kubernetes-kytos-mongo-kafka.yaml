@@ -20,6 +20,7 @@ spec:
     spec:
       containers:
       - name: kytos
+        # default; scripts/p4ofswitch/p4e2e sets these from KYTOS_IMAGE/KYTOS_PULL when applying
         image: amlight/kytos:latest
         imagePullPolicy: Always
         ports:

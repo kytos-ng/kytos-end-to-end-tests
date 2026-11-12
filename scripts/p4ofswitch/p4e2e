@@ -1,0 +1,635 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+# resolve symlinks (no readlink -f on macOS) so it works from a dir on PATH
+src=$0
+while [ -L "$src" ]; do
+    dir=$(cd -P "$(dirname "$src")" && pwd)
+    src=$(readlink "$src")
+    case $src in /*) ;; *) src=$dir/$src ;; esac
+done
+HERE=$(cd -P "$(dirname "$src")" && pwd)
+SELF=$HERE/$(basename "$src")
+REPO_ROOT=$(cd "$HERE/../.." && pwd)
+
+# Every setting and its default. Override with KEY=value lines in
+# scripts/p4ofswitch/.env.local, or the environment (which wins).
+defaults() {
+    : "${BACKEND:=docker}"  # docker | k8s
+
+    : "${KYTOS_IMAGE:=amlight/kytos:latest}"
+    : "${KYTOS_PULL:=}"  # always | missing | never; empty: derived from KYTOS_IMAGE
+
+    : "${E2E_REPO:=https://github.com/kytos-ng/kytos-end-to-end-tests}"
+    : "${E2E_BRANCH:=master}"
+    : "${E2E_DIR:=/kytos-end-to-end-tests}"
+
+    : "${P4OFSWITCH_IMAGE:=amlight/p4ofswitch:latest}"
+    : "${P4OFSWITCH_ARCH:=tf1}"
+    : "${MYLOCALIP:=}"
+    : "${HUGEPAGES:=2048}"
+    : "${MININET_DEB_URL:=https://github.com/italovalcy/mininet/releases/download/2.3.2/mininet_2.3.2-1--debian12_amd64.deb}"
+
+    : "${RERUNS:=2}"
+
+    : "${RESULTS_DIR:=./e2e-results}"
+
+    # docker backend
+    : "${PREFIX:=e2e-p4}"
+    : "${MONGO_IMAGE:=mongo:7.0}"
+    : "${KAFKA_IMAGE:=apache/kafka:4.0.0}"
+    : "${HOST_LIB_MODULES=/lib/modules}"  # empty to skip the bind mount
+    : "${DOCKER_PLATFORM:=}"
+
+    # k8s backend
+    : "${KUBECONFIG:=$HOME/.kube/config}"
+    : "${K8S_NAMESPACE:=}"
+    : "${K8S_MANIFEST:=misc/kubernetes-kytos-mongo-kafka.yaml}"
+    : "${K8S_DEPLOYMENT:=kytos-regression-tests}"
+    : "${K8S_ROLLOUT_TIMEOUT:=180s}"
+
+    # build-image
+    : "${KYTOS_DOCKER_REPO:=https://github.com/amlight/kytos-docker}"
+    : "${KYTOS_DOCKER_REF:=master}"
+    : "${BUILD_PLATFORM:=linux/amd64}"
+
+    # must match the k8s manifest
+    : "${MONGO_DBNAME:=kytosdb}"
+    : "${MONGO_USERNAME:=kytosuser}"
+    : "${MONGO_PASSWORD:=kytospass}"
+}
+
+log() { echo "==> $*" >&2; }
+warn() { echo "WARNING: $*" >&2; }
+die() { echo "ERROR: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found in PATH"; }
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") <command> [args]
+
+Environment
+  up [--recreate] [--e2e-branch REF] [--force] [name=ref ...]
+                          start mongo, kafka and kytos, then provision kytos
+                          (mininet, docker, P4OfSwitch image, e2e checkout).
+                          Safe to re-run. name=ref specs are applied like 'branch'.
+                          --recreate replaces the kytos container/pod, e.g.
+                          after pushing a new version of KYTOS_IMAGE.
+  down [--keep-infra] [--purge]
+                          remove the environment. --keep-infra keeps mongo and
+                          kafka (docker only); --purge also deletes the network
+                          and the nested-docker volume (cached switch image).
+  status                  containers, checked-out branches, last run
+  shell                   interactive shell in the kytos container
+  config                  print the effective configuration
+
+Branches (inside the running kytos container)
+  branch [--force] name=ref ...
+      name   a NApp (mef_eline, telemetry_int, of_core, ...), e2e, or a core
+             package (kytos, python_openflow, kytos_utils)
+      ref    branch | tag | full sha, from github.com/kytos-ng/<name>
+             owner/repo#ref or https://host/repo.git#ref for forks
+             @image to go back to the commit the image shipped (NApps only)
+      --force  discard local changes in the checkout
+      Code only: a branch needing packages the image lacks is refused;
+      use build-image for it.
+
+Tests
+  run [-f|--follow] [--attach] [--reruns N] [pytest args ...]
+                          start kytos-init.sh in tmux (default: tests/)
+  logs [-f] [--kytos]     tail the latest run; -f follows until it ends and
+                          exits with pytest's exit code. --kytos shows the
+                          kytosd log instead (-f follows it)
+  attach                  attach to the tmux session (detach: Ctrl-b d)
+  stop                    stop the current run
+  fetch [RUN_ID]          copy a run (default: latest) to \$RESULTS_DIR, with
+                          kytos.log holding that run's kytosd log
+
+Images
+  build-image -t TAG [--push] [--no-cache] [name=ref ...]
+                          build a kytos image from amlight/kytos-docker with
+                          the given branches (kytos-ng repos only)
+
+Configuration: KEY=value lines in scripts/p4ofswitch/.env.local, or the
+environment (which wins). '$(basename "$0") config' lists every setting.
+
+Example
+  $(basename "$0") up
+  $(basename "$0") branch telemetry_int=fix/disable_force
+  $(basename "$0") run -f tests/test_e2e_96_telemetry_int.py
+  $(basename "$0") fetch && $(basename "$0") down
+EOF
+}
+
+load_config() {
+    local f=$HERE/.env.local line key val
+    if [ -f "$f" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            line=${line#export }
+            case $line in
+                ''|'#'*) continue ;;
+                [A-Za-z_]*=*) ;;
+                *) die "$f: cannot parse line: $line" ;;
+            esac
+            key=${line%%=*}
+            case $key in *[!A-Za-z0-9_]*) die "$f: bad variable name '$key'" ;; esac
+            val=${line#*=}
+            val=${val#\"}; val=${val%\"}; val=${val#\'}; val=${val%\'}
+            if eval "[ -z \"\${$key+set}\" ]"; then
+                eval "$key=\$val"
+            fi
+        done < "$f"
+    fi
+    defaults
+
+    case $BACKEND in docker|k8s) ;; *) die "BACKEND must be docker or k8s, got '$BACKEND'" ;; esac
+    if [ -z "$KYTOS_PULL" ]; then
+        case $KYTOS_IMAGE in
+            *@sha256:*) KYTOS_PULL=missing ;;  # a digest never changes
+            */*) KYTOS_PULL=always ;;          # user/repo:tag or registry/...: tags can be re-pushed
+            *) KYTOS_PULL=never ;;             # bare name: a local build
+        esac
+    fi
+    case $KYTOS_PULL in always|missing|never) ;; *) die "KYTOS_PULL must be always, missing or never" ;; esac
+    case $K8S_DEPLOYMENT in
+        ''|-*|*-|*[!a-z0-9-]*) die "K8S_DEPLOYMENT must be lowercase letters, digits and inner dashes, got '$K8S_DEPLOYMENT'" ;;
+    esac
+
+    KYTOS_CTR=$PREFIX-kytos
+    MONGO_CTR=$PREFIX-mongo
+    KAFKA_CTR=$PREFIX-kafka
+    NET=$PREFIX-net
+    DOCKER_VOL=$PREFIX-docker
+    case $RESULTS_DIR in /*) ;; *) RESULTS_DIR=$REPO_ROOT/${RESULTS_DIR#./} ;; esac
+    case $K8S_MANIFEST in /*) ;; *) K8S_MANIFEST=$REPO_ROOT/$K8S_MANIFEST ;; esac
+}
+
+cmd_config() {
+    local v
+    # setting names come from defaults() itself
+    # shellcheck disable=SC2013 # one name per line
+    for v in $(sed -n 's/^[[:space:]]*: "\${\([A-Z0-9_]*\):\{0,1\}=.*/\1/p' "$SELF"); do
+        case $v in MONGO_PASSWORD) echo "$v=***" ;; *) echo "$v=${!v}" ;; esac
+    done
+}
+
+# via the env var, not --kubeconfig: it may list several files (a:b)
+kctl() {
+    if [ -n "$K8S_NAMESPACE" ]; then
+        KUBECONFIG=$KUBECONFIG kubectl -n "$K8S_NAMESPACE" "$@"
+    else
+        KUBECONFIG=$KUBECONFIG kubectl "$@"
+    fi
+}
+
+kytos_exec() {
+    local tty=""
+    if [ "$1" = "-t" ]; then
+        shift
+        if [ -t 0 ] && [ -t 1 ]; then tty=-t; fi
+    fi
+    # shellcheck disable=SC2086 # $tty is empty or -t
+    case $BACKEND in
+        docker) docker exec -i $tty "$KYTOS_CTR" "$@" ;;
+        k8s) kctl exec -i $tty "deployment/$K8S_DEPLOYMENT" -c kytos -- "$@" ;;
+    esac
+}
+
+mongo_exec() {
+    case $BACKEND in
+        docker) docker exec -i "$MONGO_CTR" "$@" ;;
+        k8s) kctl exec -i "deployment/$K8S_DEPLOYMENT" -c mongo1 -- "$@" ;;
+    esac
+}
+
+require_running() {
+    case $BACKEND in
+        docker)
+            [ "$(docker inspect -f '{{.State.Running}}' "$KYTOS_CTR" 2>/dev/null)" = true ] \
+                || die "$KYTOS_CTR is not running, run '$(basename "$0") up' first" ;;
+        k8s)
+            kctl get "deployment/$K8S_DEPLOYMENT" >/dev/null 2>&1 \
+                || die "deployment $K8S_DEPLOYMENT not found, run '$(basename "$0") up' first" ;;
+    esac
+}
+
+inside() {
+    local tty=""
+    if [ "$1" = "-t" ]; then tty=-t; shift; fi
+    # replace, not overwrite: a running e2e-inside keeps reading its own copy
+    # shellcheck disable=SC2016 # expands in the container
+    kytos_exec sh -c 't=/usr/local/bin/.e2e-inside.$$ && cat > "$t" && chmod +x "$t" && mv -f "$t" /usr/local/bin/e2e-inside' < "$HERE/inside.sh"
+    # shellcheck disable=SC2086
+    kytos_exec $tty env \
+        "E2E_REPO=$E2E_REPO" "E2E_BRANCH=$E2E_BRANCH" "E2E_DIR=$E2E_DIR" \
+        "P4OFSWITCH_IMAGE=$P4OFSWITCH_IMAGE" "P4OFSWITCH_ARCH=$P4OFSWITCH_ARCH" \
+        "MYLOCALIP=$MYLOCALIP" "HUGEPAGES=$HUGEPAGES" "MININET_DEB_URL=$MININET_DEB_URL" \
+        "RERUNS=$RERUNS" "KYTOS_IMAGE=$KYTOS_IMAGE" "LOG_LINES=${LOG_LINES:-100}" \
+        e2e-inside "$@"
+}
+
+ensure_container() {
+    local name=$1 state
+    shift
+    state=$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || true)
+    case $state in
+        true) log "$name already running" ;;
+        false) log "starting existing $name"; docker start "$name" >/dev/null ;;
+        *) log "creating $name"; docker run -d --name "$name" "$@" >/dev/null ;;
+    esac
+}
+
+IMAGE_HELP="check the name, push it (build-image --push), or 'docker login' if the repository is private"
+
+pull_kytos_image() {
+    local platform=()
+    [ -n "$DOCKER_PLATFORM" ] && platform=(--platform "$DOCKER_PLATFORM")
+    local have_local=0
+    docker image inspect "$KYTOS_IMAGE" >/dev/null 2>&1 && have_local=1
+    case $KYTOS_PULL in
+        never)
+            [ "$have_local" = 1 ] || die "$KYTOS_IMAGE is not on the docker host and KYTOS_PULL=never; build it (build-image) or set KYTOS_PULL=always" ;;
+        missing)
+            [ "$have_local" = 1 ] && return
+            log "pulling $KYTOS_IMAGE"
+            docker pull -q ${platform[@]+"${platform[@]}"} "$KYTOS_IMAGE" >/dev/null || die "cannot pull $KYTOS_IMAGE: $IMAGE_HELP" ;;
+        always)
+            log "pulling $KYTOS_IMAGE"
+            if ! docker pull -q ${platform[@]+"${platform[@]}"} "$KYTOS_IMAGE" >/dev/null; then
+                [ "$have_local" = 1 ] || die "cannot pull $KYTOS_IMAGE: $IMAGE_HELP"
+                warn "cannot pull $KYTOS_IMAGE, using the local copy (built but not pushed?)"
+            fi ;;
+    esac
+}
+
+check_kytos_container() {
+    local cur_name cur_id want_id
+    cur_name=$(docker inspect -f '{{.Config.Image}}' "$KYTOS_CTR" 2>/dev/null) || return 0
+    cur_id=$(docker inspect -f '{{.Image}}' "$KYTOS_CTR")
+    want_id=$(docker image inspect -f '{{.Id}}' "$KYTOS_IMAGE")
+    [ "$cur_id" = "$want_id" ] && return 0
+    if [ "$RECREATE" = 1 ]; then
+        log "recreating $KYTOS_CTR with $KYTOS_IMAGE (branches and provisioning start over)"
+        docker rm -f "$KYTOS_CTR" >/dev/null
+    elif [ "$cur_name" != "$KYTOS_IMAGE" ]; then
+        die "$KYTOS_CTR runs $cur_name but KYTOS_IMAGE=$KYTOS_IMAGE; use 'up --recreate' to replace it"
+    else
+        warn "$KYTOS_CTR runs an older copy of $KYTOS_IMAGE; use 'up --recreate' to switch (branches and provisioning start over)"
+    fi
+}
+
+# the Tofino model in the switch image crashes under amd64 emulation (e.g. Apple Silicon)
+check_docker_arch() {
+    local arch
+    arch=$(docker info --format '{{.Architecture}}' 2>/dev/null || true)
+    case $arch in
+        x86_64|amd64|'') ;;
+        *) warn "the docker host is $arch: the P4OfSwitch Tofino model does not run under amd64 emulation, so switches will not come up. Use an amd64 docker host (DOCKER_CONTEXT/DOCKER_HOST) or BACKEND=k8s." ;;
+    esac
+}
+
+docker_up() {
+    need docker
+    check_docker_arch
+    pull_kytos_image
+    check_kytos_container
+    docker network inspect "$NET" >/dev/null 2>&1 || docker network create "$NET" >/dev/null
+    docker volume inspect "$DOCKER_VOL" >/dev/null 2>&1 || docker volume create "$DOCKER_VOL" >/dev/null
+
+    ensure_container "$MONGO_CTR" --network "$NET" "$MONGO_IMAGE"
+    ensure_container "$KAFKA_CTR" --network "$NET" --hostname "$KAFKA_CTR" \
+        -e KAFKA_NODE_ID=1 \
+        -e KAFKA_PROCESS_ROLES=broker,controller \
+        -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+        -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+        -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093 \
+        -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+        -e "KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://$KAFKA_CTR:9092" \
+        "$KAFKA_IMAGE"
+
+    local extra=()
+    [ -n "$HOST_LIB_MODULES" ] && extra+=(-v "$HOST_LIB_MODULES:/lib/modules")
+    [ -n "$DOCKER_PLATFORM" ] && extra+=(--platform "$DOCKER_PLATFORM")
+    ensure_container "$KYTOS_CTR" --privileged --network "$NET" --init \
+        -v "$DOCKER_VOL:/var/lib/docker" \
+        ${extra[@]+"${extra[@]}"} \
+        -e SWITCH_CLASS=P4OfSwitch \
+        -e "MONGO_DBNAME=$MONGO_DBNAME" -e "MONGO_USERNAME=$MONGO_USERNAME" \
+        -e "MONGO_PASSWORD=$MONGO_PASSWORD" -e "MONGO_HOST_SEEDS=$MONGO_CTR:27017" \
+        -e "KAFKA_HOST_ADDR=$KAFKA_CTR:9092" \
+        --pull never "$KYTOS_IMAGE" /usr/bin/tail -f /dev/null
+}
+
+# keeps the manifest valid for plain kubectl apply; only the kytos container changes
+render_manifest() {
+    local policy
+    case $KYTOS_PULL in always) policy=Always ;; missing) policy=IfNotPresent ;; never) policy=Never ;; esac
+    awk -v img="$KYTOS_IMAGE" -v pol="$policy" -v dep="$K8S_DEPLOYMENT" '
+        /^[[:space:]]*(name|app):[[:space:]]*kytos-regression-tests[[:space:]]*$/ { sub(/kytos-regression-tests/, dep) }
+        /^[[:space:]]*- name:[[:space:]]*kytos[[:space:]]*$/ { inkytos = 1 }
+        inkytos && /^[[:space:]]*image:/ { sub(/image:.*/, "image: " img); seen_img = 1 }
+        inkytos && /^[[:space:]]*imagePullPolicy:/ { sub(/imagePullPolicy:.*/, "imagePullPolicy: " pol); seen_pol = 1 }
+        seen_img && seen_pol { inkytos = 0 }
+        { print }
+    ' "$K8S_MANIFEST"
+}
+
+wait_rollout() {
+    local timeout=${K8S_ROLLOUT_TIMEOUT%s} waited=0 reasons
+    case $timeout in *m) timeout=$(( ${timeout%m} * 60 )) ;; esac
+    while ! kctl rollout status "deployment/$K8S_DEPLOYMENT" --timeout=5s >/dev/null 2>&1; do
+        reasons=$(kctl get pods -l "app=$K8S_DEPLOYMENT" -o jsonpath='{range .items[*].status.containerStatuses[*]}{.name}{" "}{.image}{" "}{.state.waiting.reason}{"\n"}{end}' 2>/dev/null \
+            | awk '$3 ~ /^(ErrImagePull|ImagePullBackOff|ErrImageNeverPull|InvalidImageName)$/')
+        if [ -n "$reasons" ]; then
+            echo "$reasons" >&2
+            die "the cluster nodes cannot pull the image above. A remote cluster can only pull from a registry it reaches (Docker Hub works); $IMAGE_HELP (a private repository also needs an imagePullSecret)"
+        fi
+        waited=$((waited + 5))
+        [ "$waited" -lt "$timeout" ] || { kctl get pods -l "app=$K8S_DEPLOYMENT" >&2; die "rollout did not finish within $K8S_ROLLOUT_TIMEOUT"; }
+    done
+    log "deployment $K8S_DEPLOYMENT is ready"
+}
+
+k8s_up() {
+    need kubectl
+    [ -f "$K8S_MANIFEST" ] || die "manifest not found: $K8S_MANIFEST"
+    case $KYTOS_IMAGE in
+        */*) ;;
+        *) warn "$KYTOS_IMAGE looks like a local build (no user/ or registry/ part); a remote cluster cannot see images on your machine. Push it, e.g. build-image -t docker.io/<user>/kytos-e2e:<name> --push" ;;
+    esac
+    local existed=0
+    kctl get "deployment/$K8S_DEPLOYMENT" >/dev/null 2>&1 && existed=1
+    log "applying $K8S_MANIFEST (kytos image: $KYTOS_IMAGE)"
+    local applied
+    applied=$(render_manifest | kctl apply -f -)
+    echo "$applied" >&2
+    if [ "$existed" = 1 ] && [ "$RECREATE" = 1 ]; then
+        log "restarting the deployment so it pulls $KYTOS_IMAGE again (branches and provisioning start over)"
+        kctl rollout restart "deployment/$K8S_DEPLOYMENT"
+    elif [ "$existed" = 1 ] && [ "$KYTOS_PULL" = always ] && echo "$applied" | grep -q unchanged; then
+        log "the running pod keeps the image it pulled; use 'up --recreate' after pushing a new $KYTOS_IMAGE"
+    fi
+    wait_rollout
+}
+
+setup_mongo() {
+    local i
+    log "waiting for mongo"
+    for i in $(seq 1 60); do
+        if mongo_exec mongosh --quiet --eval 'db.runCommand({ping: 1}).ok' 2>/dev/null | grep -q 1; then
+            break
+        fi
+        [ "$i" -eq 60 ] && die "mongo did not become ready"
+        sleep 2
+    done
+    mongo_exec mongosh --quiet --eval "
+        const d = db.getSiblingDB('$MONGO_DBNAME');
+        if (!d.getUser('$MONGO_USERNAME')) {
+            d.createUser({user: '$MONGO_USERNAME', pwd: '$MONGO_PASSWORD', roles: [{role: 'dbAdmin', db: '$MONGO_DBNAME'}]});
+            print('mongo user $MONGO_USERNAME created');
+        }" >&2
+}
+
+cmd_up() {
+    local specs=() arg
+    RECREATE=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --recreate) RECREATE=1 ;;
+            --e2e-branch) [ -n "$2" ] || die "--e2e-branch needs a value"; specs+=("e2e=$2"); E2E_BRANCH=$2; shift ;;
+            --e2e-branch=*) specs+=("e2e=${1#*=}"); E2E_BRANCH=${1#*=} ;;
+            -h|--help) usage; exit 0 ;;
+            *) specs+=("$1") ;;
+        esac
+        shift
+    done
+    case $BACKEND in docker) docker_up ;; k8s) k8s_up ;; esac
+    setup_mongo
+    inside provision
+    local has_spec=0
+    for arg in ${specs[@]+"${specs[@]}"}; do case $arg in -*) ;; *) has_spec=1 ;; esac; done
+    if [ "$has_spec" = 1 ]; then
+        inside branch "${specs[@]}"
+    fi
+    log "ready. Next: $(basename "$0") run -f [pytest args]"
+}
+
+remove_containers() {
+    local c
+    for c in "$@"; do
+        if docker inspect "$c" >/dev/null 2>&1; then
+            docker rm -f "$c" >/dev/null && log "removed $c"
+        fi
+    done
+}
+
+cmd_down() {
+    local keep_infra=0 purge=0
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --keep-infra) keep_infra=1 ;;
+            --purge) purge=1 ;;
+            *) die "unknown flag $1" ;;
+        esac
+        shift
+    done
+    case $BACKEND in
+        docker)
+            need docker
+            remove_containers "$KYTOS_CTR"
+            [ "$keep_infra" = 0 ] && remove_containers "$MONGO_CTR" "$KAFKA_CTR"
+            if [ "$purge" = 1 ]; then
+                if docker volume inspect "$DOCKER_VOL" >/dev/null 2>&1; then
+                    docker volume rm "$DOCKER_VOL" >/dev/null && log "removed volume $DOCKER_VOL"
+                fi
+                if [ "$keep_infra" = 0 ] && docker network inspect "$NET" >/dev/null 2>&1; then
+                    docker network rm "$NET" >/dev/null && log "removed network $NET"
+                fi
+            fi
+            ;;
+        k8s)
+            need kubectl
+            [ "$keep_infra" = 1 ] && warn "--keep-infra has no effect on k8s: mongo and kafka live in the same pod"
+            kctl delete "deployment/$K8S_DEPLOYMENT" --ignore-not-found
+            ;;
+    esac
+}
+
+cmd_run() {
+    local follow=0 attach=0 args=()
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -f|--follow) follow=1 ;;
+            --attach) attach=1 ;;
+            --reruns) [ -n "$2" ] || die "--reruns needs a value"; RERUNS=$2; shift ;;
+            --reruns=*) RERUNS=${1#*=} ;;
+            --) shift; args+=("$@"); break ;;
+            *) args+=("$1") ;;
+        esac
+        shift
+    done
+    require_running
+    inside run ${args[@]+"${args[@]}"} >/dev/null
+    if [ "$attach" = 1 ]; then
+        cmd_attach
+    elif [ "$follow" = 1 ]; then
+        inside -t logs -f
+    else
+        log "follow with: $(basename "$0") logs -f   (or attach)"
+    fi
+}
+
+cmd_logs() {
+    local what=logs follow=()
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -f|--follow) follow=(-f) ;;
+            --kytos) what=kytos_logs ;;
+            *) die "unknown argument $1" ;;
+        esac
+        shift
+    done
+    require_running
+    inside -t "$what" ${follow[@]+"${follow[@]}"}
+}
+
+cmd_attach() {
+    require_running
+    kytos_exec -t tmux attach -t e2e
+}
+
+cmd_fetch() {
+    require_running
+    local id=${1:-latest} tmp name
+    mkdir -p "$RESULTS_DIR"
+    tmp=$(mktemp -d "$RESULTS_DIR/.fetch.XXXXXX")
+    if ! inside bundle "$id" | tar -xf - -C "$tmp"; then
+        rm -rf "$tmp"
+        die "could not fetch run '$id'"
+    fi
+    name=$(ls "$tmp")
+    if [ -z "$name" ] || [ ! -d "$tmp/$name" ]; then
+        rm -rf "$tmp"
+        die "could not fetch run '$id': nothing was copied"
+    fi
+    rm -rf "${RESULTS_DIR:?}/${name:?}"
+    mv "$tmp/$name" "$RESULTS_DIR/$name"
+    rmdir "$tmp"
+    log "fetched $RESULTS_DIR/$name"
+    [ -f "$RESULTS_DIR/$name/exit-code" ] && log "exit code: $(cat "$RESULTS_DIR/$name/exit-code")"
+    return 0
+}
+
+cmd_status() {
+    case $BACKEND in
+        docker)
+            need docker
+            docker ps -a --filter "name=^${PREFIX}-" --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' ;;
+        k8s)
+            need kubectl
+            kctl get pods -l "app=$K8S_DEPLOYMENT" -o wide ;;
+    esac
+    echo
+    require_running
+    inside status
+}
+
+cmd_shell() {
+    require_running
+    # shellcheck disable=SC2016 # $1 expands in the container
+    kytos_exec -t bash -c 'cd "$1" 2>/dev/null; exec bash' _ "$E2E_DIR"
+}
+
+cmd_build_image() {
+    need docker
+    need git
+    local tag="" push=0 build_args=() spec name ref cache src
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -t|--tag) [ -n "$2" ] || die "-t needs a value"; tag=$2; shift ;;
+            --push) push=1 ;;
+            --no-cache) build_args+=(--no-cache) ;;
+            -*) die "unknown flag $1" ;;
+            *=*) build_args+=("$1") ;;  # validated below
+            *) die "bad spec '$1', expected name=ref" ;;
+        esac
+        shift
+    done
+    [ -n "$tag" ] || die "build-image needs -t TAG (e.g. -t kytos-e2e:telemetry_int-fix)"
+
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/kytos-e2e
+    src=$cache/kytos-docker
+    if [ -d "$src/.git" ]; then
+        log "updating $src"
+        git -C "$src" fetch -q origin "$KYTOS_DOCKER_REF"
+        git -C "$src" checkout -q -f FETCH_HEAD
+    else
+        log "cloning $KYTOS_DOCKER_REPO into $src"
+        mkdir -p "$cache"
+        git clone -q "$KYTOS_DOCKER_REPO" "$src"
+        git -C "$src" checkout -q "$KYTOS_DOCKER_REF"
+    fi
+
+    local docker_args=(build -t "$tag")
+    [ -n "$BUILD_PLATFORM" ] && docker_args+=(--platform "$BUILD_PLATFORM")
+    for spec in ${build_args[@]+"${build_args[@]}"}; do
+        case $spec in
+            --*) docker_args+=("$spec"); continue ;;
+        esac
+        name=${spec%%=*}
+        ref=${spec#*=}
+        name=$(echo "$name" | tr '-' '_')
+        case $ref in
+            *'#'*) die "$spec: the kytos-docker Dockerfile only clones github.com/kytos-ng repos, so forks need 'p4e2e branch' instead (or push the branch to kytos-ng)" ;;
+            @image|'') die "$spec: pass a branch, tag or sha" ;;
+        esac
+        [ "$name" = e2e ] && die "e2e is not part of the kytos image; use --e2e-branch on 'up' or 'branch e2e=REF'"
+        grep -q "^ARG branch_${name}=" "$src/Dockerfile" \
+            || die "unknown name '$name'. Known: $(sed -n 's/^ARG branch_\([a-z_]*\)=.*/\1/p' "$src/Dockerfile" | tr '\n' ' ')"
+        docker_args+=(--build-arg "branch_${name}=${ref}")
+    done
+    docker_args+=("$src")
+
+    log "docker ${docker_args[*]}"
+    docker "${docker_args[@]}"
+    if [ "$push" = 1 ]; then
+        docker push "$tag"
+    fi
+    cat >&2 <<EOF
+==> built $tag. Use it with:
+      KYTOS_IMAGE=$tag $(basename "$0") up
+    docker backend: works without pushing; if the tag names a repository
+      (user/repo:tag) up tries to pull it first and falls back to this local copy.
+    k8s backend: the cluster nodes pull the image themselves, so push it to a
+      registry they reach, e.g. -t docker.io/<user>/kytos-e2e:<name> --push
+      (kind/minikube only: kind load docker-image / minikube image load).
+EOF
+}
+
+main() {
+    local cmd=${1:-help}
+    [ $# -gt 0 ] && shift
+    case $cmd in
+        help|-h|--help) usage; return ;;
+    esac
+    load_config
+    cd "$REPO_ROOT"
+    case $cmd in
+        up) cmd_up "$@" ;;
+        down) cmd_down "$@" ;;
+        status) cmd_status ;;
+        shell) cmd_shell ;;
+        config) cmd_config ;;
+        branch) require_running; inside branch "$@" ;;
+        run) cmd_run "$@" ;;
+        logs) cmd_logs "$@" ;;
+        attach) cmd_attach ;;
+        stop) require_running; inside stop ;;
+        fetch) cmd_fetch "$@" ;;
+        build-image) cmd_build_image "$@" ;;
+        *) usage >&2; die "unknown command '$cmd'" ;;
+    esac
+}
+
+main "$@"; exit
