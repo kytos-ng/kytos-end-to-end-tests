@@ -1004,14 +1004,13 @@ class TestE2ETelemetryINTApi(INTHelper):
             self.int_del_proxy_port(self.UNI_A1, force=True)
             self.int_del_proxy_port(self.UNI_Z1, force=True)
 
-    @pytest.mark.xfail(
-        reason="kytos-ng/telemetry_int#186: handle_pp_metadata_removed only "
-        "disables EVCs whose telemetry status is UP, so an EVC that is DOWN "
-        "because of its proxy port keeps INT enabled and its INT flows",
-        strict=True,
-    )
     def test_356_forced_proxy_port_delete_falls_back_to_mef_eline(self):
-        """Force-deleting an in-use proxy port disables INT on its EVC."""
+        """Force-deleting an in-use proxy port disables INT on its EVC.
+
+        The EVC is DOWN with ``proxy_port_down``, not UP, and it must still be disabled,
+        its INT flows removed from both the switches and flow_manager, its mef_eline
+        flows kept, and the EVC released from the proxy port on the other UNI too.
+        """
         try:
             evc_id = self.enable_int_with_proxy_port_down(926)
 
@@ -1025,6 +1024,19 @@ class TestE2ETelemetryINTApi(INTHelper):
                 status_reason=["proxy_port_metadata_removed"],
             )
             self.assert_no_int_flows(self.switches, evc_id)
+            stored = self.get_stored_flows(
+                self.int_cookie_prefix, evc_id, state=("installed", "pending")
+            )
+            assert not stored, stored
+
+            mef_flows = {
+                sw.name: self.count_evc_flows(sw, evc_id)[0] for sw in self.switches
+            }
+            assert sum(mef_flows.values()), mef_flows
+
+            # disable_int discards the EVC from both UNIs' proxy ports
+            response = self.int_del_proxy_port(self.UNI_Z1)
+            assert response.status_code == 200, response.text
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)
             self.int_del_proxy_port(self.UNI_Z1, force=True)
