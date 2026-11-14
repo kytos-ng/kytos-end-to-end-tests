@@ -206,7 +206,7 @@ class TestE2ETelemetryINTApi(INTHelper):
         self.assert_evc_flow_counts(
             self.switches,
             evc_id,
-            {name: (counts[0], 0) for name, counts in before.items()},
+            self.mef_only(before),
         )
         assert evc_id not in self.int_list_evcs()
 
@@ -314,7 +314,7 @@ class TestE2ETelemetryINTApi(INTHelper):
             self.assert_evc_flow_counts(
                 self.switches,
                 evc_id,
-                {name: (counts[0], 0) for name, counts in before[evc_id].items()},
+                self.mef_only(before[evc_id]),
             )
 
         response = self.int_disable([])
@@ -361,7 +361,7 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert sorted(expected) == sorted(int_evcs), sorted(expected)
 
         total_expected = sum(data["count_total"] for data in expected.values())
-        total_installed = sum(self.count_all_evc_flows(sw)[1] for sw in self.switches)
+        total_installed = sum(self.count_all_evc_flows(sw).int for sw in self.switches)
         assert total_expected == total_installed, (
             f"expected_flows total {total_expected} != installed INT flows "
             f"{total_installed}"
@@ -610,7 +610,7 @@ class TestE2ETelemetryINTApi(INTHelper):
         evc_id = self.create_int_evc(535)
         self.assert_int_consistent(evc_id)
         switch = self.switches[0]
-        before = self.count_evc_flows(switch, evc_id)[1]
+        before = self.count_evc_flows(switch, evc_id).int
         assert before, "no INT flows to delete on s1"
 
         self.delete_int_flows_on_switch(switch, evc_id)
@@ -624,13 +624,13 @@ class TestE2ETelemetryINTApi(INTHelper):
         # CONSISTENCY_MIN_VERDICT_INTERVAL (14s in kytos-init.sh)
         deadline = time.time() + 90
         while time.time() < deadline:
-            if self.count_evc_flows(switch, evc_id)[1] == before:
+            if self.count_evc_flows(switch, evc_id).int == before:
                 break
             time.sleep(3)
         else:
             raise AssertionError(
                 f"flow_manager never restored the INT flows on {switch.name}: "
-                f"{self.count_evc_flows(switch, evc_id)[1]} != {before}"
+                f"{self.count_evc_flows(switch, evc_id).int} != {before}"
             )
         self.assert_int_flows_match_expected(evc_id, self.switches)
 
@@ -1030,7 +1030,7 @@ class TestE2ETelemetryINTApi(INTHelper):
             assert not stored, stored
 
             mef_flows = {
-                sw.name: self.count_evc_flows(sw, evc_id)[0] for sw in self.switches
+                sw.name: self.count_evc_flows(sw, evc_id).mef for sw in self.switches
             }
             assert sum(mef_flows.values()), mef_flows
 
