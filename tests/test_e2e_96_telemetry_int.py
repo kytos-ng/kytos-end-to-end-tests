@@ -930,7 +930,7 @@ class TestE2ETelemetryINTApi(INTHelper):
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)
 
-    def enable_int_with_proxy_port_down(self, vlan_id):
+    def enable_int_with_proxy_port_down(self, vlan_id, **kwargs):
         """Set proxy ports on UNI_A1/UNI_Z1 and enable INT on a new EVC.
 
         The loop is DOWN on this backend, so the EVC lands on
@@ -947,7 +947,7 @@ class TestE2ETelemetryINTApi(INTHelper):
             response = self.int_add_proxy_port(intf_id, port, force=True)
             assert response.status_code == 200, response.text
 
-        evc_id = self.create_evc(vlan_id)
+        evc_id = self.create_evc(vlan_id, **kwargs)
         response = self.int_enable([evc_id])
         assert response.status_code == 201, response.text
 
@@ -967,14 +967,22 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert telemetry["status_reason"] == ["proxy_port_down"], telemetry
         return evc_id
 
-    @pytest.mark.xfail(
-        reason="kytos-ng/telemetry_int#186: install_int_flows splits only the "
-        "metadata into "
-        "active/inactive/pp_down and installs the INT flows of all of them, "
-        "so TCP/UDP is steered into the DOWN loop instead of falling back to "
-        "mef_eline",
-        strict=True,
-    )
+    def assert_proxy_port_down_kept(self, evc_id, duration=20):
+        """Assert an EVC that fell back to mef_eline for its proxy port gets no
+        INT flow and stays DOWN ``proxy_port_down`` for ``duration`` seconds,
+        so a late handling of a mef_eline event is caught."""
+        deadline = time.time() + duration
+        while time.time() < deadline:
+            stored = self.get_stored_flows(
+                self.int_cookie_prefix, evc_id, state=("installed", "pending")
+            )
+            assert not stored, stored
+            time.sleep(2)
+        self.assert_no_int_flows(self.switches, evc_id)
+        self.assert_telemetry_metadata(
+            evc_id, True, status="DOWN", status_reason=["proxy_port_down"]
+        )
+
     def test_354_proxy_port_down_evc_has_no_int_flows(self):
         """An EVC enabled while its proxy port is down falls back to mef_eline:
         no INT flows are installed."""
@@ -1037,6 +1045,58 @@ class TestE2ETelemetryINTApi(INTHelper):
             # disable_int discards the EVC from both UNIs' proxy ports
             response = self.int_del_proxy_port(self.UNI_Z1)
             assert response.status_code == 200, response.text
+        finally:
+            self.int_del_proxy_port(self.UNI_A1, force=True)
+            self.int_del_proxy_port(self.UNI_Z1, force=True)
+
+    def test_357_proxy_port_down_evc_failover_installs_no_int(self):
+        """A dynamic EVC's failover doesn't bring INT back while it's DOWN for
+        its proxy port (kytos-ng/telemetry_int#194).
+
+        ``failover_link_down`` and the following ``failover_old_path`` and
+        ``failover_deployed`` carry path flows, which used to get their INT
+        flows installed although the EVC fell back to mef_eline.
+        """
+        try:
+            evc_id = self.enable_int_with_proxy_port_down(927)
+            self.assert_no_int_flows(self.switches, evc_id)
+
+            self.net.net.configLinkStatus("s1", "s6", "down")
+            self.net.wait_kytos_links("s1", "s6", status="DOWN")
+            self.wait_evc_paths(evc_id, current=self.BACKUP)
+
+            self.assert_proxy_port_down_kept(evc_id)
+        finally:
+            self.int_del_proxy_port(self.UNI_A1, force=True)
+            self.int_del_proxy_port(self.UNI_Z1, force=True)
+
+    def test_358_proxy_port_down_static_evc_reactivation_installs_no_int(self):
+        """A static EVC that stops and resumes forwarding doesn't bring INT
+        back while it's DOWN for its proxy port (kytos-ng/telemetry_int#194).
+
+        Resuming is ``static.ingress_installed`` (mef_eline EP041), which used
+        to install the INT source, push_int included, with no INT sink to pop
+        it.
+        """
+        primary = [
+            {"endpoint_a": {"id": link[0]}, "endpoint_b": {"id": link[1]}}
+            for link in self.PRIMARY
+        ]
+        try:
+            evc_id = self.enable_int_with_proxy_port_down(
+                928, dynamic_backup_path=False, primary_path=primary
+            )
+            self.assert_no_int_flows(self.switches, evc_id)
+
+            self.net.net.configLinkStatus("s1", "s6", "down")
+            self.net.wait_kytos_links("s1", "s6", status="DOWN")
+            self.wait_evc_active(evc_id, active=False)
+            self.net.net.configLinkStatus("s1", "s6", "up")
+            self.net.wait_kytos_links("s1", "s6", status="UP")
+            self.wait_evc_active(evc_id)
+            self.wait_evc_paths(evc_id, current=self.PRIMARY)
+
+            self.assert_proxy_port_down_kept(evc_id)
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)
             self.int_del_proxy_port(self.UNI_Z1, force=True)
