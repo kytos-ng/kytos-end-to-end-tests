@@ -1,6 +1,6 @@
 """End-to-end tests for telemetry_int: EVC shapes and convergence.
 
-Flow-count expectations are ``{switch_name: (n_mef_eline_flows, n_int_flows)}``,
+Flow-count expectations are ``{switch_name: FlowCounts(mef=..., int=...)}``,
 split by cookie owner (mef_eline 0xaa, telemetry_int 0xa8) so a regression that
 drops every INT flow cannot hide behind a combined total.
 
@@ -8,11 +8,11 @@ The three paths between the UNI switches s1 and s6, in the order mef_eline
 picks them: ``PRIMARY`` is s1:7--s6:7, ``BACKUP`` is s1:5--s5:5--s6:8, ``THIRD``
 is s1:6--s2:6--s6:5.
 
-A static EVC gets no pre-provisioned ``failover_path`` -- mef_eline only
-provisions a declared ``backup_path`` once the primary breaks -- so
-``STATIC_PRIMARY_FLOWS`` has flows on the two UNI switches only (2 mef_eline
-plus 3 INT source and 3 INT sink flows each), and ``STATIC_BACKUP_FLOWS`` adds
-s5 once it becomes a transit switch.
+A single static EVC only has flows on the UNI switches
+(``STATIC_PRIMARY_FLOWS``). With EP041 a ``backup_path`` is kept installed as a
+standby, so a dual static EVC also has its flows (``STATIC_DUAL_FLOWS``), and a
+swap only moves the UNI ingress and INT source. On a full failure only the UNI
+ingress and INT source are removed (``STATIC_*_INACTIVE_FLOWS``).
 """
 
 import os
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 from .helpers import NetworkTest
-from .int_helpers import INTHelper
+from .int_helpers import FlowCounts, INTHelper
 
 
 @pytest.mark.skipif(
@@ -57,22 +57,38 @@ class TestE2ETelemtryINT(INTHelper):
         ["00:00:00:00:00:00:00:01:6", "00:00:00:00:00:00:00:02:6"],
         ["00:00:00:00:00:00:00:02:5", "00:00:00:00:00:00:00:06:5"],
     ]
-    NO_FLOWS = {f"s{i}": (0, 0) for i in range(1, 7)}
+    NO_FLOWS = {f"s{i}": FlowCounts(mef=0, int=0) for i in range(1, 7)}
     STATIC_PRIMARY_FLOWS = {
-        "s1": (2, 6),
-        "s2": (0, 0),
-        "s3": (0, 0),
-        "s4": (0, 0),
-        "s5": (0, 0),
-        "s6": (2, 6),
+        "s1": FlowCounts(mef=2, int=6),
+        "s2": FlowCounts(mef=0, int=0),
+        "s3": FlowCounts(mef=0, int=0),
+        "s4": FlowCounts(mef=0, int=0),
+        "s5": FlowCounts(mef=0, int=0),
+        "s6": FlowCounts(mef=2, int=6),
     }
-    STATIC_BACKUP_FLOWS = {
-        "s1": (2, 6),
-        "s2": (0, 0),
-        "s3": (0, 0),
-        "s4": (0, 0),
-        "s5": (2, 4),
-        "s6": (2, 6),
+    STATIC_PRIMARY_INACTIVE_FLOWS = {
+        "s1": FlowCounts(mef=1, int=3),
+        "s2": FlowCounts(mef=0, int=0),
+        "s3": FlowCounts(mef=0, int=0),
+        "s4": FlowCounts(mef=0, int=0),
+        "s5": FlowCounts(mef=0, int=0),
+        "s6": FlowCounts(mef=1, int=3),
+    }
+    STATIC_DUAL_FLOWS = {
+        "s1": FlowCounts(mef=3, int=9),
+        "s2": FlowCounts(mef=0, int=0),
+        "s3": FlowCounts(mef=0, int=0),
+        "s4": FlowCounts(mef=0, int=0),
+        "s5": FlowCounts(mef=2, int=4),
+        "s6": FlowCounts(mef=3, int=9),
+    }
+    STATIC_DUAL_INACTIVE_FLOWS = {
+        "s1": FlowCounts(mef=2, int=6),
+        "s2": FlowCounts(mef=0, int=0),
+        "s3": FlowCounts(mef=0, int=0),
+        "s4": FlowCounts(mef=0, int=0),
+        "s5": FlowCounts(mef=2, int=4),
+        "s6": FlowCounts(mef=2, int=6),
     }
     # INT flows on a UNI switch, by table. Each mef_eline flow there becomes two
     # table 0 flows (TCP and UDP) plus one table X flow, so the totals only depend
@@ -86,6 +102,8 @@ class TestE2ETelemtryINT(INTHelper):
     EVPL_DYNAMIC_TABLES = {0: 6, 2: 3}
     EVPL_STATIC_TABLES = {0: 4, 2: 2}
     EPL_STATIC_TABLES = {0: 4, 2: 1, 3: 1}
+    EVPL_DUAL_STATIC_TABLES = {0: 6, 2: 3}
+    EPL_DUAL_STATIC_TABLES = {0: 6, 2: 2, 3: 1}
 
     def setup_method(self, method):  # pylint: disable=unused-argument
         """
@@ -281,7 +299,7 @@ class TestE2ETelemtryINT(INTHelper):
         Validates flow counts across switches, split by cookie owner.
 
         expected_counts: dict mapping a switch name to a
-        ``(n_mef_eline_flows, n_telemetry_int_flows)`` tuple. Keeping the two
+        ``FlowCounts(mef=..., int=...)``. Keeping the two
         apart matters: a single ``cookie=0xa.`` regex conflates mef_eline (0xaa)
         with telemetry_int (0xa8), so a regression that drops every INT flow
         while duplicating mef flows would go unnoticed.
@@ -393,12 +411,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 0),
-                "s2": (0, 0),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 0),
-                "s6": (3, 0),
+                "s1": FlowCounts(mef=3, int=0),
+                "s2": FlowCounts(mef=0, int=0),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=0),
+                "s6": FlowCounts(mef=3, int=0),
             },
         )
 
@@ -439,12 +457,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (0, 0),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=0, int=0),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
 
@@ -505,12 +523,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (2, 4),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=2, int=4),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
 
@@ -572,12 +590,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (4, 8),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=4, int=8),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
 
@@ -652,12 +670,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (4, 8),
-                "s3": (2, 4),
-                "s4": (2, 4),
-                "s5": (4, 8),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=4, int=8),
+                "s3": FlowCounts(mef=2, int=4),
+                "s4": FlowCounts(mef=2, int=4),
+                "s5": FlowCounts(mef=4, int=8),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
 
@@ -740,12 +758,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (4, 8),
-                "s3": (2, 4),
-                "s4": (2, 4),
-                "s5": (4, 8),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=4, int=8),
+                "s3": FlowCounts(mef=2, int=4),
+                "s4": FlowCounts(mef=2, int=4),
+                "s5": FlowCounts(mef=4, int=8),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
 
@@ -808,12 +826,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (2, 6),
-                "s2": (2, 4),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (2, 6),
+                "s1": FlowCounts(mef=2, int=6),
+                "s2": FlowCounts(mef=2, int=4),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=2, int=6),
             },
         )
 
@@ -878,12 +896,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (2, 6),
-                "s2": (0, 0),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (0, 0),
-                "s6": (2, 6),
+                "s1": FlowCounts(mef=2, int=6),
+                "s2": FlowCounts(mef=0, int=0),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=0, int=0),
+                "s6": FlowCounts(mef=2, int=6),
             },
         )
 
@@ -896,12 +914,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 0),
-                "s2": (0, 0),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 0),
-                "s6": (3, 0),
+                "s1": FlowCounts(mef=3, int=0),
+                "s2": FlowCounts(mef=0, int=0),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=0),
+                "s6": FlowCounts(mef=3, int=0),
             },
         )
 
@@ -910,12 +928,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (0, 0),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=0, int=0),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
         self.assert_int_flows_match_expected(evc_id, self.switches)
@@ -954,12 +972,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (0, 0),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=0, int=0),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
         self.assert_int_flows_match_expected(evc_id, self.switches)
@@ -1012,11 +1030,8 @@ class TestE2ETelemtryINT(INTHelper):
     def test_025_shape_evpl_dual_static_paths(self):
         """EVPL with both a static primary_path and a static backup_path.
 
-        mef_eline does not pre-provision a failover_path for a static EVC, so
-        declaring a backup_path changes nothing until the primary breaks: the
-        INT flows must be exactly the single-static ones, with nothing sitting
-        on the declared backup. The backup only gets instrumented when the EVC
-        actually moves onto it (test_155).
+        With EP041 the backup is a standby, so it gets INT sink and hop
+        flows, while the INT source still outputs to the primary.
         """
         evc_id = self.create_evc(
             115,
@@ -1026,15 +1041,19 @@ class TestE2ETelemtryINT(INTHelper):
         )
         self.wait_evc_active(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
+        self.validate_switch_flows(evc_id, self.mef_only(self.STATIC_DUAL_FLOWS))
 
         self.enable_int_and_wait_up(evc_id)
 
-        self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
-        self.assert_int_flow_actions(evc_id, [self.DPID_S1, self.DPID_S6])
+        self.assert_int_flow_actions(
+            evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=[self.DPID_S5]
+        )
         self.assert_int_consistent(evc_id)
+        self.wait_int_source_out_ports(evc_id, {self.DPID_S1: {7}, self.DPID_S6: {7}})
         by_table = self.count_evc_flows_by_table(self.switches[0], evc_id)
-        assert by_table == self.EVPL_STATIC_TABLES, by_table
+        assert by_table == self.EVPL_DUAL_STATIC_TABLES, by_table
 
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 115, [self.DPID_S1, self.DPID_S6]
@@ -1103,9 +1122,7 @@ class TestE2ETelemtryINT(INTHelper):
     def test_035_shape_epl_dual_static_paths(self):
         """EPL with both a static primary_path and a static backup_path.
 
-        As in test_025 the declared backup is not pre-provisioned, so the
-        counts match test_030; what this adds is that the split placement
-        survives declaring a ``backup_path``.
+        As test_025, plus the split table placement holds for the standby.
         """
         evc_id = self.create_evc(
             None,
@@ -1120,13 +1137,18 @@ class TestE2ETelemtryINT(INTHelper):
 
         self.enable_int_and_wait_up(evc_id)
 
-        self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
-        self.assert_int_flow_actions(evc_id, [self.DPID_S1, self.DPID_S6])
+        self.assert_int_flow_actions(
+            evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=[self.DPID_S5]
+        )
         self.assert_int_consistent(evc_id)
         for switch in (self.switches[0], self.switches[5]):
             by_table = self.count_evc_flows_by_table(switch, evc_id)
-            assert by_table == self.EPL_STATIC_TABLES, f"{switch.name}: {by_table}"
+            assert by_table == self.EPL_DUAL_STATIC_TABLES, f"{switch.name}: {by_table}"
+        assert set(self.count_evc_flows_by_table(self.switches[4], evc_id)) == {
+            0
+        }, self.count_evc_flows_by_table(self.switches[4], evc_id)
 
         self.assert_int_trace_matches_control(
             self.DPID_S1, 2, None, [self.DPID_S1, self.DPID_S6]
@@ -1312,12 +1334,12 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (2, 4),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=2, int=4),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
         self.assert_int_flows_match_expected(evc_id, self.switches)
@@ -1517,23 +1539,60 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(
             evc_id,
             {
-                "s1": (3, 9),
-                "s2": (0, 0),
-                "s3": (0, 0),
-                "s4": (0, 0),
-                "s5": (2, 4),
-                "s6": (3, 9),
+                "s1": FlowCounts(mef=3, int=9),
+                "s2": FlowCounts(mef=0, int=0),
+                "s3": FlowCounts(mef=0, int=0),
+                "s4": FlowCounts(mef=0, int=0),
+                "s5": FlowCounts(mef=2, int=4),
+                "s6": FlowCounts(mef=3, int=9),
             },
         )
         self.assert_int_consistent(evc_id)
 
-    def test_150_converge_static_single_path(self):
-        """Static EVC with only a primary_path: down means down, then recovers.
+    def wait_inactive_keeping_path(self, evc_id, timeout=90):
+        """Wait until an EVC is inactive, keeps current_path and its flows settle."""
+        evc = self.wait_evc_active(evc_id, active=False, timeout=timeout)
+        assert evc["enabled"], evc
+        assert evc["current_path"], (
+            f"EVC {evc_id} lost its current_path on deactivation, EP041 keeps "
+            f"it\n{self.dump_evc_state(evc_id)}"
+        )
+        self.evc_flows_settled(evc_id)
+        return evc
 
-        The assertion that matters is the negative one -- with no backup and
-        ``dynamic_backup_path: False`` the EVC must not silently fall back to
-        any other path, and every INT flow must be withdrawn.
-        """
+    def assert_int_down_no_path(self, evc_id, counts):
+        """Assert INT is DOWN with link_down_no_path and only the source was removed."""
+        self.validate_switch_flows(evc_id, counts)
+        self.assert_no_int_source(evc_id)
+        self.assert_int_consistent(evc_id)
+        self.assert_telemetry_metadata(
+            evc_id, True, status="DOWN", status_reason=["link_down_no_path"]
+        )
+
+    def create_static_evc(self, vlan_id, primary, backup=None, dynamic=False, **kw):
+        """Create a static EVC, wait for it to be active and return its id."""
+        payload = {
+            "dynamic_backup_path": dynamic,
+            "primary_path": self.path_payload(primary),
+        }
+        if backup is not None:
+            payload["backup_path"] = self.path_payload(backup)
+        payload.update(kw)
+        evc_id = self.create_evc(vlan_id, **payload)
+        self.wait_evc_active(evc_id)
+        return evc_id
+
+    def create_static_int_evc(self, vlan_id, primary, backup=None, dynamic=False, **kw):
+        """``create_static_evc`` plus INT enabled and UP."""
+        evc_id = self.create_static_evc(vlan_id, primary, backup, dynamic, **kw)
+        self.wait_evc_paths(evc_id, current=primary)
+        self.evc_flows_settled(evc_id)
+        self.enable_int_and_wait_up(evc_id)
+        return evc_id
+
+    def test_150_converge_static_single_path(self):
+        """Single static EVC: link down deactivates it keeping its path, only
+        the INT source is removed, then link up brings it back."""
         evc_id = self.create_int_evc(
             150, dynamic_backup_path=False, primary_path=self.path_payload(self.PRIMARY)
         )
@@ -1541,50 +1600,47 @@ class TestE2ETelemtryINT(INTHelper):
         self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
 
         self.down_link("s1", "s6")
-        self.wait_evc_paths(evc_id, current=[], failover=[])
+        self.wait_inactive_keeping_path(evc_id)
+        self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
 
-        self.assert_no_evc_flows(self.switches, evc_id)
-        self.assert_telemetry_metadata(
-            evc_id,
-            True,
-            status="DOWN",
-            status_reason=["redeployed_link_down_no_path"],
-        )
+        self.assert_int_down_no_path(evc_id, self.STATIC_PRIMARY_INACTIVE_FLOWS)
         self.assert_no_int_trace(self.DPID_S1, 1, 150, [self.DPID_S1, self.DPID_S6])
 
         self.up_link("s1", "s6")
+        self.wait_evc_active(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
 
         self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
         self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
+        self.assert_int_flow_actions(evc_id, [self.DPID_S1, self.DPID_S6])
         self.assert_int_consistent(evc_id)
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 150, [self.DPID_S1, self.DPID_S6]
         )
 
     def test_155_converge_static_dual_paths(self):
-        """Static EVC with primary_path and backup_path: the full walk.
-
-        primary down -> the declared backup (not a recomputed shortest path);
-        backup down too -> nothing; both back up -> the primary again, not the
-        backup. That last step is the one that catches a redeploy picking the
-        wrong static path, which would leave INT flows on a switch that is no
-        longer on the path.
-        """
-        evc_id = self.create_int_evc(
-            155,
-            dynamic_backup_path=False,
-            primary_path=self.path_payload(self.PRIMARY),
-            backup_path=self.path_payload(self.BACKUP),
-        )
+        """Dual static EVC: swap to backup, full failure, backup up, primary up,
+        ending with every flow as it was initially."""
+        evc_id = self.create_static_int_evc(155, self.PRIMARY, self.BACKUP)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
-        self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
         self.assert_int_consistent(evc_id)
+        self.wait_int_source_out_ports(evc_id, {self.DPID_S1: {7}, self.DPID_S6: {7}})
+        mef_before = self.flow_keys(self.mef_cookie_prefix, evc_id)
+        int_before = self.flow_keys(self.int_cookie_prefix, evc_id)
 
         self.down_link("s1", "s6")
         self.wait_evc_paths(evc_id, current=self.BACKUP, failover=[])
+        self.wait_int_source_out_ports(evc_id, {self.DPID_S1: {5}, self.DPID_S6: {8}})
+        self.evc_flows_settled(evc_id)
 
-        self.validate_switch_flows(evc_id, self.STATIC_BACKUP_FLOWS)
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
+        self.assert_only_uni_ingress_moved(
+            evc_id, mef_before, self.flow_keys(self.mef_cookie_prefix, evc_id)
+        )
+        self.assert_only_uni_ingress_moved(
+            evc_id, int_before, self.flow_keys(self.int_cookie_prefix, evc_id)
+        )
         self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_flow_actions(
             evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=[self.DPID_S5]
@@ -1596,34 +1652,36 @@ class TestE2ETelemtryINT(INTHelper):
         )
 
         self.down_link("s5", "s6", port1=8, port2=8)
-        self.wait_evc_paths(evc_id, current=[], failover=[])
-        self.assert_no_evc_flows(self.switches, evc_id)
-        self.assert_telemetry_metadata(
-            evc_id,
-            True,
-            status="DOWN",
-            status_reason=["redeployed_link_down_no_path"],
+        self.wait_inactive_keeping_path(evc_id)
+        self.assert_int_down_no_path(evc_id, self.STATIC_DUAL_INACTIVE_FLOWS)
+        self.assert_no_int_trace(
+            self.DPID_S1, 1, 155, [self.DPID_S1, self.DPID_S5, self.DPID_S6]
         )
 
         self.up_link("s5", "s6", port1=8, port2=8)
+        self.wait_evc_active(evc_id)
+        self.wait_evc_paths(evc_id, current=self.BACKUP, failover=[])
+        self.wait_int_source_out_ports(evc_id, {self.DPID_S1: {5}, self.DPID_S6: {8}})
+        self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
+        self.assert_int_consistent(evc_id)
+
         self.up_link("s1", "s6")
-        self.wait_evc_paths(evc_id, current=self.PRIMARY)
+        self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
+        self.wait_int_source_out_ports(evc_id, {self.DPID_S1: {7}, self.DPID_S6: {7}})
+        self.evc_flows_settled(evc_id)
 
         self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
-        self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
-        self.assert_int_flows_match_expected(evc_id, self.switches)
+        assert self.flow_keys(self.mef_cookie_prefix, evc_id) == mef_before
+        assert self.flow_keys(self.int_cookie_prefix, evc_id) == int_before
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
         self.assert_int_consistent(evc_id)
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 155, [self.DPID_S1, self.DPID_S6]
         )
 
     def test_160_converge_static_dual_paths_epl(self):
-        """Static EPL with primary_path and backup_path, on table 3.
-
-        The abbreviated version of 155 for the EPL shape: the point is that
-        the split table placement survives a path change, and that the hop flows
-        the backup introduces stay on table 0 (hop flows never use table X).
-        """
+        """Dual static EPL swap: table 3 source survives, s5 hops stay on table 0."""
         evc_id = self.create_evc(
             None,
             uni_a=self.UNI_A2,
@@ -1635,12 +1693,18 @@ class TestE2ETelemtryINT(INTHelper):
         self.wait_evc_active(evc_id)
         self.enable_int_and_wait_up(evc_id)
         self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=[])
-        self.validate_switch_flows(evc_id, self.STATIC_PRIMARY_FLOWS)
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
+        int_before = self.flow_keys(self.int_cookie_prefix, evc_id)
 
         self.down_link("s1", "s6")
         self.wait_evc_paths(evc_id, current=self.BACKUP, failover=[])
+        self.wait_int_source_out_ports(evc_id, {self.DPID_S1: {5}, self.DPID_S6: {8}})
+        self.evc_flows_settled(evc_id)
 
-        self.validate_switch_flows(evc_id, self.STATIC_BACKUP_FLOWS)
+        self.validate_switch_flows(evc_id, self.STATIC_DUAL_FLOWS)
+        self.assert_only_uni_ingress_moved(
+            evc_id, int_before, self.flow_keys(self.int_cookie_prefix, evc_id)
+        )
         self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_flow_actions(
             evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=[self.DPID_S5]
@@ -1649,7 +1713,7 @@ class TestE2ETelemtryINT(INTHelper):
 
         for switch in (self.switches[0], self.switches[5]):
             by_table = self.count_evc_flows_by_table(switch, evc_id)
-            assert by_table.get(3), f"{switch.name} lost its table 3 flows: {by_table}"
+            assert by_table == self.EPL_DUAL_STATIC_TABLES, f"{switch.name}: {by_table}"
         assert set(self.count_evc_flows_by_table(self.switches[4], evc_id)) == {
             0
         }, self.count_evc_flows_by_table(self.switches[4], evc_id)

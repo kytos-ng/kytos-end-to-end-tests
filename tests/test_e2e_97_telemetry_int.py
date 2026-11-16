@@ -5,11 +5,11 @@ is the production shape -- INT is requested at EVC creation with
 ``metadata.telemetry_request`` and telemetry_int then follows the EVC through
 kytos events alone. Shapes and convergence live in 95, the REST API in 96.
 
-Flow counts are ``{switch_name: (n_mef_eline_flows, n_int_flows)}`` by cookie
+Flow counts are ``{switch_name: FlowCounts(mef=..., int=...)}`` by cookie
 owner (mef_eline 0xaa, telemetry_int 0xa8). ``DYNAMIC_EVPL_FLOWS`` is a dynamic
 EVPL on ``PRIMARY`` with ``BACKUP`` failover; ``STATIC_PRIMARY_FLOWS`` is a
 static EVC on ``PRIMARY``, which has no pre-provisioned failover and so touches
-the two UNI switches only.
+the two UNI switches only; ``STATIC_DUAL_FLOWS`` adds the EP041 ``BACKUP`` standby.
 
 Out of scope: anything needing working proxy ports: kytos-init.sh has of_lldp
 disable the ``amlight_intlab`` loops, and file 98 will set up ``ignored_loops``.
@@ -21,7 +21,7 @@ import time
 import pytest
 
 from .helpers import NetworkTest
-from .int_helpers import INTHelper
+from .int_helpers import FlowCounts, INTHelper
 
 
 @pytest.mark.skipif(
@@ -51,20 +51,28 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         ["00:00:00:00:00:00:00:05:8", "00:00:00:00:00:00:00:06:8"],
     ]
     DYNAMIC_EVPL_FLOWS = {
-        "s1": (3, 9),
-        "s2": (0, 0),
-        "s3": (0, 0),
-        "s4": (0, 0),
-        "s5": (2, 4),
-        "s6": (3, 9),
+        "s1": FlowCounts(mef=3, int=9),
+        "s2": FlowCounts(mef=0, int=0),
+        "s3": FlowCounts(mef=0, int=0),
+        "s4": FlowCounts(mef=0, int=0),
+        "s5": FlowCounts(mef=2, int=4),
+        "s6": FlowCounts(mef=3, int=9),
     }
     STATIC_PRIMARY_FLOWS = {
-        "s1": (2, 6),
-        "s2": (0, 0),
-        "s3": (0, 0),
-        "s4": (0, 0),
-        "s5": (0, 0),
-        "s6": (2, 6),
+        "s1": FlowCounts(mef=2, int=6),
+        "s2": FlowCounts(mef=0, int=0),
+        "s3": FlowCounts(mef=0, int=0),
+        "s4": FlowCounts(mef=0, int=0),
+        "s5": FlowCounts(mef=0, int=0),
+        "s6": FlowCounts(mef=2, int=6),
+    }
+    STATIC_DUAL_FLOWS = {
+        "s1": FlowCounts(mef=3, int=9),
+        "s2": FlowCounts(mef=0, int=0),
+        "s3": FlowCounts(mef=0, int=0),
+        "s4": FlowCounts(mef=0, int=0),
+        "s5": FlowCounts(mef=2, int=4),
+        "s6": FlowCounts(mef=3, int=9),
     }
 
     @classmethod
@@ -192,7 +200,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         Worth its own test because the bootstrap happens on
         ``mef_eline.deployed``, and a static EVC deploys without any path
         computation -- so this proves the trigger does not depend on dynamic
-        path selection.
+        path selection. The EP041 standby is instrumented too.
         """
         evc_id = self.create_int_requested_evc(
             605,
@@ -207,9 +215,11 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         )
         if not self.lost_write_recorded():
             self.assert_proxy_port_enabled(evc_id, None)
-        self.assert_evc_flow_counts(self.switches, evc_id, self.STATIC_PRIMARY_FLOWS)
+        self.assert_evc_flow_counts(self.switches, evc_id, self.STATIC_DUAL_FLOWS)
         self.assert_int_flows_match_expected(evc_id, self.switches)
-        self.assert_int_flow_actions(evc_id, [self.DPID_S1, self.DPID_S6])
+        self.assert_int_flow_actions(
+            evc_id, [self.DPID_S1, self.DPID_S6], hop_dpids=[self.DPID_S5]
+        )
         self.assert_int_consistent(evc_id)
         self.assert_int_trace_matches_control(
             self.DPID_S1, 1, 605, [self.DPID_S1, self.DPID_S6]
@@ -260,7 +270,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_evc_flow_counts(
             self.switches,
             evc_id,
-            {name: (counts[0], 0) for name, counts in self.DYNAMIC_EVPL_FLOWS.items()},
+            self.mef_only(self.DYNAMIC_EVPL_FLOWS),
         )
 
     def test_025_telemetry_request_added_after_deploy_enables_int_on_redeploy(self):
@@ -614,7 +624,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_evc_flow_counts(
             self.switches,
             evc_id,
-            {**self.STATIC_PRIMARY_FLOWS, "s5": (2, 4)},
+            {**self.STATIC_PRIMARY_FLOWS, "s5": FlowCounts(mef=2, int=4)},
         )
         self.assert_int_flows_match_expected(evc_id, self.switches)
         self.assert_int_flow_actions(
@@ -676,7 +686,7 @@ class TestE2ETelemetryINTMefEline(INTHelper):
         self.assert_evc_flow_counts(
             self.switches,
             evc_id,
-            {**self.DYNAMIC_EVPL_FLOWS, "s2": (2, 4)},
+            {**self.DYNAMIC_EVPL_FLOWS, "s2": FlowCounts(mef=2, int=4)},
         )
         self.assert_int_flows_match_expected(evc_id, self.switches)
         # s5 is now on current_path and s2 on the new failover_path

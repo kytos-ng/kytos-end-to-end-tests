@@ -17,11 +17,21 @@ Two constraints to know before changing anything here:
    ``delete_int_flows_stored`` versus ``delete_int_flows_on_switch``.
 """
 
+import json
 import re
 import time
+from typing import NamedTuple
 
 import pytest
 import requests
+
+
+
+class FlowCounts(NamedTuple):
+    """An EVC's flow counts on a switch, by cookie owner."""
+
+    mef: int
+    int: int
 
 
 class INTHelper:
@@ -258,9 +268,17 @@ class INTHelper:
         return result
 
     def count_evc_flows(self, switch, evc_id):
-        """Return ``(n_mef_flows, n_int_flows)`` for an EVC on a given switch."""
+        """Return the ``FlowCounts`` of an EVC on a given switch."""
         flows = self.dump_evc_flows(switch, evc_id)
-        return len(flows["mef"]), len(flows["int"])
+        return FlowCounts(mef=len(flows["mef"]), int=len(flows["int"]))
+
+    @staticmethod
+    def mef_only(expected):
+        """``expected`` with the INT counts zeroed, i.e. before INT is enabled."""
+        return {
+            name: FlowCounts(mef=counts.mef, int=0)
+            for name, counts in expected.items()
+        }
 
     def count_evc_flows_by_table(self, switch, evc_id, owner="int"):
         """Return ``{table_id: count}`` for an EVC on a given switch."""
@@ -282,14 +300,14 @@ class INTHelper:
         return "\n".join(lines)
 
     def assert_evc_flow_counts(self, switches, evc_id, expected, timeout=60):
-        """Assert the per-switch (mef, int) flow counts for an EVC.
+        """Assert the per-switch ``FlowCounts`` for an EVC.
 
         ``switches`` is an iterable of mininet switch objects and ``expected`` maps
-        a switch name to a ``(n_mef, n_int)`` tuple. Switches absent from
+        a switch name to a ``FlowCounts``. Switches absent from
         ``expected`` are not checked. Polls until the counts match, since flow
         installation is asynchronous.
         """
-        expected = {name: tuple(value) for name, value in expected.items()}
+        expected = {name: FlowCounts(*value) for name, value in expected.items()}
         targets = [sw for sw in switches if sw.name in expected]
         deadline = time.time() + timeout
         observed = {}
@@ -308,16 +326,15 @@ class INTHelper:
 
     def assert_no_evc_flows(self, switches, evc_id, timeout=60):
         """Assert no mef_eline and no telemetry_int flows remain for an EVC."""
-        self.assert_evc_flow_counts(
-            switches, evc_id, {sw.name: (0, 0) for sw in switches}, timeout=timeout
-        )
+        no_flows = {sw.name: FlowCounts(mef=0, int=0) for sw in switches}
+        self.assert_evc_flow_counts(switches, evc_id, no_flows, timeout=timeout)
 
     def assert_no_int_flows(self, switches, evc_id, timeout=60):
         """Assert no telemetry_int flows remain, without constraining mef flows."""
         targets = list(switches)
         deadline = time.time() + timeout
         while True:
-            observed = {sw.name: self.count_evc_flows(sw, evc_id)[1] for sw in targets}
+            observed = {sw.name: self.count_evc_flows(sw, evc_id).int for sw in targets}
             if not any(observed.values()):
                 return observed
             if time.time() >= deadline:
@@ -901,7 +918,7 @@ class INTHelper:
             observed_by_table = {}
             observed_by_switch = {}
             for switch in switches:
-                count = self.count_evc_flows(switch, evc_id)[1]
+                count = self.count_evc_flows(switch, evc_id).int
                 observed_total += count
                 if count:
                     observed_by_switch[self.switch_dpid(switch)] = count
@@ -1375,13 +1392,13 @@ class INTHelper:
         long as the EVC lives.
 
         Returns at once for the EVCs that never get a pre-provisioned failover:
-        static ones, and intra-switch ones (no links in ``current_path``, so
-        there is no alternative path to pre-provision).
+        static ones without ``dynamic_backup_path``, dual static ones (EP041
+        pre-installs ``backup_path`` instead), and intra-switch ones.
         """
         deadline = time.time() + timeout
         while True:
             evc = self.get_evc(evc_id)
-            if not evc.get("dynamic_backup_path"):
+            if not evc.get("dynamic_backup_path") or evc.get("backup_path"):
                 return evc
             if evc.get("active") and not evc.get("current_path"):
                 return evc
@@ -1395,7 +1412,7 @@ class INTHelper:
             time.sleep(2)
 
     def count_all_evc_flows(self, switch):
-        """Return ``(n_mef_flows, n_int_flows)`` across every EVC on a switch."""
+        """Return the ``FlowCounts`` across every EVC on a switch."""
         mef = n_int = 0
         for line in switch.dpctl("dump-flows").splitlines():
             flow = self._parse_flow_line(line)
@@ -1406,7 +1423,7 @@ class INTHelper:
                 mef += 1
             elif prefix == self.int_cookie_prefix:
                 n_int += 1
-        return mef, n_int
+        return FlowCounts(mef=mef, int=n_int)
 
     def wait_no_evc_flows(self, switches, timeout=60):
         """Wait until no mef_eline or telemetry_int flows remain on any switch.
@@ -1440,3 +1457,128 @@ class INTHelper:
             if time.time() >= deadline:
                 raise AssertionError(f"compare never cleared: {compared}")
             time.sleep(2)
+
+    def flow_keys(self, cookie_prefix, evc_id):
+        """Return ``{(dpid, flow_json)}`` of an EVC's stored flows, forwarding
+        fields only, so snapshots can be diffed."""
+        keys = set()
+        stored = self.get_stored_flows(cookie_prefix, evc_id)
+        for dpid, flows in stored.items():
+            for flow in flows:
+                body = flow["flow"]
+                kept = {
+                    "table_id": body.get("table_id", 0),
+                    "priority": body.get("priority"),
+                    "match": body.get("match", {}),
+                    "instructions": body.get("instructions"),
+                    "actions": body.get("actions"),
+                }
+                keys.add((dpid, json.dumps(kept, sort_keys=True)))
+        return keys
+
+    def uni_ports(self, evc_id):
+        """Return ``{dpid: {uni port numbers}}`` for an EVC."""
+        evc = self.get_evc(evc_id)
+        ports = {}
+        for uni in (evc["uni_a"], evc["uni_z"]):
+            dpid, port = uni["interface_id"].rsplit(":", 1)
+            ports.setdefault(dpid, set()).add(int(port))
+        return ports
+
+    def assert_only_uni_ingress_moved(self, evc_id, before, after):
+        """Assert two ``flow_keys`` snapshots only differ on UNI ingress flows
+        (EP041 swap), i.e. INT source flows for INT."""
+        uni_ports = self.uni_ports(evc_id)
+        gone, new = before - after, after - before
+        assert gone or new, "nothing moved, the ingress was expected to"
+        for dpid, flow in gone | new:
+            in_port = json.loads(flow)["match"].get("in_port")
+            assert in_port in uni_ports.get(dpid, ()), (
+                f"a non UNI ingress flow moved on {dpid}: {flow}\n"
+                f"  removed: {sorted(gone)}\n  added: {sorted(new)}"
+            )
+
+    def int_source_out_ports(self, evc_id):
+        """Return ``{dpid: {output ports}}`` of the INT source table X flows."""
+        ports = {}
+        for dpid, flows in self.get_stored_flows(
+            self.int_cookie_prefix, evc_id
+        ).items():
+            for flow in flows:
+                if flow["flow"].get("table_id", 0) == 0:
+                    continue
+                actions = self.apply_actions(flow)
+                types = [action["action_type"] for action in actions]
+                if types[:1] != [self.add_int_metadata]:
+                    continue
+                ports.setdefault(dpid, set()).update(
+                    action["port"]
+                    for action in actions
+                    if action["action_type"] == "output"
+                )
+        return ports
+
+    def wait_int_source_out_ports(self, evc_id, expected, timeout=60):
+        """Wait until the INT source outputs match ``{dpid: {ports}}``."""
+        expected = {dpid: set(ports) for dpid, ports in expected.items()}
+        deadline = time.time() + timeout
+        observed = None
+        while True:
+            observed = self.int_source_out_ports(evc_id)
+            if observed == expected:
+                return observed
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"EVC {evc_id} INT source outputs {observed}, expected "
+                    f"{expected}\n{self.dump_evc_state(evc_id)}"
+                )
+            time.sleep(2)
+
+    def int_source_flows(self, evc_id):
+        """Return ``[(dpid, stored_flow)]`` of INT flows matching a UNI in_port."""
+        uni_ports = self.uni_ports(evc_id)
+        return [
+            (dpid, flow)
+            for dpid, flows in self.get_stored_flows(
+                self.int_cookie_prefix, evc_id
+            ).items()
+            for flow in flows
+            if flow["flow"]["match"].get("in_port") in uni_ports.get(dpid, ())
+        ]
+
+    def assert_no_int_source(self, evc_id, timeout=60):
+        """Assert no INT source flow is left for an EVC."""
+        deadline = time.time() + timeout
+        while True:
+            sources = self.int_source_flows(evc_id)
+            if not sources:
+                return
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"EVC {evc_id} still has INT source flows: {sources}"
+                )
+            time.sleep(2)
+
+    def evc_flows_settled(self, evc_id, timeout=90, period=5):
+        """Wait until an EVC's mef_eline and INT stored flows stop changing,
+        since EP041 convergence keeps the paths as they were."""
+        deadline = time.time() + timeout
+        previous = None
+        while True:
+            snapshot = (
+                self.flow_keys(self.mef_cookie_prefix, evc_id),
+                self.flow_keys(self.int_cookie_prefix, evc_id),
+                bool(
+                    self.stored_flow_ids(
+                        self.int_cookie_prefix, evc_id, state="pending"
+                    )
+                ),
+            )
+            if snapshot == previous and not snapshot[2]:
+                return snapshot
+            if time.time() >= deadline:
+                raise AssertionError(
+                    f"EVC {evc_id} flows never settled\n{self.dump_evc_state(evc_id)}"
+                )
+            previous = snapshot
+            time.sleep(period)
