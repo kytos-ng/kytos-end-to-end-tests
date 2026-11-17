@@ -930,14 +930,10 @@ class TestE2ETelemetryINTApi(INTHelper):
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)
 
-    def enable_int_with_proxy_port_down(self, vlan_id, **kwargs):
-        """Set proxy ports on UNI_A1/UNI_Z1 and enable INT on a new EVC.
-
-        The loop is DOWN on this backend, so the EVC lands on
-        ``status_reason: ["proxy_port_down"]``, which registers it against the
-        proxy port. The caller must remove both proxy ports in a ``finally``,
-        including when this fails half way.
-        """
+    def add_proxy_ports_down(self):
+        """Set proxy ports, whose loop is DOWN on this backend, on
+        UNI_A1/UNI_Z1. The caller must remove both in a ``finally``, including
+        when this fails half way."""
         self.require_looped_interface(f"{self.DPID_S1}:{self.LOOP_PORT_A}")
         self.require_looped_interface(f"{self.DPID_S6}:{self.LOOP_PORT_Z}")
         for intf_id, port in (
@@ -947,6 +943,15 @@ class TestE2ETelemetryINTApi(INTHelper):
             response = self.int_add_proxy_port(intf_id, port, force=True)
             assert response.status_code == 200, response.text
 
+    def enable_int_with_proxy_port_down(self, vlan_id, **kwargs):
+        """Set proxy ports on UNI_A1/UNI_Z1 and enable INT on a new EVC.
+
+        The loop is DOWN on this backend, so the EVC lands on
+        ``status_reason: ["proxy_port_down"]``, which registers it against the
+        proxy port. The caller must remove both proxy ports in a ``finally``,
+        including when this fails half way.
+        """
+        self.add_proxy_ports_down()
         evc_id = self.create_evc(vlan_id, **kwargs)
         response = self.int_enable([evc_id])
         assert response.status_code == 201, response.text
@@ -1097,6 +1102,157 @@ class TestE2ETelemetryINTApi(INTHelper):
             self.wait_evc_paths(evc_id, current=self.PRIMARY)
 
             self.assert_proxy_port_down_kept(evc_id)
+        finally:
+            self.int_del_proxy_port(self.UNI_A1, force=True)
+            self.int_del_proxy_port(self.UNI_Z1, force=True)
+
+    def test_359_proxy_port_down_evc_redeploy_installs_no_int(self):
+        """Redeploying INT on an EVC that's DOWN for its proxy port keeps it
+        fallen back to mef_eline (kytos-ng/telemetry_int#194)."""
+        try:
+            evc_id = self.enable_int_with_proxy_port_down(929)
+            self.assert_no_int_flows(self.switches, evc_id)
+
+            response = self.int_redeploy([evc_id])
+            assert response.status_code == 201, response.text
+            assert evc_id in response.json(), response.text
+
+            self.assert_proxy_port_down_kept(evc_id)
+        finally:
+            self.int_del_proxy_port(self.UNI_A1, force=True)
+            self.int_del_proxy_port(self.UNI_Z1, force=True)
+
+    def test_360_proxy_port_down_unused_with_proxy_port_enabled_false(self):
+        """An EVC enabled with ``proxy_port_enabled: false`` doesn't use its
+        UNIs' proxy ports, so their DOWN loop doesn't set it DOWN
+        ``proxy_port_down``: it gets its INT flows."""
+        try:
+            self.add_proxy_ports_down()
+            evc_id = self.create_evc(930)
+            response = self.int_enable([evc_id], proxy_port_enabled=False)
+            assert response.status_code == 201, response.text
+
+            self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+            self.assert_proxy_port_enabled(evc_id, False)
+            self.assert_int_consistent(evc_id)
+            self.assert_int_flows_match_expected(evc_id, self.switches)
+        finally:
+            self.int_del_proxy_port(self.UNI_A1, force=True)
+            self.int_del_proxy_port(self.UNI_Z1, force=True)
+
+    def enable_proxy_port_loop(self, dpid, port_a, port_b, timeout=90):
+        """Make the ``dpid`` ``port_a``--``port_b`` loop UP, as a working proxy port.
+
+        kytos-init.sh's ``LLDP_LOOP_ACTIONS`` disables loops, so this ignores it
+        with the switch ``ignored_loops`` metadata, waits for of_lldp to stop it,
+        and writes the ``looped`` metadata of_lldp would have before enabling
+        both ports, so the proxy port is resolvable when the loop link comes UP,
+        which is what ``handle_pp_link_up`` reacts to. ``restart_kytos_clean``
+        wipes it all for the next tests.
+        """
+        intf_a, intf_b = f"{dpid}:{port_a}", f"{dpid}:{port_b}"
+        url = f"{self.topo_api}/switches/{dpid}/metadata"
+        response = requests.get(url, timeout=self.timeout)
+        assert response.status_code == 200, response.text
+        ignored = response.json()["metadata"].get("ignored_loops", [])
+        if [port_a, port_b] not in ignored:
+            ignored = ignored + [[port_a, port_b]]
+        response = requests.post(
+            url, json={"ignored_loops": ignored}, timeout=self.timeout
+        )
+        assert response.status_code in (200, 201), response.text
+
+        deadline = time.time() + timeout
+        while any(
+            "looped" in self.get_interface(intf_id).get("metadata", {})
+            for intf_id in (intf_a, intf_b)
+        ):
+            assert time.time() < deadline, f"loop {intf_a}--{intf_b} never stopped"
+            time.sleep(2)
+
+        response = requests.post(
+            f"{self.topo_api}/interfaces/{intf_a}/metadata",
+            json={"looped": {"port_numbers": [port_a, port_b]}},
+            timeout=self.timeout,
+        )
+        assert response.status_code in (200, 201), response.text
+        self.wait_interface_looped(intf_a, timeout=timeout)
+
+        for intf_id in (intf_a, intf_b):
+            response = requests.post(
+                f"{self.topo_api}/interfaces/{intf_id}/enable", timeout=self.timeout
+            )
+            assert response.status_code in (200, 201), response.text
+        self.wait_loop_link_up(intf_a, intf_b, timeout=timeout)
+
+    def wait_loop_link_up(self, intf_a, intf_b, timeout=90):
+        """Enable the topology link between two interfaces and wait until
+        it's UP. Disabling an interface, as of_lldp does on a loop, also
+        disables its link, and enabling the interface back doesn't enable it.
+        """
+        deadline = time.time() + timeout
+        link = None
+        while time.time() < deadline:
+            response = requests.get(f"{self.topo_api}/links/", timeout=self.timeout)
+            assert response.status_code == 200, response.text
+            link = next(
+                (
+                    link
+                    for link in response.json()["links"].values()
+                    if {link["endpoint_a"]["id"], link["endpoint_b"]["id"]}
+                    == {intf_a, intf_b}
+                ),
+                None,
+            )
+            if link and link.get("status") == "UP":
+                return link
+            if link and not link.get("enabled"):
+                response = requests.post(
+                    f"{self.topo_api}/links/{link['id']}/enable",
+                    timeout=self.timeout,
+                )
+                assert response.status_code == 201, response.text
+            time.sleep(2)
+        raise AssertionError(f"loop link {intf_a}--{intf_b} never came UP: {link}")
+
+    def wait_proxy_port_status(self, uni_id, status="UP", timeout=90):
+        """Wait until ``GET /v1/uni/proxy_port`` reports ``uni_id`` with ``status``."""
+        deadline = time.time() + timeout
+        entry = None
+        while time.time() < deadline:
+            entry = next(
+                (i for i in self.int_list_proxy_ports() if i["uni"]["id"] == uni_id),
+                None,
+            )
+            if entry and entry["proxy_port"].get("status") == status:
+                return entry
+            time.sleep(2)
+        raise AssertionError(f"proxy port of {uni_id} never reached {status}: {entry}")
+
+    def test_361_proxy_port_down_redeploy_then_loop_up_reinstalls_int(self):
+        """An EVC DOWN for its proxy port stays fallen back on redeploy, and
+        gets INT back once its loops are UP (kytos-ng/telemetry_int#194, #195).
+
+        The loop link up is handled by ``handle_pp_link_up``, now holding the
+        EVC locks."""
+        try:
+            evc_id = self.enable_int_with_proxy_port_down(931)
+            self.assert_no_int_flows(self.switches, evc_id)
+
+            response = self.int_redeploy([evc_id])
+            assert response.status_code == 201, response.text
+            self.assert_proxy_port_down_kept(evc_id, duration=10)
+
+            self.enable_proxy_port_loop(self.DPID_S1, self.LOOP_PORT_A, 16)
+            self.enable_proxy_port_loop(self.DPID_S6, self.LOOP_PORT_Z, 16)
+            self.wait_proxy_port_status(self.UNI_A1, "UP")
+            self.wait_proxy_port_status(self.UNI_Z1, "UP")
+
+            self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+            for switch in self.switches:
+                if switch.name in ("s1", "s6"):
+                    assert self.count_evc_flows(switch, evc_id).int, switch.name
+            self.assert_int_consistent(evc_id)
         finally:
             self.int_del_proxy_port(self.UNI_A1, force=True)
             self.int_del_proxy_port(self.UNI_Z1, force=True)
