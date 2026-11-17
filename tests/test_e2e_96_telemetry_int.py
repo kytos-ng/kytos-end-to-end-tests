@@ -1249,6 +1249,7 @@ class TestE2ETelemetryINTApi(INTHelper):
             self.wait_proxy_port_status(self.UNI_Z1, "UP")
 
             self.assert_telemetry_metadata(evc_id, True, status="UP", status_reason=[])
+            self.wait_int_ready(evc_id)
             for switch in self.switches:
                 if switch.name in ("s1", "s6"):
                     assert self.count_evc_flows(switch, evc_id).int, switch.name
