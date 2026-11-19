@@ -416,6 +416,37 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert response.status_code == 200, response.text
         assert response.json() == {}, response.text
 
+    def test_170_disable_right_after_enable_leaves_no_int_flows(self):
+        """Disabling INT right after the enable returns removes all the INT
+        flows it installed.
+
+        The enable used to return with its INT flows only queued to
+        flow_manager, so a disable sent right after could read the stored
+        flows before they were stored, and leave them behind for good. Several
+        EVCs and rounds widen that window."""
+        evc_ids = []
+        for vlan_id in range(960, 966):
+            evc_id = self.create_evc(vlan_id)
+            self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
+            evc_ids.append(evc_id)
+
+        for _ in range(5):
+            response = self.int_enable(evc_ids)
+            assert response.status_code == 201, response.text
+            response = self.int_disable(evc_ids)
+            assert response.status_code == 200, response.text
+
+            time.sleep(5)
+            for evc_id in evc_ids:
+                stored = self.get_stored_flows(
+                    self.int_cookie_prefix, evc_id, state=("installed", "pending")
+                )
+                assert not stored, f"EVC {evc_id} INT flows left stored: {stored}"
+                self.assert_no_int_flows(self.switches, evc_id)
+                self.assert_telemetry_metadata(
+                    evc_id, False, status="DOWN", status_reason=["disabled"]
+                )
+
     def test_200_get_evc_listing(self):
         """``GET /v1/evc`` lists only the INT-enabled EVCs, in Circuit shape."""
         int_evc = self.create_int_evc(500)
