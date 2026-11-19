@@ -1288,9 +1288,8 @@ class INTHelper:
         consistent EVC can still have flow mods in flight; it's only ready
         once none of its INT flows is pending anymore.
 
-        Only a 503 is retried: any other error, such as the 500 on an
-        intra-switch EVC without proxy ports (test_305), fails right away
-        instead of polling until the caller's timeout.
+        Only a 503 is retried: any other error fails right away instead of
+        polling until the caller's timeout.
         """
         response = self.int_check_consistency([evc_id], outcome="inconsistent")
         if response.status_code == 503:

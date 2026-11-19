@@ -416,6 +416,135 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert response.status_code == 200, response.text
         assert response.json() == {}, response.text
 
+    def test_170_disable_right_after_enable_leaves_no_int_flows(self):
+        """Disabling INT right after the enable returns removes all the INT
+        flows it installed.
+
+        The enable used to return with its INT flows only queued to
+        flow_manager, so a disable sent right after could read the stored
+        flows before they were stored, and leave them behind for good. Several
+        EVCs and rounds widen that window."""
+        evc_ids = []
+        for vlan_id in range(960, 966):
+            evc_id = self.create_evc(vlan_id)
+            self.wait_evc_paths(evc_id, current=self.PRIMARY, failover=self.BACKUP)
+            evc_ids.append(evc_id)
+
+        for _ in range(5):
+            response = self.int_enable(evc_ids)
+            assert response.status_code == 201, response.text
+            response = self.int_disable(evc_ids)
+            assert response.status_code == 200, response.text
+
+            time.sleep(5)
+            for evc_id in evc_ids:
+                stored = self.get_stored_flows(
+                    self.int_cookie_prefix, evc_id, state=("installed", "pending")
+                )
+                assert not stored, f"EVC {evc_id} INT flows left stored: {stored}"
+                self.assert_no_int_flows(self.switches, evc_id)
+                self.assert_telemetry_metadata(
+                    evc_id, False, status="DOWN", status_reason=["disabled"]
+                )
+
+    def enable_switch_and_links(self, dpid):
+        """Enable a switch with its interfaces and links, which disabling it
+        disabled."""
+        response = requests.post(
+            f"{self.topo_api}/switches/{dpid}/enable", timeout=self.timeout
+        )
+        assert response.status_code == 201, response.text
+        response = requests.post(
+            f"{self.topo_api}/interfaces/switch/{dpid}/enable", timeout=self.timeout
+        )
+        assert response.status_code == 200, response.text
+        response = requests.get(f"{self.topo_api}/links/", timeout=self.timeout)
+        assert response.status_code == 200, response.text
+        for link_id, link in response.json()["links"].items():
+            switches = {link["endpoint_a"]["switch"], link["endpoint_b"]["switch"]}
+            if dpid in switches and not link["enabled"]:
+                response = requests.post(
+                    f"{self.topo_api}/links/{link_id}/enable", timeout=self.timeout
+                )
+                assert response.status_code == 201, response.text
+
+    def test_172_int_flows_send_failure_sets_failed_status_and_recovers(self):
+        """INT flows that flow_manager rejects leave INT enabled DOWN with
+        ``flows_install_failed`` on every EVC in the request, reported
+        inconsistent by the consistency check. An EVC is redeployed when it
+        resumes, else the consistency check ``fix`` redeploys it.
+
+        A static EVC that loses its only path keeps it installed (mef_eline
+        EP041), so with its transit switch s5 disabled its mef_eline flows
+        stay stored there, and flow_manager rejects the whole bulk INT install,
+        which also carries the flows of a static EVC on ``PRIMARY``, since a
+        switch in it is disabled."""
+        dpid_s5 = "00:00:00:00:00:00:00:05"
+
+        def static_path(path):
+            return [
+                {"endpoint_a": {"id": link[0]}, "endpoint_b": {"id": link[1]}}
+                for link in path
+            ]
+
+        resuming_id = self.create_evc(
+            972, dynamic_backup_path=False, primary_path=static_path(self.BACKUP)
+        )
+        self.wait_evc_paths(resuming_id, current=self.BACKUP)
+        steady_id = self.create_evc(
+            973, dynamic_backup_path=False, primary_path=static_path(self.PRIMARY)
+        )
+        self.wait_evc_paths(steady_id, current=self.PRIMARY)
+        evc_ids = [resuming_id, steady_id]
+
+        try:
+            response = requests.post(
+                f"{self.topo_api}/switches/{dpid_s5}/disable", timeout=self.timeout
+            )
+            assert response.status_code == 201, response.text
+            self.wait_evc_active(resuming_id, active=False)
+            assert self.get_stored_flows(self.mef_cookie_prefix, resuming_id)
+
+            response = self.int_enable(evc_ids)
+            assert response.status_code == 500, response.text
+            assert "is disabled" in response.text, response.text
+            response = self.int_check_consistency(evc_ids)
+            assert response.status_code == 200, response.text
+            results = response.json()
+            for evc_id in evc_ids:
+                self.assert_telemetry_metadata(
+                    evc_id, True, status="DOWN", status_reason=["flows_install_failed"]
+                )
+                stored = self.get_stored_flows(
+                    self.int_cookie_prefix, evc_id, state=("installed", "pending")
+                )
+                assert not stored, f"EVC {evc_id} INT flows stored: {stored}"
+                assert results[evc_id]["outcome"] == "inconsistent", results
+                assert results[evc_id]["status_reason"] == [
+                    "flows_install_failed"
+                ], results
+        finally:
+            self.enable_switch_and_links(dpid_s5)
+
+        self.wait_evc_active(resuming_id)
+        self.wait_evc_paths(resuming_id, current=self.BACKUP)
+        self.assert_telemetry_metadata(
+            resuming_id, True, status="UP", status_reason=[], timeout=90
+        )
+        self.assert_int_flows_match_expected(resuming_id, self.switches)
+        self.assert_int_consistent(resuming_id)
+
+        self.wait_telemetry_settled(steady_id)
+        self.assert_telemetry_metadata(
+            steady_id, True, status="DOWN", status_reason=["flows_install_failed"]
+        )
+        response = self.int_check_consistency([steady_id], inconsistent_action="fix")
+        assert response.status_code == 200, response.text
+        assert response.json()[steady_id]["outcome"] == "inconsistent", response.text
+        self.assert_telemetry_metadata(steady_id, True, status="UP", status_reason=[])
+        self.assert_int_flows_match_expected(steady_id, self.switches)
+        self.assert_int_consistent(steady_id)
+
     def test_200_get_evc_listing(self):
         """``GET /v1/evc`` lists only the INT-enabled EVCs, in Circuit shape."""
         int_evc = self.create_int_evc(500)
@@ -722,11 +851,9 @@ class TestE2ETelemetryINTApi(INTHelper):
 
         self.assert_no_int_flows(self.switches, evc_id)
 
-    def test_305_intra_switch_expected_flows_and_consistency_require_proxy_port(
-        self,
-    ):
-        """expected_flows and check_consistency 409 on an intra-switch EVC
-        without proxy ports."""
+    def test_305_intra_switch_expected_flows_requires_proxy_port(self):
+        """expected_flows 409 on an intra-switch EVC without proxy ports, and
+        check_consistency skips it, since it doesn't have INT enabled."""
         evc_id = self.create_intra_evc(905)
 
         response = self.int_expected_flows_response([evc_id])
@@ -734,7 +861,8 @@ class TestE2ETelemetryINTApi(INTHelper):
         assert "proxy ports" in self.error_description(response)
 
         response = self.int_check_consistency([evc_id])
-        assert response.status_code == 409, response.text
+        assert response.status_code == 200, response.text
+        assert response.json() == {}, response.text
 
     def test_310_proxy_port_enabled_true_without_metadata(self):
         """``proxy_port_enabled: true`` needs proxy ports on both UNIs."""
